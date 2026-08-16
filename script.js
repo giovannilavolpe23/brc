@@ -257,6 +257,8 @@ function checkLoginPassword() {
     input.value = "";
     input.focus();
     showSheetError("Contraseña incorrecta. Intentá de nuevo.");
+    const dots = document.getElementById("login-password-dots");
+    if (dots) dots.innerHTML = "";
     return;
   }
 
@@ -425,33 +427,31 @@ function formatDateTimeShort(isoString) {
   );
 }
 
-function openAdminImportAdd() {
-  adminImportMode = "add";
-  adminImportTargetId = null;
-  adminImportPendingPayload = null;
-  adminImportStep = "paste";
-  openSheet("admin-import");
-}
-
 // Botón general "Actualizar código": no apunta a un jugador puntual de
 // antemano, se identifica automáticamente a partir de payload.user una
 // vez que se pega y decodifica el código (ver handleAdminImportPaste).
+// Es el único punto de entrada a este sheet: el botón "+ Agregar
+// jugador" (y su variante "add" del flujo) se eliminó en v0.23.0, ya
+// que no se van a agregar jugadores nuevos desde la app — la lista de
+// participantes es siempre la fija de PARTICIPANTS.
 function openAdminImportUpdateCode() {
-  adminImportMode = "update-code";
   adminImportTargetId = null;
   adminImportPendingPayload = null;
   adminImportStep = "paste";
   openSheet("admin-import");
 }
 
-// Multi-paso dentro del mismo sheet: pegar código -> (si ya existe,
-// avisar) -> previsualizar -> confirmar. Cada paso re-renderiza el
-// contenido del sheet sin cerrarlo.
+// Multi-paso dentro del mismo sheet: pegar código -> previsualizar ->
+// confirmar. Cada paso re-renderiza el contenido del sheet sin
+// cerrarlo. El paso "duplicate" (aviso de jugador ya cargado) existía
+// solo para el flujo "+ Agregar jugador", eliminado en v0.23.0: con
+// "Actualizar código" como único punto de entrada, pegar el código de
+// un jugador ya cargado simplemente actualiza (upsert) su entrada sin
+// avisos intermedios, como siempre hizo este botón.
 function renderAdminImportSheet() {
   if (adminImportStep === "paste") {
-    const title = adminImportMode === "add" ? "Agregar jugador" : "Actualizar código";
     sheetContent.innerHTML = `
-      <h2 class="sheet-title">${title}</h2>
+      <h2 class="sheet-title">Actualizar código</h2>
       <p class="sheet-sub">Pegá acá el código que te compartieron desde "Envío de datos"</p>
       <div class="field">
         <label class="field-label" for="admin-import-textarea">Código</label>
@@ -468,33 +468,18 @@ function renderAdminImportSheet() {
     return;
   }
 
-  if (adminImportStep === "duplicate") {
-    // Solo se llega acá desde "+ Agregar jugador" cuando ese jugador ya
-    // tiene datos cargados. "Agregar" no actualiza: se avisa y se
-    // redirige a usar el botón general "Actualizar código".
-    const name = resolvePlayerName(adminImportTargetId);
-    sheetContent.innerHTML = `
-      <h2 class="sheet-title">${escapeHtml(name)} ya está cargado</h2>
-      <p class="sheet-sub">Ya habías importado datos de este jugador antes. Para actualizarlos, usá el botón "Actualizar código" en vez de "Agregar jugador".</p>
-      <button class="sheet-submit" id="sheet-submit-btn" type="button">Entendido</button>
-    `;
-    document.getElementById("sheet-submit-btn").addEventListener("click", closeSheet);
-    return;
-  }
-
   if (adminImportStep === "preview") {
     const payload = adminImportPendingPayload;
     const name = resolvePlayerName(payload.user);
     const expenseCount = payload.data.movements.filter((m) => m.type === "expense").length;
     const incomeCount = payload.data.movements.filter((m) => m.type === "income").length;
     const dailyCount = Object.keys(payload.data.dailyEntries).length;
-    const actionLabel = adminImportMode === "add" ? "Confirmar importación" : "Confirmar actualización";
 
     // El saldo inicial NUNCA se muestra acá (es privado dentro de
     // /admin): se guarda igual en adminPlayers para cálculos futuros
     // ("El más rata"), pero no aparece en esta previsualización.
     sheetContent.innerHTML = `
-      <h2 class="sheet-title">${actionLabel}</h2>
+      <h2 class="sheet-title">Confirmar actualización</h2>
       <p class="sheet-sub">Revisá que sea el jugador correcto antes de guardar</p>
       <div class="admin-preview-card">
         <div class="admin-preview-row"><span>Jugador</span><span>${escapeHtml(name)}</span></div>
@@ -502,7 +487,7 @@ function renderAdminImportSheet() {
         <div class="admin-preview-row"><span>Ganancias</span><span>${incomeCount}</span></div>
         <div class="admin-preview-row"><span>Registros diarios</span><span>${dailyCount}</span></div>
       </div>
-      <button class="sheet-submit" id="sheet-submit-btn" type="button">${actionLabel}</button>
+      <button class="sheet-submit" id="sheet-submit-btn" type="button">Confirmar actualización</button>
       <button class="sheet-cancel-link" id="sheet-cancel-btn" type="button">Cancelar</button>
     `;
     document.getElementById("sheet-submit-btn").addEventListener("click", confirmAdminImport);
@@ -534,14 +519,6 @@ function handleAdminImportPaste() {
 
   adminImportPendingPayload = payload;
   adminImportTargetId = payload.user;
-
-  const existingPlayers = getAdminPlayers();
-  if (adminImportMode === "add" && existingPlayers[payload.user]) {
-    adminImportStep = "duplicate";
-    renderAdminImportSheet();
-    return;
-  }
-
   adminImportStep = "preview";
   renderAdminImportSheet();
 }
@@ -572,7 +549,6 @@ function confirmAdminImport() {
 
   sheetOverlay.classList.remove("visible");
   currentSheetType = null;
-  adminImportMode = null;
   adminImportTargetId = null;
   adminImportPendingPayload = null;
   adminImportStep = null;
@@ -969,6 +945,20 @@ const CATEGORY_ICONS = {
 // migrateExpenseCategories) para no romper datos existentes.
 const REMOVED_CATEGORY_FALLBACK = { Transporte: "Otros" };
 
+// Metadata para la tarjeta de ranking por jugador de cada categoría
+// de gasto (título humorístico exacto, ícono y color de acento).
+// Usada tanto por DÍA como por TOTAL; una categoría solo genera
+// tarjeta si tiene al menos un gasto cargado en el período mostrado.
+const CATEGORY_RANKING_META = {
+  Alcohol: { title: "Quién se la patinó más en alcohol", icon: "🍷", accent: "#c77dff" },
+  Comida: { title: "Quién es el más gordito de mierda", icon: "🍔", accent: "#ffd166" },
+  Chocolates: { title: "Quién es el más dulce", icon: "🍫", accent: "#ff5470" },
+  Boliche: { title: "Quién tuvo más ganas de quebrar", icon: "🪩", accent: "#ff5470" },
+  Actividades: { title: "Quién gastó más en actividades", icon: "🎿", accent: "#4cc9f0" },
+  Bebida: { title: "Quién compró más bebidas s/a", icon: "🥤", accent: "#4cc9f0" },
+  Otros: { title: "Quién gastó más en otros", icon: "📦", accent: "#ff9f1c" },
+};
+
 function genId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -1148,14 +1138,14 @@ function renderMoneyHistory(movements) {
 
 const sheetOverlay = document.getElementById("sheet-overlay");
 const sheetContent = document.getElementById("sheet-content");
+const sheetEl = document.getElementById("sheet");
 let currentSheetType = null;
 let selectedCategory = null;
 let editingMovementId = null;
 let activeMovementId = null;
-let adminImportMode = null; // "add" | "update-code"
 let adminImportTargetId = null; // id del jugador; se completa recién al decodificar el código pegado
 let adminImportPendingPayload = null; // payload ya validado, pendiente de confirmar
-let adminImportStep = null; // "paste" | "duplicate" | "preview"
+let adminImportStep = null; // "paste" | "preview"
 
 function findMovement(money, id) {
   return money.movements.find((m) => m.id === id) || null;
@@ -1176,6 +1166,13 @@ function openSheet(type, movement) {
   currentSheetType = type;
   selectedCategory = movement && movement.category ? movement.category : null;
   editingMovementId = movement ? movement.id : null;
+  // Estética "Bariloche" (frost) para el menú de contraseña del login
+  // y para cualquier sheet abierto desde una pantalla con la clase
+  // `.admin-frost` (Admin, Previas de admin, Estadísticas, Money,
+  // Previas de Jere y Envío de datos). El resto de los sheets de
+  // Home/Daily conserva el tema oscuro original.
+  const activeFrostScreen = document.querySelector(".screen.active.admin-frost");
+  sheetEl.classList.toggle("sheet-frost", type === "login-password" || !!activeFrostScreen);
 
   const user = getCurrentUser();
   const data = user ? ensureMoneyData(user.id) : null;
@@ -1269,7 +1266,10 @@ function openSheet(type, movement) {
       <p class="sheet-sub">Ingresá tu contraseña para entrar</p>
       <div class="field">
         <label class="field-label" for="input-login-password">Contraseña</label>
-        <input id="input-login-password" class="field-input" type="password" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="••">
+        <div class="password-dots-box">
+          <input id="input-login-password" class="field-input" type="password" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <div class="password-dots" id="login-password-dots" aria-hidden="true"></div>
+        </div>
       </div>
       <p class="sheet-error" id="sheet-error"></p>
       <button class="sheet-submit" id="sheet-submit-btn" type="button">Entrar</button>
@@ -1278,7 +1278,13 @@ function openSheet(type, movement) {
     document.getElementById("sheet-submit-btn").addEventListener("click", submitSheet);
     document.getElementById("sheet-cancel-btn").addEventListener("click", closeSheet);
     const pwInput = document.getElementById("input-login-password");
-    pwInput.addEventListener("input", () => pwInput.classList.remove("error"));
+    const pwDots = document.getElementById("login-password-dots");
+    // Indicadores dinámicos: un punto por dígito ya escrito, sin
+    // mostrar en ningún momento la longitud requerida.
+    pwInput.addEventListener("input", () => {
+      pwInput.classList.remove("error");
+      pwDots.innerHTML = "<span class=\"dot\"></span>".repeat(pwInput.value.length);
+    });
     pwInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") submitSheet();
     });
@@ -1388,7 +1394,6 @@ function closeSheet() {
   }
   editingMovementId = null;
   activeMovementId = null;
-  adminImportMode = null;
   adminImportTargetId = null;
   adminImportPendingPayload = null;
   adminImportStep = null;
@@ -2585,6 +2590,25 @@ function dayRankingDineroPorCategoria(dateKey) {
   return sortRankingDesc(rows);
 }
 
+// Ranking de jugadores dentro de una categoría puntual (no de
+// categorías entre sí): cuánto gastó cada jugador en `category`
+// sobre el conjunto de gastos ya calculado (`expenses`). Reutilizado
+// por DÍA y TOTAL, cada uno pasándole su propio `dayExpenses` /
+// `totalExpenses`.
+function rankingPorCategoriaJugador(expenses, category) {
+  const totals = {};
+  expenses.forEach((e) => {
+    if (e.category !== category) return;
+    totals[e.playerName] = (totals[e.playerName] || 0) + e.amount;
+  });
+  const rows = Object.keys(totals).map((name) => ({ name, value: totals[name], display: formatMoney(totals[name]) }));
+  return sortRankingDesc(rows);
+}
+
+function dayRankingPorCategoriaJugador(dateKey, category) {
+  return rankingPorCategoriaJugador(dayExpenses(dateKey), category);
+}
+
 function dayRankingPrevias(dateKey) {
   const previas = getAdminPrevias().filter((p) => isoToTripDayKey(p.createdAt) === dateKey);
   const counts = {};
@@ -2750,6 +2774,10 @@ function totalRankingDineroPorCategoria(closedDays) {
   return sortRankingDesc(rows);
 }
 
+function totalRankingPorCategoriaJugador(closedDays, category) {
+  return rankingPorCategoriaJugador(totalExpenses(closedDays), category);
+}
+
 function totalRankingPrevias(closedDays) {
   const set = new Set(closedDays);
   const previas = getAdminPrevias().filter((p) => set.has(isoToTripDayKey(p.createdAt)));
@@ -2872,6 +2900,20 @@ function renderRankingCard(icon, accent, title, caption, rows, emptyMessage) {
   `;
 }
 
+// Genera una tarjeta de ranking por cada categoría de gasto que
+// tenga al menos un jugador con gasto registrado en el período
+// mostrado (`rankingFn(category)` ya viene resuelto para DÍA o
+// TOTAL). Las categorías sin ningún gasto simplemente no generan
+// tarjeta (no se muestra vacía).
+function renderCategoryRankingCards(rankingFn) {
+  return EXPENSE_CATEGORIES.map((category) => {
+    const rows = rankingFn(category);
+    if (!rows.length) return "";
+    const meta = CATEGORY_RANKING_META[category];
+    return renderRankingCard(meta.icon, meta.accent, meta.title, `Gasto en ${category}`, rows);
+  }).join("");
+}
+
 // Dispara la animación de crecimiento de las barras recién
 // insertadas dentro de `root` (arrancan en 0% por CSS/atributo
 // `data-pct` y acá se les asigna el ancho final para que el
@@ -2900,6 +2942,7 @@ function renderDayStatsReal(dateKey) {
       ${renderRankingCard("🕺", "#ff5470", "Resistencia en el boliche", "Tiempo adentro", dayRankingBoliche(dateKey))}
       ${renderRankingCard("💸", "#ff9f1c", "El más gastador", "Gasto total del día", dayRankingDineroTotal(dateKey))}
       ${renderRankingCard("🧾", "#ff9f1c", "¿En qué se fue la plata?", "Gasto por categoría", dayRankingDineroPorCategoria(dateKey))}
+      ${renderCategoryRankingCards((category) => dayRankingPorCategoriaJugador(dateKey, category))}
       ${renderRankingCard("🍻", "#c77dff", "Rey/reina de las previas", "Previas del día", dayRankingPrevias(dateKey))}
     </div>
   `;
@@ -2916,6 +2959,7 @@ function renderTotalStatsReal(closedDays) {
       ${renderRankingCard("🕺", "#ff5470", "Resistencia en el boliche", "Tiempo adentro acumulado", totalRankingBoliche(closedDays), msg)}
       ${renderRankingCard("💸", "#ff9f1c", "El más gastador", "Gasto total del viaje", totalRankingDineroTotal(closedDays), msg)}
       ${renderRankingCard("🧾", "#ff9f1c", "¿En qué se fue la plata?", "Gasto por categoría", totalRankingDineroPorCategoria(closedDays), msg)}
+      ${renderCategoryRankingCards((category) => totalRankingPorCategoriaJugador(closedDays, category))}
       ${renderRankingCard("🍻", "#c77dff", "Rey/reina de las previas", "Previas de todo el viaje", totalRankingPrevias(closedDays), msg)}
     </div>
   `;
@@ -3052,11 +3096,27 @@ const screens = {
 
 const bottomNav = document.getElementById("bottom-nav");
 const navAdminBtn = document.getElementById("nav-admin");
+const globalSnowfall = document.getElementById("global-snowfall");
+
+/* Reubica el ÚNICO nodo de nieve global como primer hijo de la
+   pantalla que se está por mostrar (ver ".global-snowfall" en
+   styles.css para el porqué). No crea ni clona nada: mueve el
+   mismo elemento del DOM de una pantalla a otra. No hace nada si
+   el nodo ya está ahí (evita un reflow innecesario al navegar
+   entre pantallas que no cambian, o si el markup no está
+   presente por algún motivo). */
+function placeGlobalSnowfall(screenEl) {
+  if (!screenEl || !globalSnowfall) return;
+  if (screenEl.firstChild !== globalSnowfall) {
+    screenEl.insertBefore(globalSnowfall, screenEl.firstChild);
+  }
+}
 
 function showScreen(name) {
   Object.entries(screens).forEach(([key, el]) => {
     el.classList.toggle("active", key === name);
   });
+  placeGlobalSnowfall(screens[name]);
   window.scrollTo(0, 0);
 }
 
@@ -3124,6 +3184,23 @@ function navigate(route) {
 
   navAdminBtn.hidden = !user.isAdmin;
   bottomNav.classList.add("visible");
+  // Nav frost (celeste/blanco) en Home, Dinero, Registro diario, Envío
+  // de datos, Previas (de admin o de Jere) y en toda la sección /admin
+  // (Admin y Estadísticas comparten la estética "Bariloche" vía la
+  // clase `.admin-frost`). Desde v0.23.0 Registro diario también usa
+  // esta variante (antes era la única pantalla logueada que conservaba
+  // la barra oscura original).
+  bottomNav.classList.toggle(
+    "bottom-nav-frost",
+    route === "home" ||
+      route === "admin" ||
+      route === "previas" ||
+      route === "stats" ||
+      route === "money" ||
+      route === "previas-jere" ||
+      route === "export" ||
+      route === "daily"
+  );
   // Dinero, Registro diario, Envío de datos y Previas (sección de
   // Jere) son parte de Home: mantenemos ese tab activo.
   // Previas de /admin es parte de Admin: mantenemos ese tab activo.
@@ -3163,10 +3240,6 @@ document.getElementById("btn-admin-back").addEventListener("click", () => {
 
 document.getElementById("btn-admin-update-code").addEventListener("click", () => {
   openAdminImportUpdateCode();
-});
-
-document.getElementById("btn-admin-add-player").addEventListener("click", () => {
-  openAdminImportAdd();
 });
 
 document.getElementById("card-admin-previas").addEventListener("click", () => {
@@ -3232,11 +3305,86 @@ window.addEventListener("hashchange", () => {
 });
 
 /* -----------------------------------------------------------
+   LOGIN / HOME — fondo interactivo con el scroll (solo decorativo)
+   -----------------------------------------------------------
+   Mueve las capas de fondo compartidas (montañas, glow, nieve,
+   título "BARILOCHE") en función del scroll, para dar sensación de
+   profundidad. Reutilizado tal cual entre `#screen-select` (login)
+   y `#screen-home`, que comparten exactamente el mismo markup de
+   fondo (`.login-bg` y sus capas). No toca el contenido de ninguna
+   de las dos pantallas, no lee/escribe `localStorage`, no participa
+   en la lógica de login/navegación: solo aplica `transform` inline
+   sobre elementos puramente decorativos, buscados siempre dentro de
+   la pantalla activa (nunca con un `document.querySelector` global,
+   para no mezclar las capas de una pantalla con las de la otra
+   cuando ambas existen en el DOM).
+
+   Rendimiento: un solo listener de `scroll` (passive) + uno de
+   `resize`, throttleados con requestAnimationFrame (patrón
+   "ticking flag" para no encolar más de un cálculo por frame); el
+   suavizado del movimiento lo hace la `transition: transform` ya
+   declarada en CSS para esas capas, así no hace falta interpolar a
+   mano en JS. El desplazamiento se calcula solo mientras
+   `#screen-select` o `#screen-home` está en pantalla (se corta
+   apenas se navega a otra sección) y se limita a un rango acotado
+   (`MAX_SCROLL_PX`) para que el efecto no se dispare con scrolls
+   largos.
+
+   Fallback: si el navegador no soporta requestAnimationFrame, o si
+   la persona tiene activado "reducir movimiento"
+   (`prefers-reduced-motion: reduce`), esta función no agrega
+   ningún listener y el fondo queda tal cual — el mismo fondo
+   blanco/celeste con nieve estático/animado normal, sin parallax.
+   ----------------------------------------------------------- */
+
+const LOGIN_PARALLAX_MAX_SCROLL = 480;
+
+function updateLoginParallax() {
+  loginParallaxTicking = false;
+  const screenEl = document.querySelector("#screen-select.active, #screen-home.active");
+  if (!screenEl) return;
+
+  const y = Math.min(window.scrollY || window.pageYOffset || 0, LOGIN_PARALLAX_MAX_SCROLL);
+  const mountains = screenEl.querySelector(".login-mountains");
+  const glow = screenEl.querySelector(".login-glow");
+  const snow = screenEl.querySelector(".login-snowfall");
+  const titleBg = screenEl.querySelector(".login-title-bg");
+
+  if (mountains) mountains.style.transform = `translate3d(0, ${(-y * 0.1).toFixed(2)}px, 0)`;
+  if (glow) glow.style.transform = `translate3d(0, ${(y * 0.05).toFixed(2)}px, 0) scale(${(1 + y * 0.0004).toFixed(3)})`;
+  if (snow) snow.style.transform = `translate3d(0, ${(y * 0.18).toFixed(2)}px, 0)`;
+  // El título "BARILOCHE" queda detrás de las montañas (más "lejos"),
+  // así que se mueve más despacio que ellas para reforzar la
+  // sensación de profundidad entre las dos capas.
+  if (titleBg) titleBg.style.transform = `translate3d(0, ${(-y * 0.05).toFixed(2)}px, 0)`;
+}
+
+let loginParallaxTicking = false;
+function onLoginParallaxScroll() {
+  if (loginParallaxTicking) return;
+  loginParallaxTicking = true;
+  requestAnimationFrame(updateLoginParallax);
+}
+
+function initLoginParallax() {
+  const reduceMotion =
+    typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduceMotion || typeof window.requestAnimationFrame !== "function") {
+    // Fallback: sin parallax, el fondo queda estático (mismo
+    // resultado visual que antes de este cambio).
+    return;
+  }
+  window.addEventListener("scroll", onLoginParallaxScroll, { passive: true });
+  window.addEventListener("resize", onLoginParallaxScroll, { passive: true });
+}
+
+/* -----------------------------------------------------------
    Init
    ----------------------------------------------------------- */
 
 function init() {
   renderParticipantGrid();
+  initLoginParallax();
 
   const user = getCurrentUser();
   if (user) {

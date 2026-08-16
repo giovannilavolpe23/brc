@@ -2,7 +2,863 @@
 
 ## Versión
 
-v0.16.2 — Fix visual: fecha de "Registrando el día de ayer" no se actualizaba con `day()`
+v0.25.0 — Nieve global: efecto ambiental en toda la web (no solo login/Home)
+
+## v0.25.0 — Nieve global en toda la web
+
+La nieve (misma clase `.snowflake`, misma animación
+`@keyframes login-snow-fall` ya usada en LOGIN/Home) ahora es un
+elemento visual permanente en **todas** las secciones de la app, no
+solo en login/Home: Dinero, Registro diario, Envío de datos,
+/admin, Previas de admin, Estadísticas y Previas de Jere también la
+tienen.
+
+- **Un único componente, no duplicado**: `index.html` define un solo
+  contenedor `#global-snowfall` (16 `<span class="snowflake">`) que
+  arranca como hijo de `#app`. `script.js` lo reubica como **primer
+  hijo de la pantalla activa** dentro de `showScreen()` — el único
+  choke point por el que ya pasaba toda navegación — con
+  `insertBefore`, moviendo el mismo nodo de pantalla en pantalla en
+  vez de clonar markup en cada sección (`placeGlobalSnowfall()`).
+  Verificado con Playwright: en cada una de las 9 pantallas
+  (`select`, `home`, `money`, `daily`, `export`, `admin`, `previas`,
+  `stats`, `previas-jere`) el nodo aparece como primer hijo de esa
+  pantalla y solo existe **un** `#global-snowfall` en todo el
+  documento.
+- **Por qué reubicar en vez de un overlay fijo fuera de las
+  pantallas**: la mayoría de las pantallas (todas, hoy — tema
+  "Bariloche" blanco/celeste) pintan su propio fondo con degradé
+  opaco directamente en `.screen` (`.screen.admin-frost`, ver
+  SPEC.md → Diseño). Un overlay puesto antes de todas las
+  `.screen` en el DOM habría quedado tapado por ese fondo opaco.
+  Insertar la nieve como primer hijo DENTRO de la pantalla activa la
+  deja por encima del fondo propio de esa pantalla pero por debajo
+  de absolutamente todo el contenido real (headers, cards, botones,
+  inputs, textos), que sigue viniendo después en el DOM.
+- **Cubre toda la altura, no solo arriba**: `position: fixed;
+  height: 100dvh` — se mantiene ocupando el viewport completo en
+  cualquier scroll. Verificado con Playwright: el
+  `getBoundingClientRect()` del contenedor es idéntico antes y
+  después de un `window.scrollTo(0, 300)`, o sea sigue "cayendo" sin
+  interrupciones mientras se scrollea, exactamente como se pidió.
+- **Siempre detrás de todo, nunca bloquea clicks**: al ser primer
+  hijo de la pantalla activa, cualquier contenido real de esa
+  pantalla pinta por encima automáticamente (sin necesitar
+  `z-index` en cada componente). El bottom nav (`z-index: 20`) y los
+  bottom sheets (`z-index: 60`) no son hijos de `.screen` — son
+  hermanos con su propio `z-index` ya existente — así que quedan
+  intactos y por encima sin ningún cambio. `pointer-events: none`
+  en el contenedor asegura que nunca intercepte toques. Verificado
+  con Playwright: `elementFromPoint` sobre el centro de una card
+  (incluso después de hacer scroll hasta ella) nunca resuelve a
+  `.snowflake` ni a `#global-snowfall`.
+- **Independiente del parallax de LOGIN/Home**: `.login-snowfall`
+  (con su parallax atado al scroll, `updateLoginParallax()`) sigue
+  existiendo tal cual, sin tocar una línea — es una capa totalmente
+  aparte de la nueva `#global-snowfall`, que no tiene parallax ni
+  reacciona al scroll. En login/Home conviven ambas (la nieve del
+  header con parallax + la nieve ambiental global), sin que se vea
+  saturado.
+- **Sutil, no satura la pantalla**: 16 copos en total para todo el
+  alto de la página (antes eran 12, pero confinados solo a la franja
+  del header en login/Home), tamaños/velocidades variados,
+  `prefers-reduced-motion` respetado (la regla ya existente para
+  `.snowflake` cubre también estos copos sin cambios adicionales).
+- **Rendimiento en celulares**: la caída sigue siendo pura animación
+  CSS (sin JS por frame, igual que antes); lo único que agrega JS es
+  un `insertBefore` puntual en cada navegación (mover un nodo ya
+  existente, no crear/destruir elementos), sin listeners nuevos de
+  scroll ni de resize.
+- No se tocó ningún dato, cálculo, `localStorage` ni ruta/navegación
+  existente: cambio puramente visual. Verificado con Playwright
+  corriendo de nuevo toda la suite de pruebas de Previas (registro,
+  importación por código, permisos de Jere) sin ninguna regresión.
+- Verificado sin overflow horizontal ni errores de consola en las 9
+  pantallas, en login/registro/importación de previas completos, y
+  con capturas de pantalla en login, Home, Registro diario y
+  /admin confirmando la nieve visible pero discreta detrás del
+  contenido en las cuatro.
+
+## v0.24.0 — Registro diario suma la estética "Bariloche" (blanco/celeste)
+
+Cambio puramente visual, siguiendo exactamente el mismo patrón ya
+usado para Dinero (v0.20.2), Previas de Jere (v0.21.0) y Envío de
+datos (v0.22.0): no se tocó ningún cálculo, dato, horario ni
+`localStorage` de la sección Registro diario (`renderDailyScreen`,
+`computeDailyDerived`, `getYesterdayKey`, `formatDailyDate`,
+`renderTimeScroll`, `defaultDailyEntry`, `ensureDailyLogData`, etc.).
+
+### Alcance
+
+`#screen-daily` pasa a compartir la paleta blanco/celeste fría de
+LOGIN/Home/Dinero/Previas/Admin/Envío de datos, sumando la clase
+`admin-frost` a su `<section>` en `index.html` (mismo mecanismo que
+el resto de las pantallas con esta estética). Con este cambio ya no
+queda ninguna pantalla logueada con el tema oscuro original: Registro
+diario era la última.
+
+### Cómo se hizo (mínimo código, máxima reutilización)
+
+- `renderDailyScreen()` no cambió: sigue armando el mismo markup
+  (`.daily-date-banner`, `.daily-section`, `.toggle-chip`,
+  `.chip`/`.chip-group`, `.picker-block`, `.field-label`,
+  `.time-scroll`/`.time-option`, `.add-nap-btn`, `.daily-computed`,
+  `.daily-total-sleep`, `.sheet-cancel-link`, `.sheet-submit`). Como
+  todas esas clases ya estaban construidas sobre las variables de
+  color compartidas (`--surface`, `--surface-2`, `--border`,
+  `--text*`, redefinidas dentro de `.screen.admin-frost` desde
+  v0.20.0), heredan el nuevo look en cascada sin reescribir ninguna
+  clase.
+- `.daily-hero` ya reutilizaba `.admin-hero`, así que la cabecera
+  hereda tal cual el mismo glow celeste, botón volver, badge y
+  eyebrow/hero-name que ya usan Admin/Dinero/Export.
+- Se agregaron reglas nuevas en `styles.css`, todas scoped a
+  `.screen.admin-frost`:
+  - mismo tratamiento "vidrio" (`backdrop-filter: blur(10px)` +
+    sombra celeste) que ya usan `.donut-card`/`.money-prompt`/
+    `.history-row`/`.daily-section` (Envío de datos), aplicado también
+    a `.daily-date-banner` y `.daily-total-sleep`;
+  - recoloreo a celeste (`#2f8fd1`) o rosa de contraste
+    (`#d6284a`) de los pocos elementos que usaban `--accent-2` (cian
+    `#4cc9f0`, pensado para fondo oscuro y con bajo contraste sobre
+    blanco) o rosa "a fuego" fijo: `.time-option.selected` (hora
+    elegida en cada scroll horizontal), `.toggle-chip.selected` ("No
+    dormí"/"No fui al boliche" activados), `.add-nap-btn` ("+
+    Registrar siesta"), `.daily-computed`/`.daily-total-sleep strong`
+    (duración de sueño/siesta/boliche calculada) y `.daily-save-msg`
+    (confirmación al guardar).
+  - `.chip.selected` ya tenía su override celeste desde v0.20.0 (se
+    reutiliza tal cual para "quinta comida"/"baño").
+- `openSheet()` no aplica ningún sheet en Registro diario (no abre
+  bottom sheets propios: todo se guarda con el botón "Guardar
+  registro" en la misma pantalla), así que no hizo falta ningún
+  cambio ahí.
+- `navigate()` (`script.js`) suma `route === "daily"` a la condición
+  que togglea `bottom-nav-frost`, para que la barra inferior se vea
+  celeste/blanca también dentro de `#/daily` (antes era la única
+  pantalla logueada donde la barra se veía oscura).
+
+### Verificación
+
+Revisado a mano contra el código existente: `node --check script.js`
+sin errores, llaves de `styles.css` balanceadas, `renderDailyScreen` y
+el resto del flujo de Registro diario (horas de dormir/despertar,
+siesta opcional, quinta comida, baño, hora de salida del boliche,
+cálculos derivados, guardado) sin cambios de comportamiento — solo la
+clase `admin-frost` agregada a `<section id="screen-daily">` y las
+reglas de color/vidrio nuevas descriptas arriba. Ningún registro
+existente en `dailyLog.entries` cambió de valor o formato.
+
+## v0.23.0 — Se elimina el botón "+ Agregar jugador" y su flujo asociado
+
+Simplificación de la sección "Jugadores" en /admin: no se van a
+agregar jugadores nuevos desde la app (la lista de participantes
+siempre es la fija de `PARTICIPANTS`), así que el botón "+ Agregar
+jugador" y toda su interfaz asociada dejan de existir. "Actualizar
+código" queda como único punto de entrada para importar/actualizar
+los datos de un jugador, sin cambios en su comportamiento.
+
+### Qué se eliminó
+
+- El botón `#btn-admin-add-player` ("+ Agregar jugador") en
+  `index.html`, y su listener en `script.js`.
+- La función `openAdminImportAdd()`.
+- El paso `"duplicate"` de `renderAdminImportSheet()` (el bottom
+  sheet "`<Nombre>` ya está cargado, usá 'Actualizar código'"), que
+  solo existía para el flujo "+ Agregar jugador".
+- La variable de módulo `adminImportMode` (`"add"` | `"update-code"`)
+  y todas sus ramas condicionales: como ahora solo existe un flujo,
+  el título del sheet ("Actualizar código"), el botón de confirmación
+  ("Confirmar actualización") y el chequeo de duplicado en
+  `handleAdminImportPaste()` quedaron hardcodeados a ese único
+  comportamiento en vez de decidirse por un modo.
+
+### Qué NO cambió
+
+- **"Actualizar código"** (`openAdminImportUpdateCode()`) sigue
+  funcionando exactamente igual: pegar código → decodificar
+  (`decodeExportCode`) → validar (`validateImportPayload`) →
+  identificar el jugador contra `PARTICIPANTS` → previsualizar →
+  "Confirmar actualización" → `confirmAdminImport()` escribe en
+  `adminPlayers` (upsert: crea si no existía, actualiza si ya
+  existía). Mismo comportamiento de siempre para un jugador nuevo
+  (antes solo alcanzable con "+ Agregar jugador", ahora también con
+  "Actualizar código", ya que ambos flujos hacían upsert en la
+  práctica).
+- `adminPlayers`, `PARTICIPANTS`, `decodeExportCode`,
+  `validateImportPayload`, `resolvePlayerName`, `confirmAdminImport`,
+  el saldo inicial privado, la lista única de jugadores
+  (`renderAdmin()`) y el resto de /admin (Previas, Estadísticas): sin
+  ningún cambio.
+- Ninguna otra sección (Login, Home, Dinero, Registro diario, Envío
+  de datos, Previas de admin/Jere, Estadísticas): sin cambios de
+  lógica, datos, `localStorage` ni estilos.
+
+### Verificación
+
+`node --check script.js` sin errores; llaves de `styles.css`
+balanceadas (no se tocó `styles.css`: `.admin-add-btn` sigue
+compartida con "Introducir código de previa"/"+ Agregar producto" sin
+cambios). Revisado a mano que no queda ninguna referencia a
+`btn-admin-add-player`, `openAdminImportAdd` ni `adminImportMode` en
+`script.js`/`index.html`.
+
+## v0.22.0 — Envío de datos con la estética "Bariloche" blanco/celeste
+
+## v0.22.0 — Envío de datos suma la estética "Bariloche" (blanco/celeste)
+
+Cambio puramente visual, siguiendo exactamente el mismo patrón ya
+usado para Dinero (v0.20.2) y Previas de Jere (v0.21.0): no se tocó
+ningún cálculo, dato, código de exportación, formato ni `localStorage`
+de la sección Envío de datos (`generateExportCode`, `copyExportCode`,
+`fallbackCopy`, `buildWhatsappUrl`, etc.).
+
+### Alcance
+
+`#screen-export` pasa a compartir la paleta blanco/celeste fría de
+LOGIN/Home/Dinero/Previas/Admin, sumando la clase `admin-frost` a su
+`<section>` en `index.html` (mismo mecanismo que el resto de las
+pantallas con esta estética). Con este cambio, Registro diario queda
+como la única pantalla logueada que conserva el tema oscuro original.
+
+### Cómo se hizo (mínimo código, máxima reutilización)
+
+- `renderExportScreen()` no cambió: sigue armando el mismo markup
+  (`.daily-section`, `.export-hint`, `.export-code-box`,
+  `.sheet-cancel-link`, `.daily-save-msg`,
+  `.sheet-submit.whatsapp-btn`). Como todas esas clases ya estaban
+  construidas sobre las variables de color compartidas (`--surface`,
+  `--surface-2`, `--border`, `--text*`, `--accent`, redefinidas
+  dentro de `.screen.admin-frost` desde v0.20.0), heredan el nuevo
+  look en cascada sin reescribir ninguna clase.
+- `.export-hero` ya reutilizaba `.admin-hero`, así que la cabecera
+  hereda tal cual el mismo glow celeste, botón volver, badge y
+  eyebrow/hero-name que ya usan Admin/Dinero/Previas: cero CSS nuevo
+  necesario para el header.
+- Se agregó una única regla nueva en `styles.css`, scoped a
+  `.screen.admin-frost .daily-section`, para sumar el mismo
+  tratamiento "vidrio" (`backdrop-filter: blur(10px)` + sombra
+  celeste) que ya usan `.donut-card`/`.money-prompt`/`.history-row`
+  en Dinero, así la tarjeta que contiene el código se lee como parte
+  del mismo bloque visual. Como está scoped a `admin-frost`, no
+  afecta la misma clase `.daily-section` reutilizada por Registro
+  diario (que no lleva esa clase y sigue con el tema oscuro).
+- `.whatsapp-btn` conserva su verde de marca (`#25d366`) sin ningún
+  cambio, igual en tema oscuro y en tema claro — es un color de marca
+  externa, no parte de la paleta interna de la app.
+- `openSheet()` ya aplicaba `sheet-frost` a cualquier sheet abierto
+  desde una pantalla `admin-frost` (lógica de v0.20.0, sin tocar);
+  Envío de datos no abre ningún sheet propio (el código se muestra
+  directo en `.home-content`), así que no hizo falta ningún cambio
+  ahí.
+- `navigate()` (`script.js`) suma `route === "export"` a la condición
+  que togglea `bottom-nav-frost`, para que la barra inferior se vea
+  celeste/blanca también dentro de `#/export` (antes se veía oscura
+  ahí, aunque el resto de la pantalla ya fuera celeste).
+
+### Verificación
+
+Revisado a mano contra el código existente: `node --check script.js`
+sin errores, llaves de `styles.css` balanceadas, `renderExportScreen`
+y el resto del flujo de Envío de datos (generar código, copiar,
+enviar por WhatsApp) sin cambios de comportamiento — solo la clase
+`admin-frost` agregada a `<section id="screen-export">` y la nueva
+regla de vidrio en `.daily-section`. Registro diario confirmado sin
+cambios (única pantalla logueada que sigue con el tema oscuro
+original).
+
+## v0.21.0 — Previas de Jere con la estética "Bariloche" + navbar con más blur
+
+## v0.21.0 — Previas de Jere ("Bariloche") + glassmorphism reforzado en la navbar
+
+Dos cambios puramente visuales, sin tocar ningún cálculo, dato,
+permiso ni `localStorage`.
+
+### 1. Previas de Jere suma la estética "Bariloche" (blanco/celeste)
+
+`#screen-previas-jere` (`#/previas-jere`) pasa a compartir la paleta
+blanco/celeste fría de LOGIN/Home/Admin/Dinero, sumando la clase
+`admin-frost` a su `<section>` en `index.html` (mismo mecanismo ya
+usado para `#screen-money`, `#screen-admin`, `#screen-previas` y
+`#screen-stats`). Era la única pantalla logueada, fuera de Registro
+diario y Envío de datos, que seguía con el tema oscuro original.
+
+- No se tocó `previaMode`, `previaIds()`, `renderPreviasScreen()` ni
+  ninguna otra función de `script.js` relacionada con el registro,
+  guardado (`localPrevias:<id>`) o generación/copia de código de una
+  previa: es exclusivamente una capa de presentación sobre la misma
+  pantalla ya documentada (SPEC.md → "Permiso especial: Jere puede
+  registrar previas").
+- Como todos los componentes reutilizados por esta pantalla
+  (`.feature-card`, `.chip`, `.field-input`, `.previa-product-row`,
+  `.admin-preview-card`, `.previa-history-list`, etc.) ya estaban
+  construidos sobre las variables de color compartidas, heredan el
+  nuevo look sin reescribir esas clases.
+- `openSheet()` ya aplicaba `sheet-frost` a cualquier sheet abierto
+  desde una pantalla `admin-frost`, así que los sheets propios del
+  modo local (agregar producto, confirmar previa, "Código de la
+  previa") pasan a usar esa variante sin ningún cambio en
+  `script.js`. Se agregó una única regla CSS nueva,
+  `.sheet.sheet-frost .export-code-box` (mismo tratamiento que
+  `.admin-import-textarea`), porque el `<textarea readonly>` de
+  "Código de la previa" no estaba cubierto todavía y quedaba con el
+  fondo oscuro original dentro de un sheet ya claro.
+- `navigate()` suma `route === "previas-jere"` a la condición que
+  togglea `bottom-nav-frost`, así la barra inferior también se ve
+  celeste/blanca dentro de esta pantalla (antes se veía oscura ahí,
+  aunque el resto de la pantalla ya fuera celeste).
+
+### 2. Navbar: glassmorphism/blur notablemente más marcado
+
+`.bottom-nav` (estilo oscuro) y `.bottom-nav-frost` (estilo celeste,
+Home/Admin/Dinero/Previas/Estadísticas) comparten el mismo ajuste:
+fondo bastante más transparente (opacidad 0.88/0.92 → 0.55 en ambas
+variantes) combinado con un `backdrop-filter` más fuerte (`blur(14px)`
+→ `blur(28px) saturate(160%)`). El resultado: se ve claramente lo que
+hay detrás de la navbar, desenfocado, sin que el fondo casi opaco de
+antes lo tape. Se aplica a las navbars de todas las pantallas
+logueadas (usuarios y admin) porque ambas variantes comparten la
+misma regla base `.bottom-nav`; solo se sobreescribe el color de
+fondo en `.bottom-nav-frost`, igual que antes.
+
+- No se tocó ningún color de ícono/texto (`--text-faint`/`--accent`
+  en modo oscuro, `#4d6b82`/`#2f8fd1` en modo frost), así que los
+  elementos de navegación mantienen buen contraste sobre cualquier
+  fondo que quede desenfocado detrás.
+- Cambio de dos bloques de CSS (`.bottom-nav`, `.bottom-nav-frost`),
+  reutilizando exactamente las mismas variables/selectores que ya
+  existían: no se agregó ningún componente, clase ni lógica nueva en
+  `script.js`.
+
+### Verificación
+
+Revisado a mano contra el código existente: `node --check script.js`
+sin errores, llaves de `styles.css` balanceadas, `renderPreviasScreen`
+y el resto del flujo de Previas de Jere sin cambios de comportamiento
+(solo la clase `admin-frost` agregada a su `<section>`), y las reglas
+nuevas de `.sheet-frost`/`.bottom-nav`/`.bottom-nav-frost` siguen el
+mismo patrón ya usado por el resto de la estética "Bariloche".
+
+## v0.20.2 — Dinero suma la estetica "Bariloche" (blanco/celeste)
+
+Cambio puramente visual, siguiendo exactamente el mismo patron ya
+usado para /admin (v0.20.0): no se toco ningun calculo, dato,
+localStorage ni comportamiento de la seccion Dinero (renderMoneyScreen,
+renderMoneyHistory, computeMoneyTotals, ensureMoneyData, migracion de
+categorias, submitSheet, etc.).
+
+### Alcance
+
+#screen-money pasa a compartir la paleta blanco/celeste fria de
+LOGIN/Home/Admin, sumando la clase admin-frost a su <section> en
+index.html (mismo mecanismo que #screen-admin, #screen-previas y
+#screen-stats). Registro diario y Envio de datos NO se tocaron: siguen
+con el tema oscuro original.
+
+### Como se hizo (minimo codigo, maxima reutilizacion)
+
+- .money-hero ya era admin-hero money-hero, asi que hereda tal cual
+  las reglas genericas .screen.admin-frost .admin-hero (glow celeste,
+  boton volver, badge, eyebrow, hero-name) que ya existian para Admin:
+  cero CSS nuevo necesario para la cabecera.
+- El resto de los componentes de Dinero (.donut-card, .donut-track,
+  .donut-progress, .donut-hole, .money-prompt, .history-row,
+  .section-label) ya estaban escritos sobre las variables compartidas
+  (--surface, --surface-2, --border, --accent, --text*), que
+  .screen.admin-frost ya redefine a tonos blancos/celestes; heredan el
+  nuevo look en cascada sin tocar esas clases.
+- La dona sigue siendo el mismo <svg> con el mismo
+  stroke-dasharray/stroke-dashoffset (DONUT_R, DONUT_CIRC) y el mismo
+  stroke-linecap: round de v0.20.1; el arco que antes era ambar
+  (--accent) ahora sale celeste (#2f8fd1) automaticamente por la
+  redefinicion de la variable, sin tocar el markup ni el calculo del
+  offset en script.js.
+- Se agrego un bloque nuevo en styles.css, scoped a
+  .screen.admin-frost, para: (a) sumar .donut-card, .money-prompt y
+  .history-row al mismo tratamiento "vidrio" (blur + sombra celeste)
+  que ya usan .feature-card/.ranking-card en Admin, para que dona,
+  saldo e historial se lean como un mismo bloque visual; (b)
+  recolorear .money-action.expense/.income y
+  .history-row.is-expense/.is-income .history-amount, que tenian
+  colores fijos (rosa/celeste "a fuego") pensados para el tema oscuro
+  y perdian contraste sobre fondo blanco.
+- openSheet() ya activaba sheet-frost para cualquier sheet abierto
+  desde una pantalla con la clase admin-frost (logica de v0.20.0, sin
+  tocar). Al sumar esa clase a #screen-money, los sheets de saldo
+  inicial, gasto, ganancia y editar/eliminar movimiento pasaron a usar
+  esa variante automaticamente, sin ningun cambio en script.js.
+
+### Verificacion
+
+Con Playwright (390px), flujo completo como usuario no-admin (Marto):
+cargar saldo inicial, agregar un gasto (Comida) y una ganancia, ver la
+dona/leyenda/historial actualizados, y abrir el sheet de
+editar/eliminar un movimiento. Paleta blanca/celeste consistente con
+Home/Admin en las tres capas (pantalla, tarjetas, sheet), montos y
+calculos (saldo, gastado, disponible) correctos, dona con extremos
+redondeados intactos, sin scroll horizontal.
+
+## v0.20.1 — Dona de Dinero con extremos redondeados (`stroke-linecap: round`)
+
+Cambio mínimo y puramente visual, exclusivo del gráfico donut de la
+sección Dinero (`.donut-progress` en `styles.css`). No se tocó
+`index.html` ni `script.js`: ni el markup del SVG (`#donut-progress`,
+`DONUT_R`/`DONUT_CIRC`), ni el cálculo de `stroke-dasharray`/
+`stroke-dashoffset` (`renderMoneyScreen()`, `updateDonut()`), ni los
+colores (`var(--surface-2)` para el track, `var(--accent)` para el
+progreso), ni la lógica de saldo/gastos/ganancias.
+
+- Único cambio: `.donut-progress { stroke-linecap: butt; }` →
+  `stroke-linecap: round;`. El arco que representa el disponible
+  (`--accent`, ámbar) ya no corta en línea recta en ninguno de sus
+  dos extremos: ahora ambos terminan con una punta redondeada, dando
+  un acabado suave contra el resto del círculo (`.donut-track`, gris,
+  siempre completo por debajo) en vez de un corte abrupto — es en ese
+  límite donde visualmente se percibe el quiebre entre "disponible" y
+  "gastado".
+- Mismos porcentajes, mismos cálculos, mismos colores, misma
+  animación (`transition: stroke-dashoffset 0.5s ease`, sin cambios),
+  mismo comportamiento mobile-first: no se agregó ningún elemento ni
+  regla nueva, solo se cambió el valor de una propiedad ya existente.
+- Verificado con Playwright (390px): con saldo inicial $100.000 y un
+  gasto de $25.000 (75% disponible / 25% gastado, mismo caso de
+  ejemplo ya documentado), el arco ámbar se ve con ambos extremos
+  redondeados y el resto de la tarjeta (monto, leyenda, historial,
+  botones "− Gasto"/"+ Ganancia") sin ningún cambio visual.
+
+## v0.20.0 — Sección /admin completa con la estética "Bariloche"
+
+Cambio puramente visual. No se tocó ningún cálculo, dato, permiso,
+`localStorage` ni comportamiento: ni `renderAdmin`, `renderPreviasScreen`,
+`renderStatsScreen`, las funciones `dayRanking*`/`totalRanking*`,
+`decodeExportCode`/`generateExportCode`, ni ninguna validación. Solo
+color, fondo, sombras y algunas variantes ya existentes del mismo
+lenguaje visual del login/Home.
+
+### Alcance
+
+Las tres pantallas de /admin — Admin (`#screen-admin`), Previas de
+admin (`#screen-previas`) y Estadísticas (`#screen-stats`) — pasan a
+compartir la paleta blanco/celeste fría ya usada en LOGIN y Home, vía
+una nueva clase `admin-frost` agregada directamente en el `<section>`
+de cada una (`index.html`). **No se tocó** `#screen-previas-jere`
+(sección de Previas en el Home de Jere, no es parte de /admin): sigue
+con el tema oscuro original, igual que Money, Registro diario y Envío
+de datos.
+
+### Cómo se hizo (mínimo código, máxima reutilización)
+
+- Casi todos los componentes de /admin ya estaban construidos sobre
+  las variables de color compartidas (`--bg`, `--surface`,
+  `--surface-2`, `--border`, `--text`, `--text-dim`, `--text-faint`,
+  `--accent`, `--accent-ink`), no sobre colores fijos. Por eso, un
+  único bloque nuevo en `styles.css` que **redefine esas variables
+  dentro del scope `.screen.admin-frost`** (mismos tonos que ya usan
+  Login/Home: `#10233a` texto, `#4d6b82` texto secundario, `#2f8fd1`
+  acento, fondo `#eaf6ff → #ffffff`) alcanza para que la mayoría de
+  las tarjetas, filas, botones e inputs hereden el nuevo look sin
+  reescribir cada clase una por una (`.feature-card`,
+  `.admin-participant-row`, `.chip`, `.field-input`, `.ranking-card`,
+  `.stats-day-nav`, etc.).
+- Se agregó también `color: var(--text)` a `.screen.admin-frost`:
+  algunas clases reutilizadas (ej. `.participant-name`, usada tanto
+  en el login como en las filas de "Jugadores") no declaran su propio
+  `color` y heredaban el blanco del tema oscuro original directamente
+  de `body`; declarar el color también en el contenedor de la
+  pantalla corrige la herencia para toda la pantalla sin tocar esa
+  clase compartida.
+- Solo se sobreescribieron explícitamente, dentro de `.screen.admin-frost`,
+  los pocos lugares que tenían el acento ámbar "hardcodeado" (no vía
+  variable): el header (`.admin-hero`, con el mismo glow celeste
+  suave que ya usa `.home-hero`, sin duplicar montañas/nieve del
+  login — ver "Por qué sin montañas/nieve" más abajo), los botones
+  "Actualizar código"/"+ Agregar jugador" (`.admin-add-btn`), el tab
+  activo Día/Total (`.stats-tab.active`), el podio del 1er puesto de
+  cada ranking (`.ranking-podium` y sus subelementos, `.ranking-bar-fill-winner`),
+  los chips seleccionados (`.chip.selected`) y los avisos
+  (`.admin-notice`) — todos pasan de ámbar a celeste para no romper
+  la paleta fría.
+- `.feature-card`, `.admin-participant-row`, `.ranking-card` y
+  `.stats-empty-banner` reciben además `backdrop-filter: blur` y una
+  sombra celeste suave para el mismo efecto "vidrio" que ya usan las
+  cards de Home/login.
+
+### Sheets abiertos desde /admin
+
+Los bottom sheets que se abren desde /admin (pegar código de
+jugador/previa, agregar producto de previa, confirmar previa) son el
+mismo componente genérico `#sheet` compartido con el resto de la app
+(Money, Daily, Export). Ya existía una variante `.sheet-frost`
+(agregada en v0.19.0 solo para el sheet de contraseña del login); en
+vez de duplicarla, `openSheet()` (`script.js`) ahora también la aplica
+cuando **la pantalla activa tiene la clase `.admin-frost`**:
+
+```js
+const activeFrostScreen = document.querySelector(".screen.active.admin-frost");
+sheetEl.classList.toggle("sheet-frost", type === "login-password" || !!activeFrostScreen);
+```
+
+Esto es agnóstico al `type` del sheet (no hubo que listar
+`"admin-import"`, `"previa-product"`, `"previa-confirm"`,
+`"previa-import"` a mano) y automáticamente **no** afecta los sheets
+de `"previa-product"`/`"previa-confirm"` cuando se abren desde
+`#screen-previas-jere` (Jere, no lleva `admin-frost`): siguen con el
+sheet oscuro original, como corresponde por no ser parte de /admin.
+
+`.sheet.sheet-frost` se amplió con reglas para los componentes que
+antes no necesitaba cubrir (solo los usaba el sheet de contraseña):
+`.admin-import-textarea`, `.admin-preview-card`/`.admin-preview-row`,
+`.admin-notice`, `.chip`/`.chip.selected`, `.previa-product-remove` y
+`.sheet-submit.danger`.
+
+### Navbar y tabs
+
+`navigate()` (`script.js`) ya togglaba `bottom-nav-frost` en
+Home/Admin (v0.19.0); se amplió a `previas` y `stats` para que la
+barra inferior celeste/blanca se mantenga también dentro de esas dos
+pantallas de /admin (antes se veía oscura ahí, aunque el resto de la
+pantalla ya fuera celeste). Previas de Jere y Money/Daily/Export
+siguen sin la variante frost, sin cambios.
+
+### Por qué sin montañas/nieve en /admin
+
+El pedido explícito fue "mantener las montañas, gradientes y efectos
+donde tengan sentido, **sin saturar la interfaz administrativa**". Se
+optó por no duplicar el markup de montañas/nieve/parallax del login
+en cada header de /admin (hubiera significado repetir un SVG grande
+y su lógica de parallax tres veces, además de recargar visualmente
+una pantalla pensada para trabajar con datos). En su lugar, el header
+de /admin usa el mismo tipo de glow celeste radial que ya usa
+`.home-hero`, sin silueta de montaña ni nieve — mantiene la identidad
+visual (mismos tonos, mismo tipo de degradé) sin saturar.
+
+### Verificado
+
+Con Playwright en 390px (Admin, Previas con datos de ejemplo —
+selección de participantes, agregar producto, sheet de confirmación,
+historial —, Estadísticas DÍA con datos reales de 3 jugadores —
+podio, medallas, barras, tabs, navegación de día): buen contraste en
+todos los textos (incluida la fila de "Jugadores", que antes de la
+corrección de herencia de `color` se veía con el nombre en gris claro
+apenas legible), sheets de admin con la variante frost aplicada
+correctamente, sin scroll horizontal, y `#screen-previas-jere` /
+Money / Daily / Export confirmados sin cambios (tema oscuro
+original intacto).
+
+## v0.19.0 — NAVBAR (Home/Admin) + MENÚ DE CONTRASEÑA: estética "Bariloche" + puntos dinámicos sin pista de longitud
+
+## v0.19.0 — Navbar de Home/Admin y menú de contraseña con estética "Bariloche"
+
+Cambio puramente visual. No se tocó `checkLoginPassword`,
+`handleSelectUser`, `localStorage`, navegación (`navigate`,
+`routeFromHash`) ni ninguna otra funcionalidad. Money, Registro
+diario, Envío de datos y el resto de los sheets (gasto, ganancia,
+saldo inicial, producto de previa, etc.) **no se tocaron**: siguen
+con el tema oscuro original.
+
+### Navbar (`#bottom-nav`)
+
+- `#bottom-nav` es un único componente compartido por todas las
+  pantallas logueadas (Home, Admin, Money, Daily, Export, Previas,
+  Estadísticas). Como el pedido era acotado a `/home` y
+  `/home/admin`, no se restyleó la clase base `.bottom-nav`: se
+  agregó una variante `.bottom-nav-frost` (gradiente blanco/celeste,
+  borde superior celeste sutil, textos en `#4d6b82`/`#2f8fd1`) que
+  `navigate()` (`script.js`) togglea según la pantalla activa
+  (`route === "home" || route === "admin"`). En Money/Daily/Export
+  —aunque el tab activo visualmente sea "Home"— la barra sigue con
+  el estilo oscuro original, tal como se pidió.
+- Reutiliza exactamente los mismos tonos que ya usan Home y el
+  login (`#2f8fd1`, `#4d6b82`, `rgba(76, 201, 240, .35)`); no se creó
+  ninguna paleta nueva.
+
+### Menú de contraseña (`login-password` sheet)
+
+- El sheet de bottom-sheet genérico (`#sheet`) es compartido por
+  todos los formularios de la app (gasto, ganancia, saldo inicial,
+  producto de previa, contraseña de login, etc.). Se agregó una
+  variante `.sheet-frost`, que `openSheet()` togglea únicamente
+  cuando `type === "login-password"` — el resto de los formularios
+  no se ve afectado.
+- `.sheet-frost` reutiliza tal cual los tonos ya usados en Home/login
+  (fondo con gradiente blanco→celeste, título `#10233a`, subtítulo
+  `#4d6b82`, borde/foco celeste `#4cc9f0`, botón "Entrar" celeste).
+- **Puntos dinámicos, sin pista de longitud**: se quitó el
+  `placeholder="••"` del input de contraseña (esos dos puntos eran
+  el único indicio visual de "se esperan 2 dígitos"). El input real
+  sigue siendo funcional (foco, teclado, `Enter` para confirmar,
+  lógica de `checkLoginPassword()` intacta) pero su texto queda
+  `color: transparent`; encima se dibuja `#login-password-dots`, que
+  en el mismo listener `input` que ya limpiaba el estado de error
+  ahora también redibuja un `<span class="dot">` por cada carácter
+  ya escrito (`pwInput.value.length`), sin mostrar en ningún momento
+  cuántos dígitos hacen falta. Si la contraseña es incorrecta,
+  `checkLoginPassword()` vacía el input (como ya hacía) y también
+  vacía los puntos, para que el estado visual quede consistente.
+- Verificado con Playwright: 0 puntos al abrir el sheet, 1 punto al
+  escribir 1 carácter, 2 al escribir 2, los puntos se limpian tras
+  una contraseña incorrecta, y el login sigue navegando
+  correctamente a Home tras una contraseña correcta (`0 errores` de
+  consola, `location.hash` y `#home-username` verificados).
+
+## v0.18.0 — HOME: misma estética "Bariloche" del login (montañas, título, nieve, parallax) + tarjetas más grandes
+
+## v0.18.0 — HOME: estética "Bariloche" compartida con el login + rediseño de las 3 tarjetas
+
+Cambio puramente visual, **exclusivo de `#screen-home`**. No se tocó
+lógica de sesión/login (`renderParticipantGrid`, `handleSelectUser`,
+`checkLoginPassword`, `renderHome` solo sigue seteando
+`#home-username`), `localStorage`, navegación (`navigate`,
+`bottom-nav`), estadísticas ni ningún registro. Money, Registro
+diario, Envío de datos y Admin **no se tocaron**: siguen con el tema
+oscuro original, sus propios `.admin-hero`/`.feature-card` no
+recibieron ningún estilo nuevo (todo lo agregado está scoped a
+`#screen-home` o a la clase compartida `.login-screen`, que solo
+llevan `#screen-select` y `#screen-home`).
+
+### Mismo lenguaje visual que el login, reutilizado tal cual
+
+- **Markup idéntico de fondo**: el header de Home
+  (`.home-hero`) ahora contiene exactamente la misma estructura que
+  `.login-bg` del login — `.login-glow`, `.login-title-bg` ("BARILOCHE"),
+  `<svg class="login-mountains">` (mismos paths/gradientes de
+  montaña, solo con ids de gradiente renombrados `hmgrad1`/`hmgrad2`
+  para no colisionar con los `lmgrad1`/`lmgrad2` del login, ya que
+  ambos bloques conviven en el mismo documento) y `.login-snowfall`
+  con los mismos 12 copos. **No se creó ningún componente nuevo**:
+  es el mismo HTML copiado, ninguna clase CSS nueva de fondo.
+- **Mismo fondo celeste/blanco en toda la pantalla**: la regla que
+  antes vivía en `#screen-select.login-screen` (gradiente de fondo,
+  `overflow: hidden`) se generalizó a `.login-screen` (sin el
+  selector de ID), y `#screen-home` ahora lleva también esa clase.
+  `justify-content: flex-end` (que solo tiene sentido para el login,
+  donde el grid de jugadores se pega abajo) quedó en una regla aparte
+  `#screen-select.login-screen`, así que Home conserva su flujo
+  normal de arriba hacia abajo.
+- **Mismos tonos de texto**: `.login-screen .eyebrow` (antes scoped
+  solo a `#screen-select`) ahora también broadea a Home, y se agregó
+  `.login-screen .hero-name` con el mismo tratamiento que ya tenía
+  `.select-title` (color `#10233a`, `text-shadow` celeste) — así el
+  saludo ("Hola, `<nombre>`") usa el mismo estilo que el título del
+  login sin duplicar la regla.
+- **Mismo parallax de scroll**: `updateLoginParallax()` (`script.js`)
+  se generalizó para buscar la pantalla activa entre `#screen-select`
+  y `#screen-home` (`document.querySelector("#screen-select.active,
+  #screen-home.active")`) y aplicar el transform solo dentro de esa
+  pantalla (antes usaba `document.querySelector` global, lo que
+  hubiera tomado siempre las capas del login por ser las primeras en
+  el DOM). Mismas velocidades por capa que en el login (montañas
+  `-0.1`, glow `+0.05` con escala, nieve `+0.18`, título `-0.05`);
+  mismo throttling con `requestAnimationFrame` y mismo respeto de
+  `prefers-reduced-motion` (los selectores de la media query ya eran
+  por clase, no por ID, así que cubren ambas pantallas sin cambios).
+- **Botón de logout e insignia "Bariloche" del hero**: pasan a un
+  estilo "vidrio" claro (`.home-hero .icon-btn`, `.home-hero
+  .hero-badge`) con los mismos tonos celeste (`rgba(76, 201, 240,
+  .35)`, `#2f8fd1`) que ya usan las cards de jugador del login.
+- **Composición**: `.home-hero-bottom` (el bloque de saludo) baja su
+  `margin-top` para quedar debajo de la línea de las montañas, igual
+  criterio que ya se usó para `.login-content` en el login (v0.17.2),
+  así el saludo no compite visualmente con el título "BARILOCHE".
+
+### Rediseño de las 3 secciones: más espacio vertical aprovechado
+
+- `#screen-home .feature-card` pasa a un estilo "vidrio" (mismos
+  valores que `#screen-select .participant-btn`: fondo blanco
+  translúcido, `backdrop-filter: blur`, borde celeste sutil, sombra
+  azulada) con bastante más padding (`24px 20px` vs `14px` antes) e
+  ícono más grande (`60×60px`, antes `44×44px`), título en `18px`
+  (antes `15px`) y bajada en `14px` (antes `13px`) — cada tarjeta
+  ocupa considerablemente más alto de pantalla, y el `gap` entre
+  tarjetas también creció (`16px`, antes `10px`).
+- Se mantienen exactamente las mismas 3 secciones (Dinero, Registro
+  diario, Envío de datos) y la sección condicional de Previas para
+  Jere, con la misma funcionalidad, los mismos `id` (`card-money`,
+  `card-daily`, `card-export`, `card-previas-jere`) y el mismo
+  comportamiento de tap/navegación — no se tocó ningún listener de
+  `script.js` asociado a estas cards.
+- `.section-label` y `.home-footnote` dentro de `#screen-home` pasan
+  a tonos celeste/gris-azulado legibles sobre el nuevo fondo claro,
+  sin afectar sus usos en Admin/Estadísticas (donde siguen con los
+  tonos oscuros originales, al estar scoped a `#screen-home`).
+- Verificado con Playwright en 360px y 390px, con los usuarios Gio
+  (sin Previas) y Jere (con Previas): sin scroll horizontal en
+  ningún caso, las 3 (o 4, con Jere) tarjetas se ven notablemente más
+  grandes y con menos espacio vacío que antes, `#nav-admin`/`#btn-*`
+  siguen navegando correctamente a Money/Daily/Export/Admin, que
+  conservan su tema oscuro sin ningún cambio visual.
+
+## v0.17.2 — LOGIN: título grande "BARILOCHE" detrás de las montañas + reajuste de composición
+
+## v0.17.2 — LOGIN: título "BARILOCHE" detrás de las montañas + reajuste de composición
+
+Cambio puramente visual y aditivo sobre la estética "Bariloche" del
+login (v0.17.0/v0.17.1), **exclusivo de `#screen-select`**. No se
+tocó lógica de login (`renderParticipantGrid`, `handleSelectUser`,
+`checkLoginPassword`), `localStorage`, navegación, jugadores ni
+estadísticas.
+
+- **Nuevo elemento `.login-title-bg`** (`<p aria-hidden="true">BARILOCHE</p>`
+  dentro de `.login-bg`, en el `index.html`): un título grande y
+  protagonista, con tipografía display (`var(--font-display)`, peso
+  800), en degradé de texto blanco → celeste (`background-clip: text`,
+  mismos tonos que ya usa el resto del fondo — `--accent`/celestes del
+  gradiente del login), pensado como portada de viaje.
+- **Las montañas lo tapan parcialmente, no solo quedan "debajo"**: en
+  el markup, `.login-title-bg` se ubica *antes* que
+  `<svg class="login-mountains">`, dentro del mismo padre (`.login-bg`)
+  y sin que ninguno de los dos tenga `z-index` propio — con
+  `z-index: auto` el orden de pintado lo decide el orden del DOM, así
+  que las montañas (que vienen después) se pintan encima del texto y
+  lo recortan visualmente donde se superponen los picos, en vez de
+  simplemente aparecer una sobre otra sin solaparse. Verificado con
+  capturas en 360px y 390px: los picos de las montañas cubren
+  parte de las letras de "BARILOCHE".
+- **Profundidad/parallax propio**: `updateLoginParallax()` (`script.js`)
+  ahora también mueve `.login-title-bg`, a una velocidad menor que
+  `.login-mountains` (factor `-0.05` vs `-0.1` de las montañas) para
+  reforzar la sensación de que el título está más "atrás" en la
+  composición. Usa la misma `transition: transform` con
+  `translate3d`/`will-change` que el resto de las capas del fondo, así
+  que hereda el mismo suavizado y el mismo respeto de
+  `prefers-reduced-motion: reduce` (sin listener → sin transform →
+  capa estática) ya implementado en v0.17.1.
+- **Integrado con el fondo existente**: vive dentro de `.login-bg`
+  (`overflow: hidden`), tiene `pointer-events: none` y
+  `user-select: none` (no interfiere con los toques sobre las cards
+  ni es seleccionable), y usa los mismos tonos celeste/blanco del
+  gradiente de fondo y del glow ya existentes — no se agregó ninguna
+  paleta nueva.
+- **Reajuste de composición** (`styles.css`, solo dentro de
+  `#screen-select`): `.login-content` baja su `margin-top` de `210px`
+  a `228px`, así "VIAJE DE EGRESADOS" queda ligeramente más abajo,
+  más cerca de la línea inferior de las montañas. Se agregó
+  `margin-top: 14px` a `#screen-select.login-screen .select-title`
+  (el "¿Quién sos?"), para separarlo un poco más de "VIAJE DE
+  EGRESADOS" y darle más aire respecto de los elementos de arriba.
+  Nada de esto afecta el grid de jugadores, el scroll ni el resto del
+  layout.
+- Verificado con Playwright en 360px y 390px, con y sin scroll: sin
+  overflow horizontal en ningún caso (el título es más ancho que la
+  pantalla en algunos anchos, pero queda recortado por el
+  `overflow: hidden` de `.login-bg`, que es `position: absolute`
+  y no afecta el ancho del documento), la lógica de selección de
+  usuario y contraseña sigue funcionando sin cambios, y las clases
+  nuevas (`.login-title-bg`) son exclusivas de `#screen-select`.
+
+## v0.17.1 — LOGIN: fondo interactivo con el scroll (parallax sutil)
+
+Cambio puramente visual y aditivo sobre la estética "Bariloche" del
+login (v0.17.0), **exclusivo de `#screen-select`**. No se modificó
+la lógica de autenticación, `localStorage`, la navegación ni ninguna
+otra pantalla.
+
+- **Qué se mueve**: las tres capas decorativas del fondo del login
+  — `.login-glow` (el resplandor celeste/violeta), `.login-mountains`
+  (la silueta de montañas nevadas) y `.login-snowfall` (el
+  contenedor de los 12 copos) — reciben un `transform: translate3d`
+  proporcional al scroll, calculado en la nueva función
+  `updateLoginParallax()` de `script.js`. Cada capa se mueve a una
+  velocidad distinta (montañas más lento y hacia arriba, glow y
+  nieve más rápido y hacia abajo) para dar sensación de profundidad
+  al recorrer el grid de jugadores.
+- **Qué NO se mueve**: `.login-content` (título, subtítulo y grid de
+  jugadores) nunca recibe transform — las cards quedan perfectamente
+  quietas y legibles, sin deformarse ni desplazarse por el efecto.
+  Cada `.snowflake` sigue con su propia animación de caída
+  (`@keyframes login-snow-fall`) sin cambios; el transform del
+  contenedor `.login-snowfall` se compone con el de cada copo sin
+  pisarlo (son elementos padre/hijo, cada uno con su propio
+  transform).
+- **Cómo se calcula** (`initLoginParallax()`, llamada una sola vez
+  desde `init()`): un único listener de `scroll` (+ uno de `resize`)
+  en `window`, con `{ passive: true }`, throttleado con
+  `requestAnimationFrame` mediante un flag `loginParallaxTicking`
+  para nunca encolar más de un cálculo por frame. Dentro del
+  handler, si `#screen-select` no tiene la clase `active` (no es la
+  pantalla visible), no hace nada — así no gasta ciclos cuando el
+  usuario ya navegó a Home/Admin/Estadísticas/etc. El desplazamiento
+  se calcula sobre `window.scrollY` acotado a
+  `LOGIN_PARALLAX_MAX_SCROLL = 480` px, para que el efecto no se
+  dispare de forma exagerada con scrolls largos.
+- **Suavizado barato**: la interpolación fluida no se hace a mano en
+  JS (nada de animar con `setInterval`/loops propios) — cada capa ya
+  tiene `transition: transform 0.35s cubic-bezier(...)` en CSS, así
+  que el navegador anima el paso entre valores de scroll con
+  aceleración de GPU (`translate3d` + `will-change: transform`);
+  JS solo escribe el valor final por frame, throttleado.
+- **Fallback sin JS/con "reducir movimiento"**: `initLoginParallax()`
+  revisa `prefers-reduced-motion: reduce` y la existencia de
+  `requestAnimationFrame` antes de agregar los listeners; si alguna
+  falla, no se agrega ningún listener y las tres capas se quedan en
+  su `transform: translate3d(0, 0, 0)` base (fondo estático, igual
+  que en v0.17.0, sin parallax). También se agregó
+  `@media (prefers-reduced-motion: reduce) { transition: none }`
+  sobre esas capas para no animar ninguna transición de más si el
+  valor llegara a cambiar igual.
+- Verificado: `script.js` sigue con sintaxis válida y sin tocar
+  ninguna función de login/routing/estadísticas existente; las
+  clases `.login-glow`/`.login-mountains`/`.login-snowfall` son
+  exclusivas de `#screen-select` (no aparecen en ninguna otra
+  pantalla), así que el efecto no puede filtrarse a Home/Admin/etc.
+
+## v0.17.0 — Rediseño experimental de LOGIN: estética "Bariloche" (blanco/celeste, nieve) + grid 2 columnas
+
+Cambio puramente visual, **exclusivo de la pantalla de login**
+(`#screen-select`, "¿Quién sos?"). No se tocó `script.js` en
+absoluto: la lógica de autenticación (`renderParticipantGrid`,
+`handleSelectUser`, `checkLoginPassword`), `localStorage`, la
+navegación y el resto de las pantallas (Home, Admin, Estadísticas,
+Registro diario) quedan intactas y siguen con el tema oscuro
+original. Solo se editaron `index.html` (markup de `#screen-select`)
+y `styles.css`.
+
+- **Grid de jugadores en 2 columnas**: `.participant-grid` dentro de
+  `#screen-select` pasa de `repeat(3, 1fr)` a `repeat(2, 1fr)`
+  (scoped con el selector `#screen-select .participant-grid` para no
+  afectar otros usos de esas mismas clases — ver más abajo). Entran
+  2 cards por fila en mobile, el resto aparece con scroll vertical
+  normal del contenedor. Se mantienen los 11 participantes
+  existentes (`PARTICIPANTS`) sin cambios.
+- **Fondo blanco/celeste con nieve**: `#screen-select` reemplaza el
+  fondo oscuro con estrellas por `linear-gradient(180deg, #eaf6ff →
+  #ffffff)` más un glow radial celeste/violeta suave
+  (`.login-glow`), una silueta SVG de montañas nevadas en tonos
+  celestes con picos blancos (`.login-mountains`, nueva, no reusa el
+  `.mountains` oscuro de Home/Admin) y una capa de copos
+  (`.login-snowfall` → 12 `<span class="snowflake">` con posición,
+  duración, delay y deriva horizontal fijados por variables CSS
+  inline por copo). La caída es 100% CSS (`@keyframes
+  login-snow-fall`, `animation: ... linear infinite`), sin JS: pocos
+  copos (12), loop continuo y suave, `pointer-events: none` en todo
+  el contenedor para que nunca intercepten toques, y respeta
+  `prefers-reduced-motion` (copos estáticos, sin animación, si el
+  usuario lo tiene activado). La capa de nieve queda en
+  `z-index: 1`, detrás del contenido (`.login-content`, `z-index: 2`).
+- **Cards de jugador estilo "vidrio"**: fondo blanco translúcido con
+  `backdrop-filter: blur`, borde celeste sutil, sombra azulada,
+  avatar con halo blanco. Título y subtítulo del login pasan a
+  tonos oscuros sobre fondo claro para mantener legibilidad
+  (`#10233a` / `#4d6b82`), y el pill "Admin" cambia a degradé celeste
+  para contrastar sobre blanco (antes naranja sobre fondo oscuro).
+- **Sin tocar clases compartidas**: `.participant-avatar`,
+  `.participant-name`, `.admin-pill` y `.eyebrow` se siguen usando
+  también en Admin (ej. filas de participantes de Previas) y en el
+  resto de la app; sus reglas base quedaron exactamente como
+  estaban. Los estilos nuevos se agregaron con selectores scoped
+  bajo `#screen-select`/`#screen-select.login-screen`, que ganan por
+  especificidad solo dentro del login sin modificar el
+  comportamiento en ningún otro lado. Verificado revisando que no
+  quedó ninguna clase compartida con su regla base editada o
+  eliminada.
+- **Mobile-first, sin trabajo de desktop**: no se agregó ninguna
+  media query nueva para pantallas grandes; el layout de 2 columnas
+  y la nieve se probaron pensando en 360–430px, que es donde vive
+  `#app` (con su centrado existente en desktop, sin cambios).
+
+Pendiente (a propósito, no pedido en este pase): extender esta
+estética al resto de la app (Home, Admin, Estadísticas, Registro
+diario) si el experimento visual del login funciona.
 
 ## v0.16.2 — Fix visual: fecha de "Registrando el día de ayer" no se actualizaba con `day()`
 
@@ -275,7 +1131,9 @@ movimientos) y panel de admin básico (solo Gio).
     ganancias (100% colorido) sin errores ni NaN. Transición animada al
     cambiar el saldo. El texto del monto dentro del donut usa un
     tamaño de letra reducido para que un valor de 6 cifras (ej.
-    "$200.000") entre completo sin desbordar el círculo.
+    "$200.000") entre completo sin desbordar el círculo. Extremos del
+    arco ámbar redondeados (`stroke-linecap: round`, v0.20.1) en vez
+    de terminar en línea recta.
   - **Editar y eliminar movimientos**: cada fila del historial es
     tocable y abre un bottom sheet de acciones ("Editar" / "Eliminar" /
     "Cancelar"). Editar reabre el mismo formulario de alta (gasto o
@@ -1019,6 +1877,25 @@ Las ocho estadísticas y su fuente de datos (siempre `adminPlayers` /
 7. **Dinero gastado por categoría** — mismo conjunto de gastos que el
    punto anterior, pero agrupados por `category` en vez de por
    jugador/nombre (ranking de categorías, no de participantes).
+7b. **Ranking por jugador dentro de cada categoría** (v0.16.3) —
+   además de la tarjeta anterior (que rankea categorías entre sí),
+   una tarjeta por categoría (Alcohol, Comida, Chocolates, Boliche,
+   Actividades, Bebida, Otros) rankeando jugadores según cuánto
+   gastaron en esa categoría puntual. Mismo conjunto de gastos que
+   los puntos 6/7 (`dayExpenses`/`totalExpenses`, sin cambios),
+   filtrado por `category` y sumado por jugador vía
+   `rankingPorCategoriaJugador(expenses, category)` →
+   `dayRankingPorCategoriaJugador(dateKey, category)` /
+   `totalRankingPorCategoriaJugador(closedDays, category)`. Títulos
+   humorísticos y colores de acento fijos en `CATEGORY_RANKING_META`.
+   `renderCategoryRankingCards(rankingFn)` genera la tarjeta solo
+   para categorías con al menos un gasto en el período mostrado (sin
+   gastos → sin tarjeta, no se inventa un estado vacío); reutiliza
+   `renderRankingCard`/`renderRankingBars` sin modificarlos, así que
+   el ganador de cada categoría queda destacado igual que en el
+   resto de rankings (🏆, color de acento, glow). Insertada en
+   `renderDayStatsReal`/`renderTotalStatsReal` justo después de la
+   tarjeta "¿En qué se fue la plata?" del punto 7.
 8. **Cantidad de previas** — de `adminPrevias`, se filtran las
    previas cuyo día de viaje atribuido (`isoToTripDayKey(p.createdAt)`)
    cae en `dateKey`, y se cuenta cuántas veces aparece cada `id`
@@ -1053,6 +1930,14 @@ cargados/faltantes, gastos en varias categorías, previas
 compartidas) confirmando: orden descendente correcto, formato de
 cada valor, y que un jugador sin dato puntual no aparece en esa
 tarjeta.
+
+Verificado también (v0.16.3) `rankingPorCategoriaJugador` +
+`dayRankingPorCategoriaJugador`/`totalRankingPorCategoriaJugador`
+con ese mismo set de ejemplo: cada categoría con gastos genera su
+tarjeta con el jugador de mayor gasto en el puesto 1, una categoría
+sin ningún gasto no genera tarjeta, y las tarjetas de categorías con
+datos solo en DÍA o solo en TOTAL aparecen exclusivamente en el
+apartado correspondiente.
 
 ## Estructura base de Estadísticas en /admin (v0.10.0)
 

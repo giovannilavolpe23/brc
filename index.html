@@ -14,27 +14,69 @@
 
 <div id="app">
 
+  <!-- ===================== NIEVE GLOBAL ===================== -->
+  <!-- Un único nodo, reutilizado en toda la web: script.js lo
+       reubica como primer hijo de la pantalla activa en cada
+       navegación (ver showScreen() y ".global-snowfall" en
+       styles.css). No duplicar este bloque en otras pantallas. -->
+  <div id="global-snowfall" class="global-snowfall" aria-hidden="true">
+    <span class="snowflake" style="left:3%; --dur:14s; --delay:-3s; --size:7px; --drift:12px;"></span>
+    <span class="snowflake" style="left:11%; --dur:18s; --delay:-9s; --size:9px; --drift:-14px;"></span>
+    <span class="snowflake" style="left:19%; --dur:12s; --delay:-1s; --size:6px; --drift:16px;"></span>
+    <span class="snowflake" style="left:27%; --dur:20s; --delay:-15s; --size:10px; --drift:-11px;"></span>
+    <span class="snowflake" style="left:35%; --dur:15s; --delay:-6s; --size:8px; --drift:13px;"></span>
+    <span class="snowflake" style="left:43%; --dur:11s; --delay:-4s; --size:6px; --drift:-9px;"></span>
+    <span class="snowflake" style="left:50%; --dur:17s; --delay:-12s; --size:9px; --drift:15px;"></span>
+    <span class="snowflake" style="left:58%; --dur:13s; --delay:-2s; --size:7px; --drift:-17px;"></span>
+    <span class="snowflake" style="left:66%; --dur:19s; --delay:-8s; --size:11px; --drift:10px;"></span>
+    <span class="snowflake" style="left:74%; --dur:16s; --delay:-5s; --size:6px; --drift:-13px;"></span>
+    <span class="snowflake" style="left:81%; --dur:14.5s; --delay:-11s; --size:8px; --drift:14px;"></span>
+    <span class="snowflake" style="left:88%; --dur:12.5s; --delay:-7s; --size:9px; --drift:-10px;"></span>
+    <span class="snowflake" style="left:95%; --dur:18.5s; --delay:-14s; --size:7px; --drift:16px;"></span>
+    <span class="snowflake" style="left:6%; --dur:21s; --delay:-18s; --size:5px; --drift:-8px;"></span>
+    <span class="snowflake" style="left:47%; --dur:22s; --delay:0s; --size:10px; --drift:9px;"></span>
+    <span class="snowflake" style="left:70%; --dur:10.5s; --delay:-3.5s; --size:6px; --drift:-15px;"></span>
+  </div>
+
   <!-- ===================== SELECTOR DE USUARIO ===================== -->
-  <section id="screen-select" class="screen">
-    <div class="select-sky" aria-hidden="true">
-      <div class="stars"></div>
-      <svg class="mountains" viewBox="0 0 430 160" preserveAspectRatio="none">
-        <path d="M0,160 L70,60 L120,100 L180,30 L230,90 L290,50 L340,100 L390,70 L430,110 L430,160 Z" fill="url(#mgrad1)"/>
-        <path d="M0,160 L50,110 L100,140 L160,80 L210,130 L260,95 L320,140 L370,115 L430,150 L430,160 Z" fill="url(#mgrad2)"/>
+  <section id="screen-select" class="screen login-screen">
+    <div class="login-bg" aria-hidden="true">
+      <div class="login-glow"></div>
+      <p class="login-title-bg" aria-hidden="true">BARILOCHE</p>
+      <svg class="login-mountains" viewBox="0 0 430 200" preserveAspectRatio="none">
+        <path d="M0,200 L60,95 L100,130 L150,55 L190,120 L235,75 L270,135 L300,90 L340,140 L380,105 L430,150 L430,200 Z" fill="url(#lmgrad1)"/>
+        <path d="M0,200 L45,150 L90,175 L140,110 L185,165 L225,125 L270,170 L320,140 L360,175 L400,155 L430,180 L430,200 Z" fill="url(#lmgrad2)"/>
+        <path d="M150,55 L165,72 L172,64 L190,120 L172,95 L162,102 Z" fill="#ffffff" opacity="0.85"/>
+        <path d="M60,95 L72,110 L80,102 L100,130 L82,118 L74,123 Z" fill="#ffffff" opacity="0.75"/>
+        <path d="M270,135 L268,90 L280,105 L300,90 L285,118 L278,112 Z" fill="#ffffff" opacity="0.6"/>
         <defs>
-          <linearGradient id="mgrad1" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stop-color="#2c2a4a"/>
-            <stop offset="1" stop-color="#1b1930"/>
+          <linearGradient id="lmgrad1" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#bfe3fb"/>
+            <stop offset="1" stop-color="#8fc9ee"/>
           </linearGradient>
-          <linearGradient id="mgrad2" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stop-color="#1c1a30"/>
-            <stop offset="1" stop-color="#121022"/>
+          <linearGradient id="lmgrad2" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#d9edfb"/>
+            <stop offset="1" stop-color="#b3d9f2"/>
           </linearGradient>
         </defs>
       </svg>
+      <div class="login-snowfall">
+        <span class="snowflake" style="left:4%; --dur:13s; --delay:0s; --size:9px; --drift:14px;"></span>
+        <span class="snowflake" style="left:14%; --dur:17s; --delay:2s; --size:6px; --drift:-10px;"></span>
+        <span class="snowflake" style="left:24%; --dur:11s; --delay:5s; --size:11px; --drift:18px;"></span>
+        <span class="snowflake" style="left:34%; --dur:19s; --delay:1s; --size:7px; --drift:-16px;"></span>
+        <span class="snowflake" style="left:45%; --dur:14s; --delay:7s; --size:8px; --drift:10px;"></span>
+        <span class="snowflake" style="left:55%; --dur:16s; --delay:3s; --size:10px; --drift:-12px;"></span>
+        <span class="snowflake" style="left:64%; --dur:12s; --delay:6s; --size:6px; --drift:16px;"></span>
+        <span class="snowflake" style="left:74%; --dur:18s; --delay:0.5s; --size:9px; --drift:-14px;"></span>
+        <span class="snowflake" style="left:83%; --dur:15s; --delay:4s; --size:7px; --drift:12px;"></span>
+        <span class="snowflake" style="left:92%; --dur:13s; --delay:8s; --size:10px; --drift:-18px;"></span>
+        <span class="snowflake" style="left:60%; --dur:20s; --delay:9s; --size:5px; --drift:8px;"></span>
+        <span class="snowflake" style="left:9%; --dur:16.5s; --delay:11s; --size:8px; --drift:-9px;"></span>
+      </div>
     </div>
 
-    <div class="select-content">
+    <div class="login-content">
       <p class="eyebrow">Viaje de egresados</p>
       <h1 class="select-title">¿Quién sos?</h1>
       <p class="select-sub">Elegí tu perfil para entrar</p>
@@ -44,18 +86,43 @@
   </section>
 
   <!-- ===================== HOME ===================== -->
-  <section id="screen-home" class="screen">
+  <section id="screen-home" class="screen login-screen">
     <header class="home-hero">
-      <div class="stars"></div>
-      <svg class="mountains" viewBox="0 0 430 140" preserveAspectRatio="none">
-        <path d="M0,140 L60,55 L110,90 L175,25 L225,85 L285,45 L335,95 L385,65 L430,100 L430,140 Z" fill="url(#hgrad1)"/>
-        <defs>
-          <linearGradient id="hgrad1" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stop-color="#2c2a4a"/>
-            <stop offset="1" stop-color="#171528"/>
-          </linearGradient>
-        </defs>
-      </svg>
+      <div class="login-bg" aria-hidden="true">
+        <div class="login-glow"></div>
+        <p class="login-title-bg" aria-hidden="true">BARILOCHE</p>
+        <svg class="login-mountains" viewBox="0 0 430 200" preserveAspectRatio="none">
+          <path d="M0,200 L60,95 L100,130 L150,55 L190,120 L235,75 L270,135 L300,90 L340,140 L380,105 L430,150 L430,200 Z" fill="url(#hmgrad1)"/>
+          <path d="M0,200 L45,150 L90,175 L140,110 L185,165 L225,125 L270,170 L320,140 L360,175 L400,155 L430,180 L430,200 Z" fill="url(#hmgrad2)"/>
+          <path d="M150,55 L165,72 L172,64 L190,120 L172,95 L162,102 Z" fill="#ffffff" opacity="0.85"/>
+          <path d="M60,95 L72,110 L80,102 L100,130 L82,118 L74,123 Z" fill="#ffffff" opacity="0.75"/>
+          <path d="M270,135 L268,90 L280,105 L300,90 L285,118 L278,112 Z" fill="#ffffff" opacity="0.6"/>
+          <defs>
+            <linearGradient id="hmgrad1" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#bfe3fb"/>
+              <stop offset="1" stop-color="#8fc9ee"/>
+            </linearGradient>
+            <linearGradient id="hmgrad2" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#d9edfb"/>
+              <stop offset="1" stop-color="#b3d9f2"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <div class="login-snowfall">
+          <span class="snowflake" style="left:4%; --dur:13s; --delay:0s; --size:9px; --drift:14px;"></span>
+          <span class="snowflake" style="left:14%; --dur:17s; --delay:2s; --size:6px; --drift:-10px;"></span>
+          <span class="snowflake" style="left:24%; --dur:11s; --delay:5s; --size:11px; --drift:18px;"></span>
+          <span class="snowflake" style="left:34%; --dur:19s; --delay:1s; --size:7px; --drift:-16px;"></span>
+          <span class="snowflake" style="left:45%; --dur:14s; --delay:7s; --size:8px; --drift:10px;"></span>
+          <span class="snowflake" style="left:55%; --dur:16s; --delay:3s; --size:10px; --drift:-12px;"></span>
+          <span class="snowflake" style="left:64%; --dur:12s; --delay:6s; --size:6px; --drift:16px;"></span>
+          <span class="snowflake" style="left:74%; --dur:18s; --delay:0.5s; --size:9px; --drift:-14px;"></span>
+          <span class="snowflake" style="left:83%; --dur:15s; --delay:4s; --size:7px; --drift:12px;"></span>
+          <span class="snowflake" style="left:92%; --dur:13s; --delay:8s; --size:10px; --drift:-18px;"></span>
+          <span class="snowflake" style="left:60%; --dur:20s; --delay:9s; --size:5px; --drift:8px;"></span>
+          <span class="snowflake" style="left:9%; --dur:16.5s; --delay:11s; --size:8px; --drift:-9px;"></span>
+        </div>
+      </div>
       <div class="home-hero-top">
         <button id="btn-logout" class="icon-btn" type="button" aria-label="Cerrar sesión">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -124,7 +191,7 @@
   </section>
 
   <!-- ===================== DINERO ===================== -->
-  <section id="screen-money" class="screen">
+  <section id="screen-money" class="screen admin-frost">
     <header class="admin-hero money-hero">
       <div class="admin-hero-top">
         <button id="btn-money-back" class="icon-btn" type="button" aria-label="Volver a home">
@@ -145,7 +212,12 @@
   </section>
 
   <!-- ===================== REGISTRO DIARIO ===================== -->
-  <section id="screen-daily" class="screen">
+  <!-- Lleva la clase admin-frost (misma estética "Bariloche"
+       blanco/celeste que Login/Home/Dinero/Previas/Admin/Envío de
+       datos) desde v0.24.0: cambio puramente visual, sin tocar
+       renderDailyScreen, computeDailyDerived, getYesterdayKey ni
+       ningún otro dato/lógica/localStorage. -->
+  <section id="screen-daily" class="screen admin-frost">
     <header class="admin-hero daily-hero">
       <div class="admin-hero-top">
         <button id="btn-daily-back" class="icon-btn" type="button" aria-label="Volver a home">
@@ -164,7 +236,11 @@
   </section>
 
   <!-- ===================== ENVÍO DE DATOS ===================== -->
-  <section id="screen-export" class="screen">
+  <!-- Lleva la clase admin-frost (misma estética "Bariloche"
+       blanco/celeste que Login/Home/Dinero/Previas/Admin) desde
+       v0.22.0: cambio puramente visual, sin tocar generateExportCode,
+       copyExportCode, buildWhatsappUrl ni ningún otro dato/lógica. -->
+  <section id="screen-export" class="screen admin-frost">
     <header class="admin-hero export-hero">
       <div class="admin-hero-top">
         <button id="btn-export-back" class="icon-btn" type="button" aria-label="Volver a home">
@@ -183,7 +259,7 @@
   </section>
 
   <!-- ===================== ADMIN ===================== -->
-  <section id="screen-admin" class="screen">
+  <section id="screen-admin" class="screen admin-frost">
     <header class="admin-hero">
       <div class="admin-hero-top">
         <button id="btn-admin-back" class="icon-btn" type="button" aria-label="Volver a home">
@@ -197,10 +273,9 @@
     </header>
 
     <main class="home-content">
-      <div class="section-label">Jugadores</div>
+      <div class="section-label">Participantes</div>
       <div id="admin-participants" class="admin-participants"></div>
       <button type="button" id="btn-admin-update-code" class="admin-add-btn">Actualizar código</button>
-      <button type="button" id="btn-admin-add-player" class="admin-add-btn">+ Agregar jugador</button>
 
       <div class="section-label">Previas</div>
       <div class="card-list">
@@ -229,7 +304,7 @@
   </section>
 
   <!-- ===================== ESTADÍSTICAS (ADMIN) ===================== -->
-  <section id="screen-stats" class="screen">
+  <section id="screen-stats" class="screen admin-frost">
     <header class="admin-hero stats-hero">
       <div class="admin-hero-top">
         <button id="btn-stats-back" class="icon-btn" type="button" aria-label="Volver a admin">
@@ -248,7 +323,7 @@
   </section>
 
   <!-- ===================== PREVIAS (ADMIN) ===================== -->
-  <section id="screen-previas" class="screen">
+  <section id="screen-previas" class="screen admin-frost">
     <header class="admin-hero previas-hero">
       <div class="admin-hero-top">
         <button id="btn-previas-back" class="icon-btn" type="button" aria-label="Volver a admin">
@@ -271,8 +346,12 @@
        (script.js la arma con previaMode = "local"), pero guarda en
        "localPrevias:<id>" en vez de "adminPrevias", y sin ninguna otra
        función administrativa. Solo accesible para usuarios con
-       canRegisterPrevias (hoy únicamente Jere); ver navigate(). -->
-  <section id="screen-previas-jere" class="screen">
+       canRegisterPrevias (hoy únicamente Jere); ver navigate().
+       Lleva la clase admin-frost (misma estética "Bariloche"
+       blanco/celeste que Admin/Previas/Estadísticas/Money) desde
+       v0.21.0: cambio puramente visual, sin tocar previaMode ni el
+       almacenamiento local. -->
+  <section id="screen-previas-jere" class="screen admin-frost">
     <header class="admin-hero previas-hero">
       <div class="admin-hero-top">
         <button id="btn-previas-jere-back" class="icon-btn" type="button" aria-label="Volver a home">

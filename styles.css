@@ -147,57 +147,6 @@ img, svg {
   height: auto;
 }
 
-/* ---------------------------------------------------------
-   Pantalla: selector de usuario
-   --------------------------------------------------------- */
-
-#screen-select {
-  position: relative;
-  justify-content: flex-end;
-}
-
-.select-sky {
-  position: absolute;
-  inset: 0;
-  height: 260px;
-  background: radial-gradient(120% 100% at 50% 0%, #262247 0%, #14132a 60%, var(--bg) 100%);
-  overflow: hidden;
-}
-
-.select-content {
-  position: relative;
-  z-index: 1;
-  padding: 24px 20px calc(28px + var(--safe-bottom));
-  background: var(--bg);
-  border-radius: 28px 28px 0 0;
-  margin-top: 190px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.eyebrow {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--accent);
-  margin-bottom: 6px;
-}
-
-.select-title {
-  font-size: clamp(28px, 8vw, 34px);
-  font-weight: 800;
-  color: var(--text);
-  line-height: 1.1;
-}
-
-.select-sub {
-  margin-top: 8px;
-  color: var(--text-dim);
-  font-size: 15px;
-}
-
 .participant-grid {
   margin-top: 26px;
   display: grid;
@@ -265,6 +214,351 @@ img, svg {
   border-radius: 6px;
 }
 
+.eyebrow {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
+/* ---------------------------------------------------------
+   Estética "Bariloche" (celeste/blanco, montañas, nieve) —
+   compartida por LOGIN (#screen-select) y HOME (#screen-home) vía
+   la clase `.login-screen`. El resto de las pantallas (Money,
+   Daily, Export, Admin) siguen con el tema oscuro original.
+   --------------------------------------------------------- */
+
+.login-screen {
+  position: relative;
+  background: linear-gradient(180deg, #eaf6ff 0%, #f5fbff 35%, #ffffff 70%, #ffffff 100%);
+  overflow: hidden;
+}
+
+#screen-select.login-screen {
+  justify-content: flex-end;
+}
+
+.login-bg {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.login-glow {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 55% at 50% 0%, rgba(76, 201, 240, 0.28) 0%, rgba(76, 201, 240, 0) 60%),
+    radial-gradient(80% 40% at 85% 10%, rgba(199, 125, 255, 0.14) 0%, rgba(199, 125, 255, 0) 65%);
+  transform: translate3d(0, 0, 0);
+  transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: transform;
+}
+
+/* Título grande "BARILOCHE" detrás de las montañas: vive en el
+   markup ANTES del <svg class="login-mountains"> (mismo padre,
+   .login-bg, sin z-index propio en ninguno de los dos) para que el
+   orden de pintado natural haga que las montañas lo tapen
+   parcialmente, no solo que quede "debajo" en la posición. Protagonista
+   de la pantalla, tonos del degradé celeste/blanco ya usado en el
+   resto del fondo, con su propia velocidad de parallax (más lenta que
+   las montañas, para reforzar la sensación de estar más lejos/detrás). */
+.login-title-bg {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 72px;
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(34px, 11vw, 64px);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  background: linear-gradient(180deg, #ffffff 0%, #dcf1ff 45%, #6cc9ef 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  transform: translate3d(0, 0, 0);
+  transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: transform;
+}
+
+.login-mountains {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 40px;
+  width: 100%;
+  height: auto;
+  opacity: 0.9;
+  filter: drop-shadow(0 8px 24px rgba(76, 158, 201, 0.25));
+  transform: translate3d(0, 0, 0);
+  transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: transform;
+}
+
+/* Copos: pocos (12), animación CSS pura, sin JS. Empiezan arriba
+   del todo del contenedor y caen con una leve deriva horizontal en
+   loop; `pointer-events: none` en todo el contenedor para que nunca
+   intercepten toques sobre las cards. El contenedor también recibe
+   un desplazamiento sutil ligado al scroll (ver `initLoginParallax`
+   en script.js); cada copo sigue animando su propia caída con
+   `@keyframes login-snow-fall` de forma independiente, los dos
+   transforms se combinan sin pisarse (uno vive en el contenedor,
+   el otro en cada `.snowflake`). */
+.login-snowfall {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  transform: translate3d(0, 0, 0);
+  transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: transform;
+}
+
+/* Con "reducir movimiento" activado, o si JS no llegó a correr
+   (fallback), estas capas nunca reciben más que el transform base
+   0,0,0 de arriba: fondo estático normal, sin parallax. Acá además
+   apagamos la transition para no animar nada de más. */
+@media (prefers-reduced-motion: reduce) {
+  .login-glow,
+  .login-title-bg,
+  .login-mountains,
+  .login-snowfall {
+    transition: none;
+  }
+}
+
+.snowflake {
+  position: absolute;
+  top: -12px;
+  width: var(--size, 8px);
+  height: var(--size, 8px);
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 6px 1px rgba(255, 255, 255, 0.85);
+  opacity: 0.85;
+  animation: login-snow-fall var(--dur, 15s) linear var(--delay, 0s) infinite;
+}
+
+@keyframes login-snow-fall {
+  0% {
+    transform: translate(0, -5vh) translateX(0);
+    opacity: 0;
+  }
+  8% {
+    opacity: 0.9;
+  }
+  92% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate(var(--drift, 12px), 105vh) translateX(var(--drift, 12px));
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .snowflake {
+    animation: none;
+    opacity: 0.5;
+  }
+}
+
+/* ---------------------------------------------------------
+   Nieve global (v0.19.0) — capa ambiental en TODA la web, no
+   solo en LOGIN/HOME.
+
+   Un único componente (`#global-snowfall`, ver `index.html`,
+   vive como hijo directo de `#app` al cargar la página) que
+   `script.js` reubica dentro de `showScreen()` como PRIMER hijo
+   de la pantalla que pasa a estar activa, en cada navegación —
+   en vez de duplicar el markup/CSS de nieve en cada sección. Es
+   el mismo nodo del DOM moviéndose de pantalla en pantalla
+   (`insertBefore`), nunca una copia.
+
+   Por qué así y no un overlay fijo fuera de las pantallas: varias
+   pantallas (las de tema claro "frost": /admin, Previas de admin,
+   Estadísticas, Dinero, Previas de Jere) pintan su propio fondo
+   con degradé opaco directamente en `.screen` (ver
+   `.screen.admin-frost` más abajo). Un overlay puesto ANTES de
+   todas las `.screen` en el DOM quedaría tapado por ese fondo
+   opaco. Al insertarse como primer hijo DENTRO de la pantalla
+   activa, la nieve pinta por encima del fondo propio de esa
+   pantalla pero por debajo de absolutamente todo su contenido
+   real (headers, cards, botones, inputs, textos), que siguen
+   viniendo después en el DOM — nunca se superpone a un elemento
+   interactivo. El bottom nav y los bottom sheets NO son hijos de
+   `.screen` (son hermanos, con sus propios z-index 20/60 ya
+   existentes), así que quedan intactos y por encima siempre.
+
+   `position: fixed` hace que cubra siempre el alto completo del
+   viewport (no solo la parte superior) y seguir "cayendo" sin
+   importar el scroll de la página — no se ve afectada por el
+   scroll de ninguna pantalla, a diferencia del parallax de
+   `.login-snowfall` en LOGIN/HOME (capas totalmente
+   independientes, sin relación entre sí; `initLoginParallax` en
+   script.js sigue leyendo solo `.login-snowfall`, sin tocar esta
+   capa nueva).
+
+   Reutiliza la misma clase `.snowflake` y el mismo `@keyframes
+   login-snow-fall` ya usados en LOGIN/HOME, así que el estilo
+   visual es idéntico; la regla de `prefers-reduced-motion` de
+   arriba ya aplica a `.snowflake` en general, así que también
+   apaga estos copos sin agregar nada más. `pointer-events: none`
+   en el contenedor asegura que nunca intercepte clicks/toques. */
+.global-snowfall {
+  position: fixed;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: var(--app-max-width);
+  height: 100dvh;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.login-content {
+  position: relative;
+  z-index: 2;
+  padding: 24px 20px calc(28px + var(--safe-bottom));
+  background: transparent;
+  border-radius: 0;
+  margin-top: 228px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.login-screen .eyebrow {
+  color: #2f8fd1;
+}
+
+#screen-select.login-screen .select-title {
+  color: #10233a;
+  text-shadow: 0 2px 18px rgba(76, 201, 240, 0.2);
+  margin-top: 14px;
+}
+
+#screen-select.login-screen .select-sub {
+  color: #4d6b82;
+}
+
+/* Home reutiliza el mismo tratamiento de título que el login
+   (`.select-title`) para el saludo (`.hero-name`), en vez de
+   duplicar la regla. */
+.login-screen .hero-name {
+  color: #10233a;
+  text-shadow: 0 2px 18px rgba(76, 201, 240, 0.2);
+}
+
+/* Grid de jugadores: 2 columnas fijas en mobile, cards tipo
+   "vidrio" sobre el fondo claro. Selectores scoped a
+   #screen-select para no tocar `.participant-avatar`/
+   `.participant-name` reutilizados en Admin → Previas. */
+#screen-select .participant-grid {
+  margin-top: 26px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  padding-bottom: 12px;
+}
+
+#screen-select .participant-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(76, 201, 240, 0.35);
+  border-radius: 20px;
+  padding: 20px 10px 16px;
+  color: #10233a;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(76, 158, 201, 0.16);
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  min-width: 0;
+  position: relative;
+}
+
+#screen-select .participant-btn:active {
+  transform: scale(0.95);
+  box-shadow: 0 4px 12px rgba(76, 158, 201, 0.18);
+}
+
+#screen-select .participant-btn:hover {
+  border-color: #4cc9f0;
+  box-shadow: 0 10px 26px rgba(76, 158, 201, 0.24);
+}
+
+#screen-select .participant-avatar {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 17px;
+  color: #0d0d17;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.9), 0 6px 14px rgba(76, 158, 201, 0.25);
+}
+
+#screen-select .participant-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  color: #10233a;
+}
+
+#screen-select .admin-pill {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #ffffff;
+  background: linear-gradient(135deg, #4cc9f0, #2f8fd1);
+  padding: 2px 7px;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(47, 143, 209, 0.35);
+}
+
+@media (max-width: 359px) {
+  #screen-select .participant-grid {
+    gap: 10px;
+  }
+  #screen-select .participant-btn {
+    padding: 16px 6px 12px;
+  }
+  #screen-select .participant-avatar {
+    width: 46px;
+    height: 46px;
+    font-size: 15px;
+  }
+}
+
+/* ---------------------------------------------------------
+   Pantalla: selector de usuario — fin bloque LOGIN.
+   --------------------------------------------------------- */
+
 /* ---------------------------------------------------------
    Hero compartido (home / admin)
    --------------------------------------------------------- */
@@ -275,6 +569,19 @@ img, svg {
   overflow: hidden;
   background: radial-gradient(120% 140% at 50% 0%, #262247 0%, #171528 65%, var(--bg) 100%);
   flex-shrink: 0;
+}
+
+/* Home reutiliza la estética "Bariloche": mismo fondo celeste/blanco
+   que ya trae `.login-screen` en el contenedor, con altura propia
+   para que las montañas + "BARILOCHE" (`.login-bg`, reutilizado tal
+   cual del login) tengan lugar antes del saludo. Sobrescribe el
+   fondo oscuro del hero compartido solo para `.home-hero` (misma
+   especificidad, gana por venir después en el archivo; `.admin-hero`
+   no se toca). */
+.home-hero {
+  background: transparent;
+  min-height: 300px;
+  padding-bottom: 34px;
 }
 
 .home-hero-top, .admin-hero-top {
@@ -327,10 +634,28 @@ img, svg {
   background: rgba(255, 159, 28, 0.08);
 }
 
+/* Botón e insignia del hero de Home sobre el fondo claro: mismos
+   tonos celeste/blanco "vidrio" que ya usan las cards de jugador del
+   login (`#screen-select .participant-btn`), reutilizados tal cual. */
+.home-hero .icon-btn {
+  border-color: rgba(76, 201, 240, 0.35);
+  background: rgba(255, 255, 255, 0.7);
+  color: #10233a;
+}
+
+.home-hero .hero-badge {
+  color: #2f8fd1;
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(76, 201, 240, 0.35);
+}
+
+/* Empuja el saludo por debajo de las montañas (mismo criterio que
+   `.login-content` en el login, que también se corre para no pisar
+   el título "BARILOCHE"/las montañas). */
 .home-hero-bottom {
   position: relative;
   z-index: 1;
-  margin-top: 28px;
+  margin-top: 190px;
 }
 
 .hero-name {
@@ -465,6 +790,75 @@ img, svg {
   font-size: 13px;
   margin-top: 8px;
   padding: 0 8px;
+}
+
+/* ---------------------------------------------------------
+   Home — mismo lenguaje visual del login (fondo claro ya viene de
+   `.login-screen`) + tarjetas más grandes para aprovechar mejor el
+   alto de pantalla. Todo scoped a `#screen-home` para no afectar
+   `.feature-card`/`.section-label` de Admin/Estadísticas, que
+   siguen con el tema oscuro original.
+   --------------------------------------------------------- */
+
+#screen-home .home-content {
+  gap: 20px;
+}
+
+#screen-home .card-list {
+  gap: 16px;
+}
+
+#screen-home .section-label {
+  color: #2f8fd1;
+}
+
+/* Cards estilo "vidrio", mismos valores que
+   `#screen-select .participant-btn`, con más padding/ícono más
+   grande para que las 3 secciones ocupen bastante más alto. */
+#screen-home .feature-card {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(76, 201, 240, 0.35);
+  border-radius: 20px;
+  box-shadow: 0 8px 20px rgba(76, 158, 201, 0.16);
+  padding: 24px 20px;
+  gap: 16px;
+  align-items: center;
+}
+
+#screen-home .feature-card#card-money:active,
+#screen-home .feature-card.tappable:active {
+  border-color: #4cc9f0;
+  box-shadow: 0 10px 26px rgba(76, 158, 201, 0.24);
+}
+
+#screen-home .feature-icon {
+  width: 60px;
+  height: 60px;
+  font-size: 28px;
+  border-radius: 16px;
+}
+
+#screen-home .feature-text h3 {
+  font-size: 18px;
+  color: #10233a;
+}
+
+#screen-home .feature-text p {
+  font-size: 14px;
+  margin-top: 4px;
+  color: #4d6b82;
+}
+
+#screen-home .feature-arrow {
+  width: 20px;
+  height: 20px;
+  color: #4cc9f0;
+}
+
+#screen-home .home-footnote {
+  color: #6f92ac;
 }
 
 .admin-participants {
@@ -1200,9 +1594,13 @@ img, svg {
   display: none;
   gap: 4px;
   padding: 10px 20px calc(12px + var(--safe-bottom));
-  background: rgba(21, 21, 31, 0.88);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  /* Vidrio marcado: fondo bastante más transparente que antes (0.88 ->
+     0.55) combinado con un blur más fuerte (14px -> 28px), para que el
+     contenido de atrás se note claramente desenfocado en vez de tapado.
+     Mismo criterio aplica a `.bottom-nav-frost` más abajo. */
+  background: rgba(21, 21, 31, 0.55);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
   border-top: 1px solid var(--border);
   z-index: 20;
 }
@@ -1243,6 +1641,27 @@ img, svg {
 .nav-btn[hidden] {
   display: none;
 }
+
+/* Nav frost: mismos tonos celeste/blanco del login y Home, aplicada
+   solo cuando la pantalla activa es Home o Admin (ver `navigate()`
+   en script.js). Money/Registro diario/Envío de datos conservan la
+   barra oscura original. Más transparente que antes (ver bloque
+   `.bottom-nav` de arriba) para que el `backdrop-filter: blur` se
+   note con claridad y se vea desenfocado, no tapado, lo que hay
+   detrás de la navbar. */
+.bottom-nav.bottom-nav-frost {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0%, rgba(234, 246, 255, 0.55) 100%);
+  border-top: 1px solid rgba(76, 201, 240, 0.35);
+}
+
+.bottom-nav.bottom-nav-frost .nav-btn {
+  color: #4d6b82;
+}
+
+.bottom-nav.bottom-nav-frost .nav-btn.active {
+  color: #2f8fd1;
+}
+
 
 /* ---------------------------------------------------------
    Accesibilidad / utilidades
@@ -1330,7 +1749,7 @@ img, svg {
   fill: none;
   stroke: var(--accent);
   stroke-width: 17;
-  stroke-linecap: butt;
+  stroke-linecap: round;
   transition: stroke-dashoffset 0.5s ease;
 }
 
@@ -1882,6 +2301,40 @@ img, svg {
   border-color: var(--danger);
 }
 
+/* Indicador dinámico de contraseña: el input real queda funcional
+   (foco, teclado, caret) pero con el texto invisible; encima se
+   dibuja un punto por carácter ya escrito, sin insinuar en ningún
+   momento la longitud esperada. */
+.password-dots-box {
+  position: relative;
+}
+
+.password-dots-box .field-input {
+  color: transparent;
+}
+
+.password-dots-box .field-input::placeholder {
+  color: transparent;
+}
+
+.password-dots {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  pointer-events: none;
+}
+
+.password-dots .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text);
+  flex-shrink: 0;
+}
+
 .chip-group {
   display: flex;
   flex-wrap: wrap;
@@ -1956,4 +2409,411 @@ img, svg {
   cursor: pointer;
   padding: 6px;
   width: 100%;
+}
+
+/* ---------------------------------------------------------
+   Sheet "frost" — mismo lenguaje visual celeste/blanco del login
+   y de Home, reutilizado tal cual (mismos tonos: #10233a, #2f8fd1,
+   #4d6b82, rgba(76,201,240,x)) para el menú de contraseña. Scoped a
+   `.sheet-frost` (agregada por JS solo cuando el sheet activo es
+   "login-password"): el resto de los sheets de la app (gasto,
+   ganancia, saldo inicial, etc.) no se ve afectado.
+   --------------------------------------------------------- */
+.sheet.sheet-frost {
+  background: linear-gradient(180deg, #ffffff 0%, #eaf6ff 100%);
+  border-color: rgba(76, 201, 240, 0.35);
+}
+
+.sheet.sheet-frost .sheet-handle {
+  background: rgba(76, 201, 240, 0.4);
+}
+
+.sheet.sheet-frost .sheet-title {
+  color: #10233a;
+}
+
+.sheet.sheet-frost .sheet-sub {
+  color: #4d6b82;
+}
+
+.sheet.sheet-frost .field-label {
+  color: #2f8fd1;
+}
+
+.sheet.sheet-frost .field-input {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(76, 201, 240, 0.35);
+  color: #10233a;
+}
+
+.sheet.sheet-frost .password-dots-box .field-input {
+  color: transparent;
+}
+
+.sheet.sheet-frost .field-input:focus {
+  border-color: #4cc9f0;
+}
+
+.sheet.sheet-frost .password-dots .dot {
+  background: #2f8fd1;
+}
+
+.sheet.sheet-frost .sheet-error {
+  color: var(--danger);
+}
+
+.sheet.sheet-frost .sheet-submit {
+  background: #4cc9f0;
+  color: #0b2536;
+}
+
+.sheet.sheet-frost .sheet-cancel-link {
+  color: #4d6b82;
+}
+
+/* .sheet-frost ahora también se usa para los sheets abiertos desde
+   /admin (código de jugador, producto/confirmación de previa, etc. —
+   ver `openSheet()` en script.js). Estos sheets usan además algunos
+   componentes que .sheet-frost todavía no cubría (textarea de
+   importar código, tarjeta de previsualización, aviso, chips y botón
+   "danger" de eliminar). */
+.sheet.sheet-frost .admin-import-textarea {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(76, 201, 240, 0.35);
+  color: #10233a;
+}
+
+.sheet.sheet-frost .admin-import-textarea:focus {
+  border-color: #4cc9f0;
+}
+
+.sheet.sheet-frost .admin-preview-card {
+  background: rgba(233, 246, 255, 0.6);
+  border-color: rgba(76, 201, 240, 0.35);
+}
+
+.sheet.sheet-frost .admin-preview-row + .admin-preview-row {
+  border-top-color: rgba(76, 201, 240, 0.25);
+}
+
+.sheet.sheet-frost .admin-preview-row span:first-child {
+  color: #4d6b82;
+}
+
+.sheet.sheet-frost .admin-preview-row span:last-child {
+  color: #10233a;
+}
+
+.sheet.sheet-frost .admin-notice {
+  color: #2f5a78;
+  background: rgba(76, 201, 240, 0.12);
+  border-color: rgba(76, 201, 240, 0.35);
+}
+
+.sheet.sheet-frost .chip {
+  background: rgba(233, 246, 255, 0.7);
+  border-color: rgba(76, 201, 240, 0.3);
+  color: #4d6b82;
+}
+
+.sheet.sheet-frost .chip.selected {
+  background: rgba(76, 201, 240, 0.16);
+  border-color: #2f8fd1;
+  color: #2f8fd1;
+}
+
+.sheet.sheet-frost .previa-product-remove {
+  background: rgba(233, 246, 255, 0.7);
+  border-color: rgba(76, 201, 240, 0.3);
+  color: #4d6b82;
+}
+
+.sheet.sheet-frost .sheet-submit.danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+/* Código de una previa (sheet "previa-code", modo local de Jere):
+   mismo tratamiento que .admin-import-textarea, para que el cuadro
+   de texto readonly no quede oscuro dentro de un sheet frost. */
+.sheet.sheet-frost .export-code-box {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(76, 201, 240, 0.35);
+  color: #10233a;
+}
+
+/* ---------------------------------------------------------
+   Estética "Bariloche" — sección /admin (Admin, Previas de admin,
+   Estadísticas). Mismo lenguaje visual celeste/blanco de LOGIN/HOME,
+   aplicado con la clase `.admin-frost` sobre cada `.screen` (ver
+   `index.html`). Money y Previas de Jere (`#screen-previas-jere`)
+   también llevan esta clase. Registro diario y Envío de datos siguen
+   con el tema oscuro original. La mayoría de los componentes de /admin ya
+   estaban armados sobre las variables de color (`--surface`,
+   `--border`, `--text`, `--accent`, etc.), así que redefinirlas acá
+   alcanza para heredar el nuevo look en cascada sin reescribir cada
+   clase; solo se sobreescriben, además, los pocos lugares que usaban
+   el ámbar original "a fuego" (podio de estadísticas, tabs, chips
+   seleccionados, botón "agregar", aviso). No se tocó ningún cálculo,
+   dato ni comportamiento: solo color/fondo/sombra.
+   --------------------------------------------------------- */
+
+.screen.admin-frost {
+  --bg: #ffffff;
+  --bg-alt: #eaf6ff;
+  --surface: rgba(255, 255, 255, 0.72);
+  --surface-2: rgba(224, 241, 253, 0.75);
+  --border: rgba(76, 201, 240, 0.32);
+  --accent: #2f8fd1;
+  --accent-ink: #ffffff;
+  --text: #10233a;
+  --text-dim: #4d6b82;
+  --text-faint: #6f92ac;
+  background: linear-gradient(180deg, #eaf6ff 0%, #f5fbff 40%, #ffffff 100%);
+  /* Varios componentes reutilizados (ej. `.participant-name` en las
+     filas de "Jugadores") no declaran `color` propio: heredan el
+     color oscuro original directamente de `body`. Al declararlo acá
+     también, la cascada de herencia queda con el tono correcto para
+     toda la pantalla sin tocar esas clases una por una. */
+  color: var(--text);
+}
+
+/* Cabecera: mismo criterio que `.home-hero` sobre fondo claro (glow
+   celeste suave en vez del cielo nocturno oscuro), sin duplicar las
+   montañas/nieve del login para no saturar una pantalla de trabajo
+   administrativo — el pedido es "sin saturar la interfaz admin". */
+.screen.admin-frost .admin-hero {
+  background:
+    radial-gradient(120% 140% at 50% 0%, rgba(76, 201, 240, 0.22) 0%, rgba(76, 201, 240, 0) 60%),
+    linear-gradient(180deg, #eaf6ff 0%, #ffffff 100%);
+  border-bottom: 1px solid rgba(76, 201, 240, 0.2);
+}
+
+.screen.admin-frost .admin-hero .icon-btn {
+  border-color: rgba(76, 201, 240, 0.35);
+  background: rgba(255, 255, 255, 0.7);
+  color: #10233a;
+}
+
+.screen.admin-frost .admin-hero .hero-badge {
+  color: #2f8fd1;
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(76, 201, 240, 0.35);
+}
+
+.screen.admin-frost .admin-hero .hero-badge.admin-badge {
+  color: #2f8fd1;
+  background: rgba(76, 201, 240, 0.14);
+  border-color: rgba(76, 201, 240, 0.35);
+}
+
+.screen.admin-frost .admin-hero .eyebrow {
+  color: #2f8fd1;
+}
+
+.screen.admin-frost .admin-hero .hero-name {
+  color: #10233a;
+  text-shadow: 0 2px 18px rgba(76, 201, 240, 0.2);
+}
+
+/* Tarjetas "vidrio" (mismo tratamiento que las cards de Home) para
+   que Admin/Previas/Estadísticas se sientan parte de la misma app. */
+.screen.admin-frost .feature-card,
+.screen.admin-frost .admin-participant-row,
+.screen.admin-frost .ranking-card,
+.screen.admin-frost .stats-empty-banner {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 10px 24px -18px rgba(47, 143, 209, 0.35);
+}
+
+.screen.admin-frost .admin-add-btn {
+  border-color: rgba(76, 201, 240, 0.4);
+  background: rgba(76, 201, 240, 0.1);
+  color: #2f8fd1;
+}
+
+.screen.admin-frost .admin-add-btn:active {
+  border-color: #2f8fd1;
+}
+
+.screen.admin-frost .chip.selected {
+  background: rgba(76, 201, 240, 0.16);
+  border-color: #2f8fd1;
+  color: #2f8fd1;
+}
+
+.screen.admin-frost .stats-tab.active {
+  background: linear-gradient(135deg, #2f8fd1, #4cc9f0);
+  color: #ffffff;
+  box-shadow: 0 4px 14px -6px rgba(47, 143, 209, 0.5);
+}
+
+.screen.admin-frost .stats-day-nav-total {
+  background: linear-gradient(135deg, rgba(76, 201, 240, 0.16), var(--surface));
+  border-color: rgba(76, 201, 240, 0.3);
+}
+
+.screen.admin-frost .stats-day-sub {
+  color: #2f8fd1;
+}
+
+.screen.admin-frost .admin-notice {
+  color: #2f5a78;
+  background: rgba(76, 201, 240, 0.12);
+  border-color: rgba(76, 201, 240, 0.35);
+}
+
+/* Podio del 1er puesto: mismo componente, acento celeste en vez de
+   ámbar para no romper la paleta fría. */
+.screen.admin-frost .ranking-podium {
+  background: linear-gradient(135deg, rgba(76, 201, 240, 0.22), rgba(255, 255, 255, 0.5) 60%);
+  border-color: rgba(76, 201, 240, 0.5);
+  box-shadow: 0 0 0 1px rgba(76, 201, 240, 0.12), 0 10px 24px -14px rgba(76, 201, 240, 0.45);
+}
+
+.screen.admin-frost .ranking-podium-crown {
+  filter: drop-shadow(0 2px 8px rgba(76, 201, 240, 0.5));
+}
+
+.screen.admin-frost .ranking-podium-tag {
+  color: #2f8fd1;
+  background: rgba(76, 201, 240, 0.16);
+  border-color: rgba(76, 201, 240, 0.4);
+}
+
+.screen.admin-frost .ranking-bar-track-winner {
+  background: rgba(76, 201, 240, 0.1);
+  border-color: rgba(76, 201, 240, 0.5);
+}
+
+.screen.admin-frost .ranking-bar-fill-winner {
+  background: linear-gradient(90deg, #2f8fd1, #4cc9f0);
+  box-shadow: 0 0 14px 0 rgba(76, 201, 240, 0.55);
+}
+
+.screen.admin-frost .ranking-row.is-silver .ranking-name {
+  color: #6b7a94;
+}
+
+.screen.admin-frost .ranking-row.is-bronze .ranking-name {
+  color: #a56438;
+}
+
+/* Dinero (`#screen-money`) sumado a la estética "Bariloche": mismo
+   scope `.screen.admin-frost`, así que la dona, el saldo y el
+   historial ya heredan la paleta blanca/celeste (`--surface`,
+   `--border`, `--accent`, `--text*`) sin tocar `.donut-*`/
+   `.history-*`/`.money-*` en sí. `.money-hero` reutiliza
+   `.admin-hero` tal cual (mismo glow, mismo header). Solo se
+   suman acá los pocos colores que estaban fijos en vez de usar una
+   variable (rosa de gasto, celeste de ganancia) para que mantengan
+   buen contraste sobre fondo blanco; ningún cálculo, dato ni
+   `localStorage` cambia. */
+
+.screen.admin-frost .donut-card,
+.screen.admin-frost .money-prompt,
+.screen.admin-frost .history-row {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 10px 24px -18px rgba(47, 143, 209, 0.35);
+}
+
+.screen.admin-frost .donut-hole {
+  box-shadow: 0 0 0 1px rgba(76, 201, 240, 0.18);
+}
+
+.screen.admin-frost .money-action.expense {
+  background: rgba(214, 40, 74, 0.1);
+  border-color: rgba(214, 40, 74, 0.35);
+  color: #d6284a;
+}
+
+.screen.admin-frost .money-action.income {
+  background: rgba(76, 201, 240, 0.12);
+  border-color: rgba(76, 201, 240, 0.4);
+  color: #2f8fd1;
+}
+
+.screen.admin-frost .history-row.is-expense .history-amount {
+  color: #d6284a;
+}
+
+.screen.admin-frost .history-row.is-income .history-amount {
+  color: #2f8fd1;
+}
+
+.screen.admin-frost .history-row.is-income .history-icon {
+  background: rgba(76, 201, 240, 0.16);
+}
+
+/* Envío de datos (`#screen-export`) sumado a la estética "Bariloche":
+   mismo scope `.screen.admin-frost`, así que `.export-hint`,
+   `.export-code-box` y `.sheet-cancel-link` ("Copiar código") ya
+   heredan la paleta blanca/celeste sin tocar esas clases. Solo se
+   suma acá el mismo tratamiento "vidrio" (blur + sombra celeste) que
+   ya usan `.donut-card`/`.money-prompt`/`.history-row` en Dinero,
+   aplicado a `.daily-section` (la tarjeta que contiene el código),
+   para que se lea como parte del mismo lenguaje visual. El botón de
+   WhatsApp (`.whatsapp-btn`) conserva su verde de marca sin cambios,
+   igual que en el tema oscuro. Ningún dato, código ni `localStorage`
+   cambia. */
+.screen.admin-frost .daily-section {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 10px 24px -18px rgba(47, 143, 209, 0.35);
+}
+
+/* Registro diario (`#screen-daily`) sumado a la estética "Bariloche":
+   mismo scope `.screen.admin-frost`, así que `.daily-date-banner`,
+   `.daily-section`, `.toggle-chip`, `.chip`, `.picker-block`,
+   `.field-label` y `.daily-total-sleep` ya heredan la paleta blanca/
+   celeste (`--surface`, `--border`, `--text*`) sin tocar esas clases.
+   Solo se sobreescriben acá los pocos colores que estaban fijos en
+   `--accent-2` (cian sobre fondo oscuro) o en rosa "a fuego", que
+   sobre fondo blanco quedarían con bajo contraste: hora
+   seleccionada del scroll, "No dormí"/"No fui al boliche" activados,
+   botón "+ Registrar siesta" y los textos calculados (sueño, siesta,
+   tiempo en el boliche). Ningún cálculo, dato ni `localStorage`
+   cambia: es exclusivamente una capa de presentación sobre la misma
+   sección ya documentada en "Registro diario" de `SPEC.md`. */
+.screen.admin-frost .daily-date-banner {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 10px 24px -18px rgba(47, 143, 209, 0.35);
+}
+
+.screen.admin-frost .time-option.selected {
+  background: rgba(76, 201, 240, 0.16);
+  border-color: #2f8fd1;
+  color: #2f8fd1;
+}
+
+.screen.admin-frost .toggle-chip.selected {
+  background: rgba(214, 40, 74, 0.1);
+  border-color: #d6284a;
+  color: #d6284a;
+}
+
+.screen.admin-frost .add-nap-btn {
+  color: #2f8fd1;
+  border-color: rgba(76, 201, 240, 0.4);
+}
+
+.screen.admin-frost .daily-computed {
+  color: #2f8fd1;
+}
+
+.screen.admin-frost .daily-total-sleep {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 10px 24px -18px rgba(47, 143, 209, 0.35);
+}
+
+.screen.admin-frost .daily-total-sleep strong {
+  color: #10233a;
+}
+
+.screen.admin-frost .daily-save-msg {
+  color: #2f8fd1;
 }
