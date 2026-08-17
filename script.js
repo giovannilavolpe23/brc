@@ -341,11 +341,21 @@ const HOME_GREETING_QUESTIONS = [
   "¿Como estás?",
   "¿Todo bajo control?",
   "¿Todo bien?",
-  "¿hoy sale previa?",
-  "¿se viene algo bueno?",
-  "¿seguimos vivos?",
-  "¿qué tal tu dia?",
-  "¿disfrutando barilo?",
+  "¿Hoy sale previa?",
+  "¿Se viene algo bueno?",
+  "¿Seguimos vivos?",
+  "¿Qué tal tu dia?",
+  "¿Disfrutando bariló?",
+  "¿Quiero queque?",
+  "¿Como va todo?",
+  "Loto pregunta cuándo le entregas el tp",
+  "Espero te encuentres muy bien ☺️​",
+  "¿Dormiste algo?",
+  "Simón te envió un mensaje: ​6️⃣​7️⃣​​6️⃣​7️⃣​",
+  "que pedazo de web se mandó gio eee",
+  "¿Cómo te encuentras?",
+  "¿Qué onda chavalín?",
+  "Dale nene que hoy la rompes"
 ];
 
 function pickRandomHomeGreetingQuestion() {
