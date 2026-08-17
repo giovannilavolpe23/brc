@@ -1154,6 +1154,54 @@ Admin, Estadisticas) comparten la misma paleta blanco/celeste fria.
   es exclusivamente una capa de presentacion sobre la misma seccion ya
   documentada en "Registro diario" mas arriba.
 
+### Animaciones de micro-interacción (implementado, pruebas puntuales)
+
+Pruebas aisladas de animación, pensadas para evaluar si se extiende
+el mismo lenguaje de movimiento al resto de la web. Ambas usan
+únicamente `transform` + `opacity` (mobile-first, sin reflow) y
+respetan `prefers-reduced-motion`.
+
+- **Transición Home → Dinero / Registro diario / Envío de datos**
+  (`v0.26.0`, timing y color de fondo ajustados en `v0.29.0`,
+  extendida a Registro diario y Envío de datos en `v0.30.0`): al
+  pulsar `#card-money`, `#card-daily` o `#card-export` desde Home,
+  Home hace fade-out + `translateY(-10px)` (100ms) y, justo después,
+  la pantalla destino hace fade-in + `translateY(10px→0)` (100ms),
+  ambas con una curva `cubic-bezier` suave (`0.4, 0, 1, 1` de salida
+  / `0, 0, 0.2, 1` de entrada) en vez de `ease-out`. Mientras dura la
+  transición, `#app` (clase `home-money-transition-bg`,
+  agregada/quitada por `navigateHomeToScreenWithTransition(route)`)
+  muestra el mismo celeste claro (`#eaf6ff`) que ya usan de fondo
+  Home, Dinero, Registro diario y Envío de datos, en vez de su
+  `var(--bg)` oscuro por defecto, para que no se vea un parpadeo
+  oscuro entre medio — el efecto se siente como que el contenido se
+  borra y aparece otro, no como una pantalla negra intermedia. Las
+  tres pantallas destino usan el mismo timing, curva y color porque
+  comparten la clase `.admin-frost`. Acotada exclusivamente a esas
+  tres navegaciones puntuales desde Home — el resto de las
+  transiciones entre pantallas (volver a Home, bottom nav, back del
+  navegador) siguen siendo instantáneas.
+- **Saludo de Home (`v0.27.0`, rediseño visual y saludo aleatorio en
+  `v0.28.0`)**: al entrar a Home, "Hola,", el nombre del usuario y un
+  remate/pregunta entran con una secuencia escalonada — "Hola," y el
+  remate desde la izquierda (`translateX(-48px) → 0`), el nombre con
+  sensación de profundidad (`translateX(40px) scale(0.82) →
+  translateX(0) scale(1)`), delays 0/160/340ms, ≈760ms en total. Se
+  reinicia en cada entrada real a Home (no en cada micro-render)
+  reiniciando la clase `.home-greeting-animate` desde `renderHome()`.
+  Los 3 textos tienen tipografía y color propios (`.home-greet-hola`,
+  `.home-greet-name`, `.home-greet-question`), más claros y con mejor
+  jerarquía que el tratamiento genérico de `.eyebrow` que usaban
+  antes, dentro de la misma paleta celeste/azul de la estética
+  "Bariloche". El remate ya no es fijo: `renderHome()` sortea, cada
+  vez que se entra a Home, una de 8 variantes
+  (`HOME_GREETING_QUESTIONS` en `script.js`: "¿Como estás?", "¿Todo
+  bajo control?", "¿Todo bien?", "¿hoy sale previa?", "¿se viene algo
+  bueno?", "¿seguimos vivos?", "¿qué tal tu dia?", "¿disfrutando
+  barilo?") y la escribe en `.home-greet-question` antes de disparar
+  la animación. No se persiste en `localStorage`; es puramente de
+  sesión/render.
+
 ## Arquitectura
 
 Mantener el proyecto simple.

@@ -2,7 +2,242 @@
 
 ## Versión
 
-v0.25.0 — Nieve global: efecto ambiental en toda la web (no solo login/Home)
+v0.30.0 — Transición animada de Home también en Registro diario y Envío de datos (antes solo Dinero)
+
+## v0.30.0 — Transición Home → Dinero/Registro diario/Envío de datos
+
+Se extendió la transición animada que existía únicamente para Home →
+Dinero (ver v0.26.0 y v0.29.0 más abajo) a las otras dos tarjetas de
+Home: `#card-daily` (Registro diario) y `#card-export` (Envío de
+datos). Las tres usan ahora exactamente el mismo timing (100ms por
+lado), la misma curva (`cubic-bezier(0.4, 0, 1, 1)` salida /
+`cubic-bezier(0, 0, 0.2, 1)` entrada) y el mismo color de fondo
+(`#eaf6ff`) que ya tenía la transición de Dinero.
+
+- **JS**: la función `navigateHomeToMoneyWithTransition()` se
+  renombró/generalizó a `navigateHomeToScreenWithTransition(route)`
+  en `script.js`. Recibe la pantalla destino (`"money"`, `"daily"` o
+  `"export"`) y hace exactamente lo mismo que antes hacía para
+  Dinero: si no se viene de Home o hay `prefers-reduced-motion`, cae
+  directo a `navigate(route)` sin animar; si no, agrega
+  `home-money-transition-bg` a `#app`, anima la salida de Home con
+  `.home-to-money-exit`, al terminar ejecuta `navigate(route)` (sin
+  cambios) y anima la entrada de la pantalla destino con
+  `.money-from-home-enter`, quitando la clase de `#app` al final.
+- Los listeners de `#card-daily` y `#card-export` llaman ahora a
+  `navigateHomeToScreenWithTransition("daily")` /
+  `navigateHomeToScreenWithTransition("export")` en vez de invocar
+  `navigate(...)` directamente. El de `#card-money` sigue llamando a
+  la misma función, ahora con `"money"` como argumento.
+- **CSS**: sin cambios — no se agregó ninguna clase nueva. Las mismas
+  `.home-to-money-exit` / `.money-from-home-enter` /
+  `#app.home-money-transition-bg` de antes se reutilizan para las 3
+  pantallas, porque Dinero, Registro diario y Envío de datos
+  comparten la clase `.screen.admin-frost` y por lo tanto el mismo
+  degradé de fondo que arranca en `#eaf6ff`.
+- El resto de las navegaciones sigue exactamente igual: volver desde
+  cualquiera de las 3 pantallas (`btn-money-back`, `btn-daily-back`,
+  `btn-export-back`) sigue usando `navigate("home")` sin animar, y el
+  bottom nav / back del navegador tampoco animan.
+- Verificado: `node --check script.js` sin errores.
+
+## v0.29.0 — Transición Home → Dinero: timing + color de fondo
+
+Ajuste puntual sobre la transición de v0.26.0 (Home → Dinero al tocar
+`#card-money`). No se tocó ninguna otra sección, navegación ni
+funcionalidad.
+
+- **Duración**: la salida de Home (`.home-to-money-exit`) pasa de
+  160ms a 100ms. La entrada de Dinero (`.money-from-home-enter`)
+  también pasa a 100ms (antes 200ms), para que ambas mitades de la
+  transición duren lo mismo y se sientan parejas.
+- **Curva más suave**: ambas animaciones dejan `ease-out` por una
+  curva `cubic-bezier` dedicada (`cubic-bezier(0.4, 0, 1, 1)` en la
+  salida, `cubic-bezier(0, 0, 0.2, 1)` en la entrada), pensada para
+  que la desaceleración/aceleración se sienta más suave que el
+  `ease-out` genérico anterior.
+- **Fix del flash oscuro de fondo**: `.screen.login-screen` (Home) y
+  `.screen.admin-frost` (Dinero) pintan su propio fondo claro
+  (degradé que arranca en `#eaf6ff`) directamente sobre el `.screen`,
+  así que al bajar su `opacity` durante la animación quedaba expuesto
+  por un instante el fondo oscuro por defecto de `#app`
+  (`var(--bg)`, `#0d0d17`) — el "efecto pantalla negra" reportado.
+  Se agregó una clase nueva, `home-money-transition-bg`, que
+  `navigateHomeToMoneyWithTransition()` (`script.js`) agrega a `#app`
+  apenas arranca la transición y quita recién cuando termina la
+  animación de entrada de Dinero (o de inmediato si por algún motivo
+  no hay pantalla de Dinero a la que entrar). Esa clase solo pone
+  `background: #eaf6ff` en `#app` — el mismo tono con el que ya
+  arrancan los degradés de Home y Dinero — así que durante el fade se
+  ve como si el contenido de una pantalla se borrara y apareciera el
+  de la otra, en vez de un parpadeo oscuro entre medio.
+- Nada más cambió: mismo disparador (`#card-money`), mismo
+  `translateY(±10px)` combinado con `opacity`, mismo fallback a
+  `navigate("money")` sin animar si no se viene de Home o si
+  `prefers-reduced-motion` está activo, mismo respeto de esa
+  preferencia (el nuevo bloque `#app.home-money-transition-bg` no
+  tiene animación propia, así que no hace falta cubrirlo en el
+  `@media (prefers-reduced-motion: reduce)` ya existente). El resto
+  de las navegaciones (Dinero → Home, cualquier otra sección, back
+  del navegador, bottom nav) sigue sin animación, sin cambios.
+- Verificado: `node --check script.js` sin errores; llaves de
+  `styles.css` balanceadas; revisado a mano que
+  `home-money-transition-bg` se agrega al iniciar la transición y se
+  quita siempre al terminar (tanto en el camino normal como en el
+  caso borde sin `moneyEl`).
+
+## v0.28.0 — Saludo de Home: rediseño visual + saludo aleatorio
+
+Dos cambios acotados al saludo de Home (`.home-hero-bottom`: "Hola,"
+/ nombre / remate), sin tocar ninguna otra sección ni funcionalidad.
+
+### 1. Rediseño visual (claridad, tamaños, colores)
+
+Los 3 textos dejaron de heredar el estilo genérico de `.eyebrow`
+(pensado para etiquetas chicas en mayúscula con letter-spacing
+ancho) y pasaron a reglas propias, más legibles y con mejor
+jerarquía, dentro de la misma paleta celeste/azul "Bariloche" ya
+usada en login/Home:
+
+- `.home-greet-hola` ("Hola,"): 15px, semibold, `#5b7c94` (azul
+  grisáceo suave), sin mayúsculas forzadas ni letter-spacing ancho.
+- `.home-greet-name` (nombre, sigue siendo `<h1 id="home-username">`):
+  un poco más grande que antes — `clamp(28px, 9vw, 36px)` en vez de
+  `clamp(26px, 8vw, 32px)` — para reforzarlo como elemento
+  protagonista del saludo.
+- `.home-greet-question` (remate/pregunta): 17px, semibold, celeste
+  de acento `#2f8fd1` (mismo tono que ya se usaba en otros textos de
+  acento de la estética "Bariloche"), tampoco en mayúsculas.
+- Las reglas nuevas se agregaron junto a `.hero-name` en
+  `styles.css`, con selectores de clase (`.home-greet-name.hero-name`,
+  etc.) que ganan por especificidad sin necesidad de tocar
+  `.hero-name` ni `.eyebrow` de forma global — así que Admin y el
+  resto de usos de esas clases base no se ven afectados.
+- La animación de entrada escalonada de v0.27.0 (`homeGreetFromLeft`
+  / `homeGreetFromDepth`, clase `.home-greeting-animate` reiniciada
+  desde `playHomeGreetingAnimation()` en cada entrada a Home) se
+  conserva exactamente igual: mismos 3 elementos, mismos delays
+  (0/160/340ms), misma duración total (~760ms), mismo respeto de
+  `prefers-reduced-motion`. Solo cambió la apariencia final de los
+  textos, no cómo llegan a esa posición.
+
+### 2. Saludo aleatorio (remate dinámico)
+
+El remate de la pregunta ya no es un texto fijo en el HTML. Ahora
+`renderHome(user)` en `script.js`, en cada entrada a Home, sortea uno
+de 8 remates posibles (`HOME_GREETING_QUESTIONS`,
+`pickRandomHomeGreetingQuestion()`) y lo escribe en
+`.home-greet-question` **antes** de disparar
+`playHomeGreetingAnimation()` (así el texto ya está actualizado
+cuando arranca la animación de entrada):
+
+```js
+const HOME_GREETING_QUESTIONS = [
+  "¿Como estás?",
+  "¿Todo bajo control?",
+  "¿Todo bien?",
+  "¿hoy sale previa?",
+  "¿se viene algo bueno?",
+  "¿seguimos vivos?",
+  "¿qué tal tu dia?",
+  "¿disfrutando barilo?",
+];
+```
+
+- El `<p class="eyebrow home-greet-question">` en `index.html`
+  conserva "¿como estás?" como contenido estático de partida (por si
+  el JS tarda en correr o para quien lea el markup fuente), pero en
+  la práctica `renderHome()` lo pisa siempre con una opción elegida
+  al azar en cuanto se entra a `/home` — incluida la primera vez
+  después del login.
+- Elección puramente de sesión/render: no se guarda en
+  `localStorage` ni en ningún otro lado, así que puede repetirse la
+  misma opción dos veces seguidas (no hay lógica de "no repetir la
+  anterior").
+- No afecta `currentUser`, `userData:<id>` ni ningún otro dato; es
+  estrictamente texto mostrado en pantalla.
+
+### Qué NO cambió
+
+Ninguna otra sección, texto, tarjeta, header, logo, montañas, nieve,
+botones, navbar, la transición Home → Dinero (v0.26.0), ni ninguna
+otra pantalla o funcionalidad.
+
+## v0.27.0 — Animación de entrada del saludo en Home
+
+Prueba puntual y aislada: los 3 textos del saludo de Home (`.eyebrow`
+"Hola,", `#home-username.hero-name` con el nombre, `.eyebrow`
+"¿como estás?") ahora entran con una secuencia escalonada de
+transform + opacity en vez de aparecer estáticos.
+
+- **Markup sin romper nada existente**: en `index.html` se sumaron
+  las clases `home-greet-hola`, `home-greet-name` y
+  `home-greet-question` a los 3 elementos ya existentes dentro de
+  `.home-hero-bottom`, junto a sus clases originales (`eyebrow`,
+  `hero-name`) que no se tocaron. Ninguna otra sección, texto,
+  tarjeta, header, logo, montaña, nieve ni botón fue modificado.
+- **Secuencia**: "Hola," entra desde la izquierda
+  (`translateX(-48px) → 0` + opacity), con delay 0. El nombre entra
+  con sensación de profundidad (`translateX(40px) scale(0.82) → 0
+  scale(1)` + opacity), delay 160ms. "¿como estás?" repite el mismo
+  estilo que "Hola," (entra desde la izquierda), delay 340ms.
+  Duración total ≈ 760ms (dentro del rango 700–1000ms pedido).
+  `cubic-bezier(0.16, 1, 0.3, 1)` para una desaceleración suave,
+  "premium", sin rebote.
+- **Solo transform + opacity**: sin animar `width`, `margin` ni
+  otras propiedades que disparen reflow. La posición/tamaño/tipografía
+  final de los 3 textos es exactamente la que tenían antes — la
+  animación solo afecta cómo llegan.
+- **Se ejecuta al entrar a Home, no en cada micro-render**: los 3
+  nodos son estáticos en el DOM (no se recrean), así que agregar la
+  clase `.home-greeting-animate` una sola vez no alcanzaría para que
+  vuelva a jugar en próximas visitas. `renderHome()` en `script.js`
+  ahora llama a `playHomeGreetingAnimation()`, que saca la clase,
+  fuerza un reflow (`void heroBottom.offsetWidth`) y la vuelve a
+  poner — truco estándar para reiniciar un `@keyframes` en un nodo
+  que ya la tenía. Como `renderHome()` solo se invoca desde la rama
+  "home" de `navigate()` (un único choke point), la secuencia se
+  dispara en cada entrada real a Home y nunca por cuenta propia
+  mientras el usuario permanece ahí.
+- **`prefers-reduced-motion`**: toda la regla de animación está
+  dentro de `@media (prefers-reduced-motion: no-preference)`; con
+  la preferencia de reducir movimiento activada, la clase
+  `.home-greeting-animate` no dispara ningún `animation`, así que
+  los 3 textos se muestran directo en su posición/opacidad final
+  (no hay estado oculto aplicado fuera de una animación en curso).
+- **Sin librerías nuevas**: CSS `@keyframes` + un `classList`
+  add/remove puntual en JS, reutilizando el mismo patrón mobile-first
+  (transform/opacity) ya usado en el resto de la web.
+- Verificado: sin overflow horizontal, sin interferencia con scroll,
+  posición final idéntica a la anterior, sin tocar Dinero, Registro
+  diario, Envío de datos, bottom nav, header, logo, montañas, nieve
+  ni la transición Home → Dinero (ver v0.26.0).
+
+## v0.26.0 — Transición Home → Dinero (slide + fade, prueba puntual)
+
+Primera prueba de animación de navegación, acotada exclusivamente al
+botón que lleva de Home a Dinero (`#card-money`). El resto de las
+navegaciones (Dinero → Home, Home → cualquier otra sección, back del
+navegador, bottom nav) sigue usando `navigate()` sin ningún cambio.
+
+- **CSS**: dos animaciones nuevas en `styles.css`, agregadas después
+  de `.screen.active` — `.home-to-money-exit` (Home: `opacity: 1→0` +
+  `translateY(0→-10px)`, 160ms) y `.money-from-home-enter` (Dinero:
+  `opacity: 0→1` + `translateY(10px→0)`, 200ms). Solo `transform` +
+  `opacity`, sin reflow. Envueltas en
+  `@media (prefers-reduced-motion: reduce) { animation: none; }`
+  para desactivarse con esa preferencia.
+- **JS**: nueva función `navigateHomeToMoneyWithTransition()` en
+  `script.js`, usada únicamente por el listener de `#card-money`
+  (antes llamaba directo a `navigate("money")`). Si el usuario no
+  viene de Home o tiene `prefers-reduced-motion` activado, cae al
+  `navigate("money")` original sin animar. Si no, anima la salida de
+  Home (160ms), y al terminar (`animationend`) recién ahí llama a
+  `navigate("money")` normal y anima la entrada de Dinero (200ms) —
+  secuencial, para no superponer dos `.screen` en el flujo normal del
+  documento y evitar saltos de layout. Duración total ≈ 360ms.
+  `navigate()`, `showScreen()` y el resto de los listeners de
+  navegación no se tocaron.
 
 ## v0.25.0 — Nieve global en toda la web
 

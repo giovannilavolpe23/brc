@@ -274,12 +274,51 @@ function checkLoginPassword() {
    Render: home
    ----------------------------------------------------------- */
 
+// Posibles remates para el saludo de Home ("Hola, <nombre> <remate>").
+// Se elige uno al azar cada vez que se entra a Home para darle más
+// dinamismo; no se persiste en ningún lado, es puramente de sesión.
+const HOME_GREETING_QUESTIONS = [
+  "¿Como estás?",
+  "¿Todo bajo control?",
+  "¿Todo bien?",
+  "¿hoy sale previa?",
+  "¿se viene algo bueno?",
+  "¿seguimos vivos?",
+  "¿qué tal tu dia?",
+  "¿disfrutando barilo?",
+];
+
+function pickRandomHomeGreetingQuestion() {
+  const idx = Math.floor(Math.random() * HOME_GREETING_QUESTIONS.length);
+  return HOME_GREETING_QUESTIONS[idx];
+}
+
 function renderHome(user) {
   document.getElementById("home-username").textContent = user.name;
+  const greetQuestion = document.querySelector(".home-greet-question");
+  if (greetQuestion) {
+    greetQuestion.textContent = pickRandomHomeGreetingQuestion();
+  }
   const previasSection = document.getElementById("home-previas-section");
   if (previasSection) {
     previasSection.hidden = !canRegisterLocalPrevia(user.id);
   }
+  playHomeGreetingAnimation();
+}
+
+// Reinicia la animación de entrada del saludo ("Hola," / nombre /
+// "¿como estás?") cada vez que se entra a Home. Como los 3 nodos son
+// estáticos (no se recrean en cada render), hace falta sacar la
+// clase, forzar reflow y volver a ponerla para que el navegador
+// vuelva a disparar el @keyframes; si no, solo se vería la primera
+// vez que carga la página.
+function playHomeGreetingAnimation() {
+  const heroBottom = document.querySelector(".home-hero-bottom");
+  if (!heroBottom) return;
+  heroBottom.classList.remove("home-greeting-animate");
+  // eslint-disable-next-line no-unused-expressions
+  void heroBottom.offsetWidth; // fuerza reflow para reiniciar el keyframe
+  heroBottom.classList.add("home-greeting-animate");
 }
 
 /* -----------------------------------------------------------
@@ -953,7 +992,7 @@ const CATEGORY_RANKING_META = {
   Alcohol: { title: "Quién se la patinó más en alcohol", icon: "🍷", accent: "#c77dff" },
   Comida: { title: "Quién es el más gordito de mierda", icon: "🍔", accent: "#ffd166" },
   Chocolates: { title: "Quién es el más dulce", icon: "🍫", accent: "#ff5470" },
-  Boliche: { title: "Quién tuvo más ganas de quebrar", icon: "🪩", accent: "#ff5470" },
+  Boliche: { title: "Quién tuvo más ganas de quebrar", icon: "🍾", accent: "#ff5470" },
   Actividades: { title: "Quién gastó más en actividades", icon: "🎿", accent: "#4cc9f0" },
   Bebida: { title: "Quién compró más bebidas s/a", icon: "🥤", accent: "#4cc9f0" },
   Otros: { title: "Quién gastó más en otros", icon: "📦", accent: "#ff9f1c" },
@@ -3266,8 +3305,57 @@ document.getElementById("btn-previas-jere-back").addEventListener("click", () =>
   navigate("home");
 });
 
+// Transición animada Home -> Dinero / Registro diario / Envío de datos.
+// Nacida como prueba puntual para "money" (v0.26.0/v0.29.0) y luego
+// generalizada a "daily" y "export", que comparten la misma estética
+// "Bariloche" (`.admin-frost`) que Dinero. El resto de las navegaciones
+// hacia/desde estas pantallas (botón "volver", back del navegador,
+// bottom nav, etc.) siguen usando navigate(route) sin cambios.
+function navigateHomeToScreenWithTransition(route) {
+  const homeEl = screens.home;
+  const targetEl = screens[route];
+  const reduceMotion =
+    window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // Si no estamos viniendo de Home, o el usuario prefiere menos
+  // movimiento, caemos al comportamiento original sin animar.
+  if (!homeEl || !homeEl.classList.contains("active") || !targetEl || reduceMotion) {
+    navigate(route);
+    return;
+  }
+
+  // Mientras se anima la salida/entrada, #app muestra el mismo fondo
+  // celeste/blanco de las pantallas involucradas (ver
+  // `.home-money-transition-bg` en styles.css) para que no se vea un
+  // parpadeo oscuro entre medio.
+  const appEl = document.getElementById("app");
+  if (appEl) appEl.classList.add("home-money-transition-bg");
+
+  const onExitEnd = () => {
+    homeEl.removeEventListener("animationend", onExitEnd);
+    homeEl.classList.remove("home-to-money-exit");
+
+    navigate(route);
+
+    if (targetEl) {
+      targetEl.classList.add("money-from-home-enter");
+      const onEnterEnd = () => {
+        targetEl.removeEventListener("animationend", onEnterEnd);
+        targetEl.classList.remove("money-from-home-enter");
+        if (appEl) appEl.classList.remove("home-money-transition-bg");
+      };
+      targetEl.addEventListener("animationend", onEnterEnd);
+    } else if (appEl) {
+      appEl.classList.remove("home-money-transition-bg");
+    }
+  };
+
+  homeEl.addEventListener("animationend", onExitEnd);
+  homeEl.classList.add("home-to-money-exit");
+}
+
 document.getElementById("card-money").addEventListener("click", () => {
-  navigate("money");
+  navigateHomeToScreenWithTransition("money");
 });
 
 document.getElementById("btn-money-back").addEventListener("click", () => {
@@ -3279,7 +3367,7 @@ document.getElementById("btn-money-settings").addEventListener("click", () => {
 });
 
 document.getElementById("card-daily").addEventListener("click", () => {
-  navigate("daily");
+  navigateHomeToScreenWithTransition("daily");
 });
 
 document.getElementById("btn-daily-back").addEventListener("click", () => {
@@ -3287,7 +3375,7 @@ document.getElementById("btn-daily-back").addEventListener("click", () => {
 });
 
 document.getElementById("card-export").addEventListener("click", () => {
-  navigate("export");
+  navigateHomeToScreenWithTransition("export");
 });
 
 document.getElementById("btn-export-back").addEventListener("click", () => {

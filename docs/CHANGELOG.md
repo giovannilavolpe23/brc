@@ -1,5 +1,157 @@
 # CHANGELOG
 
+## v0.30.0 (transición Home → Dinero/Registro diario/Envío de datos)
+
+Se extendió la transición animada que ya existía para Home → Dinero
+(v0.26.0/v0.29.0) a las otras dos tarjetas de Home: `#card-daily`
+(Registro diario) y `#card-export` (Envío de datos). Mismo timing,
+mismo easing, mismo color de fondo — no se tocó ninguna otra sección
+ni funcionalidad.
+
+- **JS**: `navigateHomeToMoneyWithTransition()` se generalizó a
+  `navigateHomeToScreenWithTransition(route)` en `script.js`, que
+  recibe la pantalla destino (`"money"`, `"daily"` o `"export"`) en
+  vez de tener "money" harcodeado. El comportamiento es idéntico al
+  de antes para Dinero: mismo fallback sin animar si no se viene de
+  Home o si hay `prefers-reduced-motion`, mismo `navigate(route)`
+  original ejecutado sin cambios al terminar la salida, mismo manejo
+  de `home-money-transition-bg` en `#app`.
+- Los listeners de `#card-daily` y `#card-export` ahora llaman a
+  `navigateHomeToScreenWithTransition("daily")` /
+  `navigateHomeToScreenWithTransition("export")` en vez de
+  `navigate("daily")` / `navigate("export")` directo.
+- **CSS**: no se agregó ninguna clase nueva. `.home-to-money-exit` y
+  `.money-from-home-enter` (100ms, mismos `cubic-bezier`, mismo
+  `translateY`/`opacity`) se reutilizan tal cual para las 3
+  pantallas, ya que Dinero, Registro diario y Envío de datos
+  comparten la misma clase `.admin-frost` y por lo tanto el mismo
+  fondo celeste (`#eaf6ff`) durante la transición.
+- No se tocó ninguna otra sección, tarjeta, header, logo, montañas,
+  nieve, botones, la navegación de vuelta (`btn-money-back`,
+  `btn-daily-back`, `btn-export-back` siguen usando `navigate("home")`
+  sin animar), el bottom nav, ni ningún otro texto/estilo existente.
+- Documentación: `SPEC.md` y `CURRENT_STATE.md` actualizados a
+  v0.30.0.
+
+## v0.29.0 (transición Home → Dinero: más corta, más suave, sin flash oscuro)
+
+Ajuste puntual sobre la transición de v0.26.0. No se tocó ninguna\r
+otra sección ni funcionalidad.
+
+- **Duración**: salida de Home 160ms → 100ms; entrada de Dinero\r
+  200ms → 100ms (ahora ambas duran igual).\r
+- **Easing**: `ease-out` → `cubic-bezier(0.4, 0, 1, 1)` (salida) /\r
+  `cubic-bezier(0, 0, 0.2, 1)` (entrada), para una desaceleración más\r
+  suave.\r
+- **Fix**: se agregó la clase `home-money-transition-bg` en `#app`\r
+  (`styles.css`, `background: #eaf6ff`), agregada/quitada por\r
+  `navigateHomeToMoneyWithTransition()` (`script.js`) durante toda la\r
+  transición. Antes, al bajar la `opacity` de Home/Dinero (que pintan\r
+  su propio fondo claro sobre el `.screen`), se veía por un instante\r
+  el fondo oscuro por defecto de `#app` detrás — ahora se ve el mismo\r
+  celeste claro de ambas pantallas, dando sensación de que el\r
+  contenido se borra y aparece otro en vez de un parpadeo negro.\r
+- Mismo disparador, mismo `translateY`/`opacity`, mismo fallback sin\r
+  animar y mismo respeto de `prefers-reduced-motion`; el resto de las\r
+  navegaciones no se tocó.\r
+- Documentación: `SPEC.md` y `CURRENT_STATE.md` actualizados a\r
+  v0.29.0.\r
+
+## v0.28.0 (saludo de Home: rediseño visual + remate aleatorio)
+
+- **Rediseño visual del saludo** (`.home-hero-bottom`: "Hola," /
+  nombre / remate): dejó de reutilizar el tratamiento genérico de
+  `.eyebrow` (mayúsculas, letter-spacing ancho, pensado para
+  etiquetas chicas) y pasó a tipografía y color propios, más claros
+  y con mejor jerarquía, dentro de la misma paleta celeste/azul de
+  la estética "Bariloche":
+  - "Hola," (`.home-greet-hola`): 15px, semibold, azul grisáceo
+    suave (`#5b7c94`), sin mayúsculas forzadas.
+  - Nombre (`.home-greet-name`): un poco más grande que antes
+    (`clamp(28px, 9vw, 36px)` vs `clamp(26px, 8vw, 32px)`), sigue
+    siendo el elemento protagonista.
+  - Remate/pregunta (`.home-greet-question`): 17px, semibold, celeste
+    de acento (`#2f8fd1`), también sin mayúsculas.
+  - La animación de entrada escalonada de v0.27.0 (`homeGreetFromLeft`
+    / `homeGreetFromDepth`, clase `.home-greeting-animate` reiniciada
+    por JS en cada entrada a Home) se mantiene intacta: mismos
+    elementos, mismos delays, misma duración; solo cambió su
+    apariencia final, no cómo llegan a esa posición.
+- **Saludo aleatorio**: el remate ya no es fijo ("¿Como estás?").
+  Ahora `renderHome()` en `script.js` elige al azar, cada vez que se
+  entra a Home, una de 8 variantes (`HOME_GREETING_QUESTIONS`) y la
+  escribe en `.home-greet-question` antes de disparar la animación
+  de entrada:
+  - "¿Como estás?"
+  - "¿Todo bajo control?"
+  - "¿Todo bien?"
+  - "¿hoy sale previa?"
+  - "¿se viene algo bueno?"
+  - "¿seguimos vivos?"
+  - "¿qué tal tu dia?"
+  - "¿disfrutando barilo?"
+  No se persiste en `localStorage` ni en ningún otro lado: es
+  puramente de sesión/render, se vuelve a sortear en cada entrada a
+  `/home` (incluida la primera vez que se navega ahí después del
+  login).
+- No se tocó ningún otro texto, sección, header, logo, montañas,
+  nieve, botones, la transición Home → Dinero (v0.26.0) ni ninguna
+  otra pantalla o funcionalidad.
+
+## v0.27.0 (animación de entrada del saludo en Home)
+
+- **Saludo de Home con entrada cinematográfica**: "Hola,", el nombre
+  y "¿como estás?" ahora entran en secuencia escalonada (transform +
+  opacity) en vez de aparecer estáticos.
+- **Markup**: `index.html` suma las clases `home-greet-hola`,
+  `home-greet-name` y `home-greet-question` a los 3 elementos ya
+  existentes de `.home-hero-bottom`, sin quitar ni reemplazar
+  ninguna clase original (`eyebrow`, `hero-name`).
+- **CSS**: nuevas reglas y `@keyframes` (`homeGreetFromLeft`,
+  `homeGreetFromDepth`) en `styles.css`, junto a `.hero-name`. "Hola,"
+  y "¿como estás?" entran desde la izquierda
+  (`translateX(-48px) → 0`); el nombre entra con sensación de
+  profundidad (`translateX(40px) scale(0.82) → translateX(0)
+  scale(1)`), como elemento protagonista. Delays escalonados (0ms /
+  160ms / 340ms), duración total ≈760ms. Todo dentro de
+  `@media (prefers-reduced-motion: no-preference)`.
+- **JS**: `renderHome()` en `script.js` ahora llama a
+  `playHomeGreetingAnimation()`, que reinicia la clase
+  `.home-greeting-animate` (remove → reflow → add) para que la
+  secuencia se repita en cada entrada real a Home, sin volver a
+  jugar sola mientras el usuario permanece en la pantalla.
+- Posición, tamaño, tipografía y color final de los 3 textos quedan
+  exactamente iguales a como estaban — la animación solo cambia cómo
+  llegan a esa posición.
+- No se tocó ninguna otra sección, tarjeta, header, logo, montañas,
+  nieve, botones, la transición Home → Dinero (v0.26.0) ni ningún
+  otro texto/estilo existente.
+- Documentación: `SPEC.md` y `CURRENT_STATE.md` actualizados a
+  v0.27.0.
+
+## v0.26.0 (transición Home → Dinero: slide + fade, prueba puntual)
+
+- **Primera animación de navegación de la web**, acotada
+  exclusivamente al botón `#card-money` (Home → Dinero). Ninguna
+  otra navegación (Dinero → Home, Home → otra sección, bottom nav,
+  back del navegador) fue modificada.
+- **CSS**: `.home-to-money-exit` (Home: fade + `translateY(-10px)`,
+  160ms) y `.money-from-home-enter` (Dinero: fade +
+  `translateY(10px→0)`, 200ms) en `styles.css`, junto a
+  `.screen.active`. Solo `transform` + `opacity`. Desactivadas con
+  `@media (prefers-reduced-motion: reduce)`.
+- **JS**: nueva función `navigateHomeToMoneyWithTransition()` en
+  `script.js`, usada solo por el listener de `#card-money`. Anima la
+  salida de Home y, al terminar, ejecuta el `navigate("money")`
+  original (sin cambios) y anima la entrada de Dinero. Con
+  `prefers-reduced-motion` o si no se viene de Home, cae directo al
+  `navigate("money")` de siempre. Duración total ≈360ms, secuencial
+  para evitar superponer dos `.screen` y no generar saltos de
+  layout ni pantalla en blanco.
+- Documentación: `SPEC.md` y `CURRENT_STATE.md` actualizados a
+  v0.26.0 (agregado retroactivamente junto con v0.27.0, ver nota en
+  `CURRENT_STATE.md`).
+
 ## v0.25.0 (nieve global en toda la web)
 
 - **Nieve como elemento visual global**: hasta ahora la nieve

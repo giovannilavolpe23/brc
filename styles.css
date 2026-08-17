@@ -112,6 +112,65 @@ img, svg {
 }
 
 /* ---------------------------------------------------------
+   Transición Home -> Dinero / Registro diario / Envío de datos
+   (no tocar otras navegaciones). Solo usa opacity + transform
+   para evitar reflow, y respeta prefers-reduced-motion. Las
+   mismas clases (`.home-to-money-exit` / `.money-from-home-enter`)
+   se reutilizan tal cual para las 3 pantallas, ya que comparten
+   duración, curva y color de fondo (todas usan `.admin-frost`).
+   --------------------------------------------------------- */
+
+.home-to-money-exit {
+  animation: homeToMoneyExit 100ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+.money-from-home-enter {
+  animation: moneyFromHomeEnter 100ms cubic-bezier(0, 0, 0.2, 1) forwards;
+}
+
+@keyframes homeToMoneyExit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes moneyFromHomeEnter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Mientras dura la transición, #app muestra el mismo celeste/blanco
+   de fondo que ya usan Home (.login-screen) y Dinero (.admin-frost)
+   -- el primer tono de ambos degradés, #eaf6ff -- en vez del
+   var(--bg) oscuro por defecto del contenedor. Sin esto, al bajar la
+   opacity de la pantalla saliente/entrante se veía por un instante el
+   fondo oscuro de #app detrás (efecto de "pantalla negra"). Da la
+   sensación de que el contenido se borra y aparece otro, en vez de un
+   parpadeo oscuro entre medio.
+   --------------------------------------------------------- */
+#app.home-money-transition-bg {
+  background: #eaf6ff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-to-money-exit,
+  .money-from-home-enter {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------
    Cielo / montañas — elemento decorativo compartido
    --------------------------------------------------------- */
 
@@ -662,6 +721,86 @@ img, svg {
   font-size: clamp(26px, 8vw, 32px);
   font-weight: 800;
   word-break: break-word;
+}
+
+/* ---------------------------------------------------------
+   Saludo de Home ("Hola," / nombre / remate aleatorio) —
+   tipografía y color propios, más claros y mejor jerarquizados
+   que el tratamiento genérico de `.eyebrow` (que es pensado para
+   etiquetas chicas en mayúscula, no para un saludo conversacional).
+   Mantiene la paleta celeste/azul de la estética "Bariloche".
+   --------------------------------------------------------- */
+
+.home-greet-hola,
+.home-greet-question {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.home-greet-hola {
+  font-size: 15px;
+  font-weight: 600;
+  color: #5b7c94;
+  margin-bottom: 2px;
+}
+
+.home-greet-name.hero-name {
+  font-size: clamp(28px, 9vw, 36px);
+  margin-bottom: 4px;
+}
+
+.home-greet-question {
+  font-size: 17px;
+  font-weight: 600;
+  color: #2f8fd1;
+  margin-bottom: 0;
+}
+
+/* ---------------------------------------------------------
+   Animación de entrada escalonada del saludo, exclusiva de
+   estos 3 elementos. `.home-greeting-animate` se agrega/quita
+   por JS en cada entrada a Home (ver renderHome() en script.js)
+   para que la secuencia se repita al navegar, sin volver a jugar
+   sola mientras el usuario permanece en la pantalla.
+   Usa solo transform + opacity, sin afectar layout/scroll.
+   --------------------------------------------------------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  .home-greeting-animate .home-greet-hola {
+    animation: homeGreetFromLeft 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .home-greeting-animate .home-greet-name {
+    animation: homeGreetFromDepth 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: 160ms;
+  }
+
+  .home-greeting-animate .home-greet-question {
+    animation: homeGreetFromLeft 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: 340ms;
+  }
+}
+
+@keyframes homeGreetFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-48px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes homeGreetFromDepth {
+  from {
+    opacity: 0;
+    transform: translateX(40px) scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
 }
 
 .admin-hero .eyebrow {
