@@ -112,12 +112,15 @@ img, svg {
 }
 
 /* ---------------------------------------------------------
-   Transición Home -> Dinero / Registro diario / Envío de datos
-   (no tocar otras navegaciones). Solo usa opacity + transform
-   para evitar reflow, y respeta prefers-reduced-motion. Las
-   mismas clases (`.home-to-money-exit` / `.money-from-home-enter`)
-   se reutilizan tal cual para las 3 pantallas, ya que comparten
-   duración, curva y color de fondo (todas usan `.admin-frost`).
+   Transición entre pantallas logueadas (Home <-> Dinero / Registro
+   diario / Envío de datos / Previas de Jere / Admin, y dentro de
+   Admin: Admin <-> Previas / Estadísticas). Solo usa opacity +
+   transform para evitar reflow, y respeta prefers-reduced-motion.
+   Las mismas clases (`.home-to-money-exit` / `.money-from-home-enter`)
+   se reutilizan tal cual para todas esas pantallas, vía la función
+   genérica `navigateBetweenScreensWithTransition()` en script.js, ya
+   que todas comparten duración, curva y color de fondo (todas usan
+   `.admin-frost` o `.login-screen`, ambas arrancando en `#eaf6ff`).
    --------------------------------------------------------- */
 
 .home-to-money-exit {

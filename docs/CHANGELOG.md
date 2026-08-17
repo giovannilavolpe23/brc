@@ -1,5 +1,185 @@
 # CHANGELOG
 
+## v0.34.0 (transición extendida al ícono "admin" del bottom nav y a Cerrar sesión)
+
+Se completó la cobertura de la transición animada en dos casos que
+habían quedado afuera de v0.33.0:
+
+- Previas → Admin y Estadísticas → Admin ahora animan también al
+  tocar el ícono "admin" (la tuerca) del bottom nav estando parado en
+  cualquiera de esas 2 pantallas — antes solo animaba con el botón
+  "volver" de cada una; el ícono de la tuerca caía directo a
+  `navigate("admin")` sin animar.
+- Cerrar sesión (`btn-logout`, estando en Home) → Login: ahora anima
+  con el mismo fade + `translateY` en vez del salto instantáneo
+  anterior.
+
+Mismo timing (100ms por lado), mismo `cubic-bezier` y mismo fondo
+`#eaf6ff` que el resto de las transiciones ya implementadas. No se
+tocó ningún otro dato, cálculo, permiso o estilo.
+
+- **JS**: el bloque del ícono "admin" en el listener de `bottomNav`
+  pasa de solo contemplar el origen `home` a contemplar `home`,
+  `previas` y `stats`, y llama a
+  `navigateBetweenScreensWithTransition(origen, "admin")` (la función
+  genérica introducida en v0.33.0) en vez de a
+  `navigateHomeToScreenWithTransition("admin")`; el comportamiento
+  para el origen `home` no cambió. `btn-logout` llama ahora a
+  `navigateBetweenScreensWithTransition("home", "select")` en vez de
+  `navigate("select")` directo; sigue llamando a `clearCurrentUser()`
+  exactamente igual que antes, sin cambios en la lógica de sesión.
+- **CSS**: sin cambios — se reutilizan las mismas clases
+  (`.home-to-money-exit` / `.money-from-home-enter` /
+  `#app.home-money-transition-bg`) ya existentes.
+- No se tocó ninguna otra navegación (logout desde otro lugar no
+  existe, back del navegador, resto de los botones del bottom nav),
+  ni ningún dato/cálculo/permiso/estilo existente.
+- Documentación: `SPEC.md` y `CURRENT_STATE.md` actualizados a
+  v0.34.0.
+
+## v0.33.0 (transición extendida a Admin, Previas, Estadísticas y Previas de Jere)
+
+Se extendió la misma transición animada (fade + `translateY`, 100ms
+por lado, mismos `cubic-bezier`, mismo fondo `#eaf6ff`) a las
+navegaciones dentro del perfil de Gio y a la entrada/salida de
+Previas de Jere:
+
+- Home → Admin (ícono "admin" del bottom nav estando en Home).
+- Admin → Home (botón "volver" de Admin, e ícono "home" del bottom
+  nav estando en Admin).
+- Admin → Previas (tarjeta "Previas" de Admin).
+- Admin → Estadísticas (tarjeta "Estadísticas" de Admin).
+- Estadísticas → Admin (botón "volver") / Estadísticas → Home (ícono
+  "home" del bottom nav estando en Estadísticas).
+- Previas → Admin (botón "volver") / Previas → Home (ícono "home" del
+  bottom nav estando en Previas).
+- Home → Previas de Jere (tarjeta "Previas" del Home de Jere) y
+  Previas de Jere → Home (botón "volver", e ícono "home" del bottom
+  nav estando en Previas de Jere) — antes esta pantalla no tenía
+  ninguna animación de entrada/salida.
+
+No se tocó ningún otro dato, cálculo, permiso ni estilo: es
+exclusivamente la misma animación ya usada por Dinero/Registro
+diario/Envío de datos, aplicada a estas navegaciones adicionales.
+
+- **JS**: nueva función genérica `navigateBetweenScreensWithTransition(fromRoute, toRoute)`
+  en `script.js`, que factoriza la lógica que antes estaba duplicada
+  en `navigateHomeToScreenWithTransition(route)`,
+  `navigateScreenToHomeWithTransition(fromRoute)` y
+  `navigateSelectToHomeWithTransition()` (las tres pasan a ser
+  wrappers de una línea sobre la nueva función). Mismo comportamiento
+  exacto que antes para las navegaciones ya existentes (Login→Home,
+  Home↔Dinero/Registro diario/Envío de datos): mismas clases
+  (`.home-to-money-exit` / `.money-from-home-enter`), mismo manejo de
+  `home-money-transition-bg` en `#app`, mismo fallback instantáneo si
+  la pantalla de origen no está activa o hay `prefers-reduced-motion`.
+- `btn-admin-back` ahora llama a
+  `navigateBetweenScreensWithTransition("admin", "home")`;
+  `card-admin-previas` a
+  `navigateBetweenScreensWithTransition("admin", "previas")`;
+  `btn-previas-back` a
+  `navigateBetweenScreensWithTransition("previas", "admin")`;
+  `card-admin-stats` a
+  `navigateBetweenScreensWithTransition("admin", "stats")`;
+  `btn-stats-back` a
+  `navigateBetweenScreensWithTransition("stats", "admin")`;
+  `card-previas-jere` a `navigateHomeToScreenWithTransition("previas-jere")`;
+  `btn-previas-jere-back` a
+  `navigateScreenToHomeWithTransition("previas-jere")`. Antes, los
+  siete llamaban a `navigate(...)` directo sin animar.
+- El listener de `bottomNav` suma dos casos nuevos, sin tocar el
+  resto de su lógica: (1) al tocar el ícono "home" estando parado en
+  Admin, Previas o Estadísticas (además de Dinero/Registro
+  diario/Envío de datos/Previas de Jere, ya cubiertas desde v0.32.0),
+  dispara `navigateScreenToHomeWithTransition(...)` con esa pantalla
+  en vez de `navigate("home")` directo; (2) al tocar el ícono "admin"
+  (`nav-admin`) estando parado en Home, dispara
+  `navigateHomeToScreenWithTransition("admin")` en vez de
+  `navigate("admin")` directo. Para cualquier otro origen/destino, el
+  comportamiento sigue siendo `navigate(route)` instantáneo.
+- **CSS**: sin cambios funcionales — no se agregó ninguna clase
+  nueva, se reutilizan tal cual `.home-to-money-exit`,
+  `.money-from-home-enter` y `#app.home-money-transition-bg`, ya
+  existentes (funcionan para cualquier pantalla porque solo usan
+  `opacity`/`transform` y un color de fondo compartido por todas las
+  pantallas logueadas). Se actualizó únicamente el comentario que las
+  documenta en `styles.css` para reflejar que ahora se usan de forma
+  genérica.
+- No se tocó ninguna otra navegación (logout, back del navegador),
+  ni ningún dato, cálculo, permiso o estilo existente.
+- Documentación: `SPEC.md` y `CURRENT_STATE.md` actualizados a
+  v0.33.0.
+
+## v0.32.0 (transición al volver de Dinero/Registro diario/Envío de datos a Home)
+
+Se extendió la misma transición animada a la navegación de vuelta:
+Dinero, Registro diario y Envío de datos → Home, tanto tocando la
+flechita "volver" de cada pantalla como tocando el ícono "home" del
+bottom nav estando parado en cualquiera de esas 3 pantallas. Mismo
+timing, mismo easing, mismo color de fondo — no se tocó ninguna otra
+sección ni funcionalidad.
+
+- **JS**: nueva función `navigateScreenToHomeWithTransition(fromRoute)`
+  en `script.js`, inversa de `navigateHomeToScreenWithTransition(route)`:
+  reutiliza exactamente las mismas clases (`.home-to-money-exit` en
+  la pantalla que se abandona, `.money-from-home-enter` en Home) y el
+  mismo manejo de `home-money-transition-bg` en `#app`. Si la
+  pantalla de origen no está activa o hay `prefers-reduced-motion`,
+  cae directo a `navigate("home")` sin animar.
+- `btn-money-back`, `btn-daily-back` y `btn-export-back` llaman ahora
+  a `navigateScreenToHomeWithTransition("money"/"daily"/"export")` en
+  vez de `navigate("home")` directo.
+- El listener del bottom nav distingue el botón "home": si al
+  tocarlo la pantalla activa es Dinero, Registro diario o Envío de
+  datos, dispara `navigateScreenToHomeWithTransition(...)` con esa
+  pantalla; para cualquier otro origen (admin, stats, previas, etc.)
+  o cualquier otro botón del nav (`nav-admin`), sigue usando
+  `navigate(route)` instantáneo, sin cambios.
+- **CSS**: sin cambios — no se agregó ninguna clase nueva. Se
+  reutilizan tal cual `.home-to-money-exit` / `.money-from-home-enter`
+  / `#app.home-money-transition-bg`, ya existentes.
+- No se tocó ninguna otra navegación: logout, back del navegador,
+  navegación Login → Home ni Home → Dinero/Registro diario/Envío de
+  datos (que siguen usando sus propias funciones, sin cambios), ni
+  ningún otro texto/estilo/funcionalidad existente.
+- Documentación: `SPEC.md` y `CURRENT_STATE.md` actualizados a
+  v0.32.0.
+
+## v0.31.0 (transición Login → Home)
+
+Se extendió la transición animada, que hasta ahora solo cubría las
+navegaciones desde Home (v0.26.0/v0.29.0/v0.30.0), a la navegación
+Login → Home: al ingresar la contraseña correcta en el selector de
+usuario, la pantalla de Login hace fade-out y Home hace fade-in, en
+vez del salto instantáneo anterior. Mismo timing, mismo easing, mismo
+color de fondo — no se tocó ninguna otra sección ni funcionalidad.
+
+- **JS**: nueva función `navigateSelectToHomeWithTransition()` en
+  `script.js`, con la misma estructura que
+  `navigateHomeToScreenWithTransition(route)`: si Login no está
+  activo o hay `prefers-reduced-motion`, cae directo a
+  `navigate("home")` sin animar; si no, agrega
+  `home-money-transition-bg` a `#app`, anima la salida de Login con
+  `.home-to-money-exit`, al terminar ejecuta `navigate("home")` (sin
+  cambios) y anima la entrada de Home con `.money-from-home-enter`,
+  quitando la clase de `#app` al final.
+- `checkLoginPassword()` llama a `navigateSelectToHomeWithTransition()`
+  en vez de `navigate("home")` directo, una vez validada la
+  contraseña y cerrado el sheet. El resto de la función (validación,
+  mensajes de error, `setCurrentUser()`) no cambió.
+- **CSS**: sin cambios — no se agregó ninguna clase nueva. Las mismas
+  `.home-to-money-exit` / `.money-from-home-enter` /
+  `#app.home-money-transition-bg` ya existentes se reutilizan tal
+  cual, porque Login (`#screen-select`) y Home comparten la clase
+  `.login-screen` y por lo tanto el mismo degradé de fondo que
+  arranca en `#eaf6ff`.
+- No se tocó ninguna otra navegación: logout, back del navegador,
+  bottom nav, ni las navegaciones Home → Dinero/Registro
+  diario/Envío de datos (que siguen usando su propia función, sin
+  cambios), ni ningún otro texto/estilo/funcionalidad existente.
+- Documentación: `SPEC.md` y `CURRENT_STATE.md` actualizados a
+  v0.31.0.
+
 ## v0.30.0 (transición Home → Dinero/Registro diario/Envío de datos)
 
 Se extendió la transición animada que ya existía para Home → Dinero

@@ -240,6 +240,66 @@ function handleSelectUser(participant) {
   openSheet("login-password");
 }
 
+// Transición animada Login (#screen-select) -> Home, al confirmar la
+// contraseña correcta. Mismo lenguaje de movimiento y mismas clases
+// que la transición Home -> Dinero/Registro diario/Envío de datos
+// (v0.26.0/v0.29.0/v0.30.0): fade + translateY, 100ms por lado, mismo
+// color de fondo durante la transición. Se reutilizan las clases
+// existentes (`.home-to-money-exit` / `.money-from-home-enter` /
+// `#app.home-money-transition-bg`) porque Login y Home comparten la
+// clase `.login-screen` y por lo tanto el mismo degradé de fondo que
+// arranca en `#eaf6ff`. No afecta ninguna otra navegación: el resto
+// de las entradas a `navigate("home")` (logout, back del navegador,
+// bottom nav, volver desde Dinero/Registro diario/Envío de datos,
+// etc.) siguen sin animar.
+// Función genérica que hace el fade+translateY (mismas clases,
+// mismo timing/color) entre dos pantallas cualesquiera que estén en
+// `screens`. Todas las transiciones puntuales de la app (Login->Home,
+// Home<->Dinero/Registro diario/Envío de datos/Previas de Jere,
+// Home<->Admin, Admin<->Previas, Admin<->Estadísticas, etc.) son casos
+// particulares de esta misma función, para no duplicar la lógica de
+// entrada/salida en cada par de pantallas.
+function navigateBetweenScreensWithTransition(fromRoute, toRoute) {
+  const fromEl = screens[fromRoute];
+  const toEl = screens[toRoute];
+  const reduceMotion =
+    window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  if (!fromEl || !fromEl.classList.contains("active") || !toEl || reduceMotion) {
+    navigate(toRoute);
+    return;
+  }
+
+  const appEl = document.getElementById("app");
+  if (appEl) appEl.classList.add("home-money-transition-bg");
+
+  const onExitEnd = () => {
+    fromEl.removeEventListener("animationend", onExitEnd);
+    fromEl.classList.remove("home-to-money-exit");
+
+    navigate(toRoute);
+
+    if (toEl) {
+      toEl.classList.add("money-from-home-enter");
+      const onEnterEnd = () => {
+        toEl.removeEventListener("animationend", onEnterEnd);
+        toEl.classList.remove("money-from-home-enter");
+        if (appEl) appEl.classList.remove("home-money-transition-bg");
+      };
+      toEl.addEventListener("animationend", onEnterEnd);
+    } else if (appEl) {
+      appEl.classList.remove("home-money-transition-bg");
+    }
+  };
+
+  fromEl.addEventListener("animationend", onExitEnd);
+  fromEl.classList.add("home-to-money-exit");
+}
+
+function navigateSelectToHomeWithTransition() {
+  navigateBetweenScreensWithTransition("select", "home");
+}
+
 function checkLoginPassword() {
   const input = document.getElementById("input-login-password");
   if (!input || !loginParticipant) return;
@@ -267,7 +327,7 @@ function checkLoginPassword() {
   currentSheetType = null;
   sheetOverlay.classList.remove("visible");
   setCurrentUser(participant);
-  navigate("home");
+  navigateSelectToHomeWithTransition();
 }
 
 /* -----------------------------------------------------------
@@ -3270,11 +3330,11 @@ function routeFromHash() {
 
 document.getElementById("btn-logout").addEventListener("click", () => {
   clearCurrentUser();
-  navigate("select");
+  navigateBetweenScreensWithTransition("home", "select");
 });
 
 document.getElementById("btn-admin-back").addEventListener("click", () => {
-  navigate("home");
+  navigateBetweenScreensWithTransition("admin", "home");
 });
 
 document.getElementById("btn-admin-update-code").addEventListener("click", () => {
@@ -3282,27 +3342,27 @@ document.getElementById("btn-admin-update-code").addEventListener("click", () =>
 });
 
 document.getElementById("card-admin-previas").addEventListener("click", () => {
-  navigate("previas");
+  navigateBetweenScreensWithTransition("admin", "previas");
 });
 
 document.getElementById("btn-previas-back").addEventListener("click", () => {
-  navigate("admin");
+  navigateBetweenScreensWithTransition("previas", "admin");
 });
 
 document.getElementById("card-admin-stats").addEventListener("click", () => {
-  navigate("stats");
+  navigateBetweenScreensWithTransition("admin", "stats");
 });
 
 document.getElementById("btn-stats-back").addEventListener("click", () => {
-  navigate("admin");
+  navigateBetweenScreensWithTransition("stats", "admin");
 });
 
 document.getElementById("card-previas-jere").addEventListener("click", () => {
-  navigate("previas-jere");
+  navigateHomeToScreenWithTransition("previas-jere");
 });
 
 document.getElementById("btn-previas-jere-back").addEventListener("click", () => {
-  navigate("home");
+  navigateScreenToHomeWithTransition("previas-jere");
 });
 
 // Transición animada Home -> Dinero / Registro diario / Envío de datos.
@@ -3312,46 +3372,7 @@ document.getElementById("btn-previas-jere-back").addEventListener("click", () =>
 // hacia/desde estas pantallas (botón "volver", back del navegador,
 // bottom nav, etc.) siguen usando navigate(route) sin cambios.
 function navigateHomeToScreenWithTransition(route) {
-  const homeEl = screens.home;
-  const targetEl = screens[route];
-  const reduceMotion =
-    window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  // Si no estamos viniendo de Home, o el usuario prefiere menos
-  // movimiento, caemos al comportamiento original sin animar.
-  if (!homeEl || !homeEl.classList.contains("active") || !targetEl || reduceMotion) {
-    navigate(route);
-    return;
-  }
-
-  // Mientras se anima la salida/entrada, #app muestra el mismo fondo
-  // celeste/blanco de las pantallas involucradas (ver
-  // `.home-money-transition-bg` en styles.css) para que no se vea un
-  // parpadeo oscuro entre medio.
-  const appEl = document.getElementById("app");
-  if (appEl) appEl.classList.add("home-money-transition-bg");
-
-  const onExitEnd = () => {
-    homeEl.removeEventListener("animationend", onExitEnd);
-    homeEl.classList.remove("home-to-money-exit");
-
-    navigate(route);
-
-    if (targetEl) {
-      targetEl.classList.add("money-from-home-enter");
-      const onEnterEnd = () => {
-        targetEl.removeEventListener("animationend", onEnterEnd);
-        targetEl.classList.remove("money-from-home-enter");
-        if (appEl) appEl.classList.remove("home-money-transition-bg");
-      };
-      targetEl.addEventListener("animationend", onEnterEnd);
-    } else if (appEl) {
-      appEl.classList.remove("home-money-transition-bg");
-    }
-  };
-
-  homeEl.addEventListener("animationend", onExitEnd);
-  homeEl.classList.add("home-to-money-exit");
+  navigateBetweenScreensWithTransition("home", route);
 }
 
 document.getElementById("card-money").addEventListener("click", () => {
@@ -3359,7 +3380,7 @@ document.getElementById("card-money").addEventListener("click", () => {
 });
 
 document.getElementById("btn-money-back").addEventListener("click", () => {
-  navigate("home");
+  navigateScreenToHomeWithTransition("money");
 });
 
 document.getElementById("btn-money-settings").addEventListener("click", () => {
@@ -3371,7 +3392,7 @@ document.getElementById("card-daily").addEventListener("click", () => {
 });
 
 document.getElementById("btn-daily-back").addEventListener("click", () => {
-  navigate("home");
+  navigateScreenToHomeWithTransition("daily");
 });
 
 document.getElementById("card-export").addEventListener("click", () => {
@@ -3379,13 +3400,63 @@ document.getElementById("card-export").addEventListener("click", () => {
 });
 
 document.getElementById("btn-export-back").addEventListener("click", () => {
-  navigate("home");
+  navigateScreenToHomeWithTransition("export");
 });
+
+// Transición animada Dinero / Registro diario / Envío de datos -> Home
+// (inversa de `navigateHomeToScreenWithTransition`, mismas clases,
+// mismo timing y color). Se dispara desde el botón "volver" de cada
+// una de esas 3 pantallas y desde el ícono "home" del bottom nav
+// cuando se está parado en alguna de ellas. El resto de los usos de
+// `navigate("home")` (logout, back del navegador, etc.) siguen sin
+// animar.
+function navigateScreenToHomeWithTransition(fromRoute) {
+  navigateBetweenScreensWithTransition(fromRoute, "home");
+}
 
 bottomNav.addEventListener("click", (e) => {
   const btn = e.target.closest(".nav-btn");
   if (!btn) return;
-  navigate(btn.dataset.route);
+  const route = btn.dataset.route;
+
+  // Ícono "home" del bottom nav: si estamos parados en Dinero,
+  // Registro diario, Envío de datos, Previas de Jere, Admin,
+  // Previas (de admin) o Estadísticas, usa la misma transición
+  // animada que el botón "volver" de esas pantallas. Para cualquier
+  // otro origen o cualquier otro botón del nav, se mantiene el
+  // `navigate()` instantáneo de siempre.
+  if (route === "home") {
+    const activeAnimatedRoute = [
+      "money",
+      "daily",
+      "export",
+      "previas-jere",
+      "admin",
+      "previas",
+      "stats",
+    ].find((r) => screens[r] && screens[r].classList.contains("active"));
+    if (activeAnimatedRoute) {
+      navigateScreenToHomeWithTransition(activeAnimatedRoute);
+      return;
+    }
+  }
+
+  // Ícono "admin" del bottom nav: si estamos parados en Home, Previas
+  // (de admin) o Estadísticas, usa la misma transición animada que el
+  // resto de las navegaciones hacia/dentro de Admin. Desde cualquier
+  // otro origen (o si ya estamos en Admin) se mantiene el
+  // `navigate()` instantáneo.
+  if (route === "admin") {
+    const activeAnimatedOrigin = ["home", "previas", "stats"].find(
+      (r) => screens[r] && screens[r].classList.contains("active")
+    );
+    if (activeAnimatedOrigin) {
+      navigateBetweenScreensWithTransition(activeAnimatedOrigin, "admin");
+      return;
+    }
+  }
+
+  navigate(route);
 });
 
 window.addEventListener("hashchange", () => {

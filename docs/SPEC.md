@@ -1161,26 +1161,44 @@ el mismo lenguaje de movimiento al resto de la web. Ambas usan
 únicamente `transform` + `opacity` (mobile-first, sin reflow) y
 respetan `prefers-reduced-motion`.
 
-- **Transición Home → Dinero / Registro diario / Envío de datos**
-  (`v0.26.0`, timing y color de fondo ajustados en `v0.29.0`,
-  extendida a Registro diario y Envío de datos en `v0.30.0`): al
-  pulsar `#card-money`, `#card-daily` o `#card-export` desde Home,
-  Home hace fade-out + `translateY(-10px)` (100ms) y, justo después,
-  la pantalla destino hace fade-in + `translateY(10px→0)` (100ms),
-  ambas con una curva `cubic-bezier` suave (`0.4, 0, 1, 1` de salida
-  / `0, 0, 0.2, 1` de entrada) en vez de `ease-out`. Mientras dura la
-  transición, `#app` (clase `home-money-transition-bg`,
-  agregada/quitada por `navigateHomeToScreenWithTransition(route)`)
+- **Transición Login → Home / Home ↔ Dinero / Registro diario / Envío
+  de datos / Previas de Jere / Admin / Admin ↔ Previas / Admin ↔
+  Estadísticas / Home → Login (Cerrar sesión)** (`v0.26.0`, timing y
+  color de fondo ajustados en `v0.29.0`, extendida a Registro diario y
+  Envío de datos en `v0.30.0`, a Login → Home en `v0.31.0`, a la
+  vuelta Dinero/Registro diario/Envío de datos → Home en `v0.32.0`, a
+  Home ↔ Admin, Admin ↔ Previas, Admin ↔ Estadísticas y Home ↔ Previas
+  de Jere en `v0.33.0`, y al ícono "admin" del bottom nav desde
+  Previas/Estadísticas y a Cerrar sesión en `v0.34.0`): al pulsar
+  `#card-money`, `#card-daily`, `#card-export` o `#card-previas-jere`
+  desde Home; al pulsar el ícono "admin" del bottom nav desde Home,
+  Previas o Estadísticas; al pulsar `#card-admin-previas` o
+  `#card-admin-stats` desde Admin; al ingresar la contraseña correcta
+  en el selector de usuario (Login → Home); al pulsar "Cerrar sesión"
+  desde Home; o al volver de cualquiera de esas secciones (botón
+  "volver" de cada pantalla, o ícono "home"/"admin" del bottom nav
+  según corresponda), la pantalla de origen hace fade-out +
+  `translateY(-10px)` (100ms) y, justo después, la pantalla destino
+  hace fade-in + `translateY(10px→0)` (100ms), ambas con una curva
+  `cubic-bezier` suave (`0.4, 0, 1, 1` de salida / `0, 0, 0.2, 1` de
+  entrada) en vez de `ease-out`. Mientras dura la transición, `#app`
+  (clase `home-money-transition-bg`, agregada/quitada por la función
+  genérica `navigateBetweenScreensWithTransition(fromRoute, toRoute)`,
+  de la que `navigateHomeToScreenWithTransition(route)`,
+  `navigateSelectToHomeWithTransition()` y
+  `navigateScreenToHomeWithTransition(fromRoute)` son wrappers)
   muestra el mismo celeste claro (`#eaf6ff`) que ya usan de fondo
-  Home, Dinero, Registro diario y Envío de datos, en vez de su
-  `var(--bg)` oscuro por defecto, para que no se vea un parpadeo
-  oscuro entre medio — el efecto se siente como que el contenido se
-  borra y aparece otro, no como una pantalla negra intermedia. Las
-  tres pantallas destino usan el mismo timing, curva y color porque
-  comparten la clase `.admin-frost`. Acotada exclusivamente a esas
-  tres navegaciones puntuales desde Home — el resto de las
-  transiciones entre pantallas (volver a Home, bottom nav, back del
-  navegador) siguen siendo instantáneas.
+  todas las pantallas logueadas y el login, en vez de su `var(--bg)`
+  oscuro por defecto, para que no se vea un parpadeo oscuro entre
+  medio — el efecto se siente como que el contenido se borra y
+  aparece otro, no como una pantalla negra intermedia. Todas las
+  pantallas involucradas comparten timing, curva y color porque
+  todas comparten `.admin-frost` (o `.login-screen` en el caso de
+  Login/Home/Select). Acotada exclusivamente a las navegaciones
+  puntuales listadas arriba — el resto de las transiciones entre
+  pantallas (back del navegador) siguen siendo instantáneas; cualquier
+  apartado nuevo que se agregue a futuro no lleva esta animación
+  salvo que se sume explícitamente.
 - **Saludo de Home (`v0.27.0`, rediseño visual y saludo aleatorio en
   `v0.28.0`)**: al entrar a Home, "Hola,", el nombre del usuario y un
   remate/pregunta entran con una secuencia escalonada — "Hola," y el
