@@ -355,7 +355,17 @@ const HOME_GREETING_QUESTIONS = [
   "que pedazo de web se mandó gio eee",
   "¿Cómo te encuentras?",
   "¿Qué onda chavalín?",
-  "Dale nene que hoy la rompes"
+  "Dale nene que hoy la rompes",
+  "Hermosa mañana, verdad?",
+  "A ver esa nave pipirispela",
+  "Agarrá un destornillador y metetelo en el culo",
+  "Turip ip ip",
+  "¿Qué es un PLC?",
+  "Hoy minimo dos gordas e",
+  "¡Guarda con simon cuando duermas!",
+  "Si te sentís mal, acordate que peor es ser hincha de racing",
+  "Recordá: por más que empujes, si la pija es corta..",
+  "Eres muy lindo pequeño"
 ];
 
 function pickRandomHomeGreetingQuestion() {
@@ -3023,6 +3033,60 @@ function renderCategoryRankingCards(rankingFn) {
   }).join("");
 }
 
+// Encabezado temático que separa visualmente cada grupo de
+// estadísticas ("-Datos de registro-", "-Pulso del viaje-",
+// "-Gastos por categoría-", "-PREVIAS-"). Puramente presentacional:
+// no toca ningún dato ni cálculo. `direction` ("left" | "right")
+// define desde qué lado entra al hacerse visible (ver
+// `observeStatsSectionHeadings`); arranca sin la clase
+// `stats-heading-visible`, así el estado inicial (desplazado +
+// opacity 0) lo define el CSS y no hay salto visual antes de que el
+// IntersectionObserver la agregue.
+function renderStatsSectionHeading(text, direction) {
+  return `
+    <div class="stats-section-heading stats-section-heading-${direction}" data-stats-heading>
+      <span class="stats-section-heading-line" aria-hidden="true"></span>
+      <span class="stats-section-heading-text">${text}</span>
+      <span class="stats-section-heading-line" aria-hidden="true"></span>
+    </div>
+  `;
+}
+
+let statsHeadingObserver = null;
+
+// Observa los encabezados de sección recién insertados en `root` y,
+// apenas cada uno entra en el viewport, le agrega
+// `stats-heading-visible` (dispara la animación de entrada por CSS)
+// y deja de observarlo — así la animación corre una sola vez por
+// encabezado y no se reinicia al volver a scrollear. Si el navegador
+// no soporta IntersectionObserver, se muestran directamente sin
+// animar (no rompe nada, solo no anima).
+function observeStatsSectionHeadings(root) {
+  const headings = root.querySelectorAll("[data-stats-heading]");
+  if (!headings.length) return;
+
+  if (typeof IntersectionObserver === "undefined") {
+    headings.forEach((h) => h.classList.add("stats-heading-visible"));
+    return;
+  }
+
+  if (!statsHeadingObserver) {
+    statsHeadingObserver = new IntersectionObserver(
+      (entries, observer) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("stats-heading-visible");
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { root: null, threshold: 0.15 }
+    );
+  }
+
+  headings.forEach((h) => statsHeadingObserver.observe(h));
+}
+
 // Dispara la animación de crecimiento de las barras recién
 // insertadas dentro de `root` (arrancan en 0% por CSS/atributo
 // `data-pct` y acá se les asigna el ancho final para que el
@@ -3044,14 +3108,18 @@ function animateRankingBars(root) {
 function renderDayStatsReal(dateKey) {
   return `
     <div class="card-list stats-real-list">
+      ${renderStatsSectionHeading("-Datos de registro-", "left")}
       ${renderRankingCard("😴", "#4cc9f0", "¿Quién durmió más?", "Horas dormidas", dayRankingHorasDormidas(dateKey))}
       ${renderRankingCard("🛋️", "#4cc9f0", "Fanático de la siesta", "Siesta hoy", dayRankingSiestas(dateKey))}
       ${renderRankingCard("🍔", "#ffd166", "La quinta comida", "¿Comió una quinta?", dayRankingQuintaComida(dateKey))}
       ${renderRankingCard("🚽", "#ffd166", "Maratón de baño", "Veces que fue al baño", dayRankingBanio(dateKey))}
       ${renderRankingCard("🕺", "#ff5470", "Resistencia en el boliche", "Tiempo adentro", dayRankingBoliche(dateKey))}
       ${renderRankingCard("💸", "#ff9f1c", "El más gastador", "Gasto total del día", dayRankingDineroTotal(dateKey))}
+      ${renderStatsSectionHeading("-Pulso del viaje-", "right")}
       ${renderRankingCard("🧾", "#ff9f1c", "¿En qué se fue la plata?", "Gasto por categoría", dayRankingDineroPorCategoria(dateKey))}
+      ${renderStatsSectionHeading("-Gastos por categoría-", "left")}
       ${renderCategoryRankingCards((category) => dayRankingPorCategoriaJugador(dateKey, category))}
+      ${renderStatsSectionHeading("-PREVIAS-", "right")}
       ${renderRankingCard("🍻", "#c77dff", "Rey/reina de las previas", "Previas del día", dayRankingPrevias(dateKey))}
     </div>
   `;
@@ -3061,14 +3129,18 @@ function renderTotalStatsReal(closedDays) {
   const msg = "Sin datos en todo el viaje.";
   return `
     <div class="card-list stats-real-list">
+      ${renderStatsSectionHeading("-Datos de registro-", "left")}
       ${renderRankingCard("😴", "#4cc9f0", "¿Quién durmió más?", "Horas dormidas totales", totalRankingHorasDormidas(closedDays), msg)}
       ${renderRankingCard("🛋️", "#4cc9f0", "Fanático de la siesta", "Siestas de todo el viaje", totalRankingSiestas(closedDays), msg)}
       ${renderRankingCard("🍔", "#ffd166", "La quinta comida", "Quintas comidas del viaje", totalRankingQuintaComida(closedDays), msg)}
       ${renderRankingCard("🚽", "#ffd166", "Maratón de baño", "Veces al baño en total", totalRankingBanio(closedDays), msg)}
       ${renderRankingCard("🕺", "#ff5470", "Resistencia en el boliche", "Tiempo adentro acumulado", totalRankingBoliche(closedDays), msg)}
       ${renderRankingCard("💸", "#ff9f1c", "El más gastador", "Gasto total del viaje", totalRankingDineroTotal(closedDays), msg)}
+      ${renderStatsSectionHeading("-Pulso del viaje-", "right")}
       ${renderRankingCard("🧾", "#ff9f1c", "¿En qué se fue la plata?", "Gasto por categoría", totalRankingDineroPorCategoria(closedDays), msg)}
+      ${renderStatsSectionHeading("-Gastos por categoría-", "left")}
       ${renderCategoryRankingCards((category) => totalRankingPorCategoriaJugador(closedDays, category))}
+      ${renderStatsSectionHeading("-PREVIAS-", "right")}
       ${renderRankingCard("🍻", "#c77dff", "Rey/reina de las previas", "Previas de todo el viaje", totalRankingPrevias(closedDays), msg)}
     </div>
   `;
@@ -3115,7 +3187,6 @@ function renderStatsPanel() {
             ? ""
             : `<div class="stats-empty-banner"><span class="stats-empty-banner-icon" aria-hidden="true">🗓️</span><p>Todavía no hay días cerrados del viaje. En cuanto se registre e importe el primer día completo, vas a poder navegarlo acá.</p></div>`
         }
-        <div class="section-label">Estadísticas del día</div>
         ${hasDays ? renderDayStatsReal(currentKey) : renderStatsPlaceholderCards()}
       </div>
     `;
@@ -3160,6 +3231,7 @@ function renderStatsPanel() {
   }
 
   animateRankingBars(panel);
+  observeStatsSectionHeadings(panel);
 }
 
 function renderStatsScreen() {

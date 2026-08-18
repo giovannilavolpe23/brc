@@ -1,5 +1,137 @@
 # CHANGELOG
 
+## v0.37.0 (encabezados de Estadísticas: animación aún más lenta)
+
+Único cambio: la duración de la transición de entrada de los 4
+encabezados de sección (`.stats-section-heading`) pasa de 0.85s a
+1.35s (tanto `transform` como `opacity`), para que el desplazamiento
+lateral se aprecie con claridad. Nada más se tocó: mismo `transform`
+(`translateX(±16px)` → `0`), misma dirección por encabezado (1° y 3°
+desde la izquierda, 2° y 4° desde la derecha), mismo trigger por
+`IntersectionObserver` al entrar en el viewport por scroll, misma
+curva (`cubic-bezier(0.22, 1, 0.36, 1)` / `ease-out`), mismo `opacity`
+0→1, y sigue animándose una sola vez por encabezado. No se tocó
+ninguna otra animación de la app.
+
+- **CSS**: `.stats-section-heading { transition: ... }` pasa de
+  `0.85s` a `1.35s` en `styles.css`. Ninguna otra regla ni archivo
+  tocado.
+- Documentación: `SPEC.md` y `CURRENT_STATE.md` actualizados a
+  v0.37.0.
+
+## v0.36.0 (encabezados de Estadísticas: animación más lenta + quitado "Estadísticas del día")
+
+Dos ajustes puntuales sobre lo implementado en v0.35.0, sin tocar
+ningún dato, cálculo ni el resto del diseño:
+
+1. **Animación más lenta**: la transición de entrada de los 4
+   encabezados de sección (`.stats-section-heading`) pasa de 0.45s a
+   0.85s (tanto `transform` como `opacity`), para que el
+   desplazamiento lateral se perciba con claridad en vez de sentirse
+   casi instantáneo. Misma curva (`cubic-bezier(0.22, 1, 0.36, 1)` /
+   `ease-out`), mismo desplazamiento (±16px) y misma dirección por
+   encabezado (1° y 3° desde la izquierda, 2° y 4° desde la derecha);
+   mismo trigger por `IntersectionObserver` al entrar en el viewport
+   por scroll, una sola vez por encabezado. No se tocó ninguna otra
+   animación de la app.
+2. **Se eliminó el texto "Estadísticas del día"**: ese `<div
+   class="section-label">` aparecía en `renderStatsPanel()` (pestaña
+   DÍA) justo arriba del primer encabezado nuevo
+   ("-Datos de registro-"), quedando redundante. Se quitó por
+   completo, sin reemplazarlo por otro texto. El "Estadísticas
+   totales" de la pestaña TOTAL **no se tocó** (no fue pedido). No
+   hizo falta ajustar ningún margen/padding adicional: el espaciado
+   ya existente entre la barra `← día →` (`margin-bottom: 22px`) y la
+   lista de tarjetas se ve natural sin esa línea de texto en el
+   medio.
+
+- **JS**: se quitó la línea `<div class="section-label">Estadísticas
+  del día</div>` dentro de `renderStatsPanel()` (rama `statsTab ===
+  "dia"`).
+- **CSS**: `.stats-section-heading { transition: ... }` pasa de
+  `0.45s` a `0.85s` en `styles.css`. Ninguna otra regla tocada.
+- No se modificó lógica de estadísticas, día/total, datos, cálculos,
+  persistencia, tarjetas, otros textos, diseño general ni animaciones
+  de otros elementos.
+- Documentación: `SPEC.md` y `CURRENT_STATE.md` actualizados a
+  v0.36.0.
+
+## v0.35.0 (organización visual de Estadísticas en 4 categorías + encabezados animados)
+
+Cambio puramente visual dentro de `#/stats` (Estadísticas, dentro del
+perfil de Gio/admin): las tarjetas de ranking, que antes aparecían
+todas seguidas sin separación temática, ahora quedan agrupadas bajo 4
+encabezados de sección, tanto en la pestaña DÍA como en TOTAL:
+
+1. **`-Datos de registro-`**: Horas dormidas, Siesta hoy, La quinta
+   comida, Veces que fue al baño, Tiempo dentro del boliche, Gasto
+   total del día (6 tarjetas, sin cambios de orden ni de contenido).
+2. **`-Pulso del viaje-`**: Gasto por categoría (la tarjeta agregada
+   "¿En qué se fue la plata?").
+3. **`-Gastos por categoría-`**: el ranking por jugador de cada
+   categoría de gasto con movimientos (Chocolates, Alcohol, Boliche,
+   Comida, Bebida, Actividades, Otros — igual que antes, solo se
+   generan las que tengan al menos un gasto cargado).
+4. **`-PREVIAS-`**: Previas del día / de todo el viaje.
+
+**Cero cambios de lógica**: no se tocó ningún cálculo de día/total,
+ninguna fuente de datos, ningún valor mostrado, ni el orden ni el
+contenido de ninguna tarjeta existente — únicamente se intercalaron 4
+`<div>` de encabezado entre las tarjetas que ya se generaban.
+
+- **Encabezados**: nueva función `renderStatsSectionHeading(text, direction)`
+  en `script.js`, que devuelve un `<div class="stats-section-heading stats-section-heading-{left|right}">`
+  con una línea sutil a cada lado del texto (estética "frost divider",
+  coherente con la paleta celeste/blanca de `.admin-frost` que ya usa
+  toda la pantalla). Se llama 4 veces, con el texto y la dirección
+  exactos pedidos, dentro de `renderDayStatsReal()` y
+  `renderTotalStatsReal()`, justo antes del primer elemento de cada
+  grupo. La pantalla de placeholder (`renderStatsPlaceholderCards()`,
+  que se usa solo cuando todavía no hay días cerrados) no se tocó: no
+  lleva encabezados, porque no hay nada que agrupar todavía.
+- **Animación de entrada al hacer scroll**: cada encabezado arranca
+  con `opacity: 0` y `translateX(-16px)` (si entra desde la
+  izquierda: 1° y 3°) o `translateX(16px)` (si entra desde la
+  derecha: 2° y 4°). Nueva función `observeStatsSectionHeadings(root)`
+  en `script.js`, llamada desde `renderStatsPanel()` justo después de
+  `animateRankingBars(panel)`: crea (una sola vez, reutilizada en
+  cada render) un `IntersectionObserver` que, apenas cada encabezado
+  entra en el viewport, le agrega la clase `stats-heading-visible`
+  (dispara la transición CSS a `opacity: 1` / `translateX(0)`, 0.45s,
+  la misma curva `cubic-bezier` que ya usan las transiciones de
+  Estadísticas) y deja de observarlo — así la animación corre una
+  única vez por encabezado y no se reinicia si el usuario vuelve a
+  scrollear hacia arriba. Como cada cambio de pestaña/día reinyecta
+  el HTML completo del panel (mismo patrón que ya usa
+  `animateRankingBars`), cada visita genera encabezados nuevos que
+  animan de nuevo la primera vez que se ven, igual que el resto del
+  contenido de esa pantalla. Sin `IntersectionObserver` disponible,
+  los encabezados se muestran directamente sin animar (no rompe
+  nada). Respeta `prefers-reduced-motion: reduce` (los muestra fijos,
+  sin transición). Únicamente se anima el propio `<div>` del
+  encabezado — las tarjetas, valores, barras e íconos de Estadísticas
+  siguen exactamente con las animaciones que ya tenían (fade-up en
+  cascada, crecimiento de barras), sin cambios.
+- **CSS**: nuevo bloque `.stats-section-heading` / `-left` / `-right`
+  / `.stats-heading-visible` / `-line` / `-text` en `styles.css`
+  (colores vía `var(--text-faint)`/`var(--border)`, ya resueltos al
+  celeste de `.admin-frost` en esta pantalla). Se corrigió además el
+  selector de la cascada de entrada de las tarjetas
+  (`.stats-real-list .ranking-card:nth-child(1..8)` → `:nth-of-type(1..8)`)
+  para que la posición se siga contando solo entre `<article>`
+  (tarjetas) y no se vea afectada por los `<div>` de encabezado ahora
+  intercalados entre ellas — el resultado visual de esa cascada es
+  idéntico al de antes de este cambio. El `overflow-x: hidden` ya
+  global de la página evita cualquier scroll horizontal por el
+  `translateX` de los encabezados.
+- No se tocó ningún otro dato, cálculo, permiso, ruta, componente ni
+  estilo existente. La pantalla de Estadísticas sigue siendo
+  exclusiva del perfil admin (Gio) — no existe una vista separada
+  para "usuario común"; es la única implementación de Estadísticas en
+  la app, así que la reorganización se aplicó ahí directamente.
+- Documentación: `SPEC.md` y `CURRENT_STATE.md` actualizados a
+  v0.35.0.
+
 ## v0.34.0 (transición extendida al ícono "admin" del bottom nav y a Cerrar sesión)
 
 Se completó la cobertura de la transición animada en dos casos que

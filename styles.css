@@ -1329,15 +1329,85 @@ img, svg {
 }
 
 /* Cascada de entrada: cada tarjeta aparece un poco después que la
-   anterior para reforzar la sensación de "revelar resultados". */
-.stats-real-list .ranking-card:nth-child(1) { animation-delay: 0.02s; }
-.stats-real-list .ranking-card:nth-child(2) { animation-delay: 0.07s; }
-.stats-real-list .ranking-card:nth-child(3) { animation-delay: 0.12s; }
-.stats-real-list .ranking-card:nth-child(4) { animation-delay: 0.17s; }
-.stats-real-list .ranking-card:nth-child(5) { animation-delay: 0.22s; }
-.stats-real-list .ranking-card:nth-child(6) { animation-delay: 0.27s; }
-.stats-real-list .ranking-card:nth-child(7) { animation-delay: 0.32s; }
-.stats-real-list .ranking-card:nth-child(8) { animation-delay: 0.37s; }
+   anterior para reforzar la sensación de "revelar resultados".
+   `:nth-of-type` (no `:nth-child`) para que la posición se cuente
+   solo entre los `<article>` (las tarjetas), sin verse afectada por
+   los encabezados de sección (`<div>`) intercalados entre ellas. */
+.stats-real-list .ranking-card:nth-of-type(1) { animation-delay: 0.02s; }
+.stats-real-list .ranking-card:nth-of-type(2) { animation-delay: 0.07s; }
+.stats-real-list .ranking-card:nth-of-type(3) { animation-delay: 0.12s; }
+.stats-real-list .ranking-card:nth-of-type(4) { animation-delay: 0.17s; }
+.stats-real-list .ranking-card:nth-of-type(5) { animation-delay: 0.22s; }
+.stats-real-list .ranking-card:nth-of-type(6) { animation-delay: 0.27s; }
+.stats-real-list .ranking-card:nth-of-type(7) { animation-delay: 0.32s; }
+.stats-real-list .ranking-card:nth-of-type(8) { animation-delay: 0.37s; }
+
+/* ---------------- Encabezados de sección de Estadísticas ----------------
+   Separadores temáticos ("-Datos de registro-", "-Pulso del viaje-",
+   "-Gastos por categoría-", "-PREVIAS-") que agrupan visualmente las
+   tarjetas de Estadísticas sin tocar su lógica ni sus datos. Arrancan
+   desplazados horizontalmente y con opacity 0; el JS
+   (`observeStatsSectionHeadings`) les agrega `.stats-heading-visible`
+   la primera vez que entran al viewport (IntersectionObserver), lo
+   que dispara esta misma transición una única vez por encabezado —
+   no vuelven a moverse si el usuario scrollea hacia arriba y abajo
+   de nuevo. Solo `opacity`/`transform` (sin afectar layout) y el
+   `overflow-x: hidden` ya global de la página evitan que el
+   desplazamiento genere scroll horizontal. */
+.stats-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 2px 0;
+  opacity: 0;
+  transition: transform 1.35s cubic-bezier(0.22, 1, 0.36, 1), opacity 1.35s ease-out;
+  will-change: transform, opacity;
+}
+
+.stats-section-heading-left {
+  transform: translateX(-16px);
+}
+
+.stats-section-heading-right {
+  transform: translateX(16px);
+}
+
+.stats-section-heading.stats-heading-visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.stats-section-heading-line {
+  flex: 1;
+  height: 1px;
+  min-width: 12px;
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
+}
+
+.stats-section-heading-text {
+  flex: none;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+/* El primer encabezado de la lista ("-Datos de registro-") no
+   necesita el margen superior de separación entre grupos. */
+.stats-real-list > .stats-section-heading:first-child {
+  margin-top: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stats-section-heading {
+    transition: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
 
 .ranking-card-header {
   display: flex;

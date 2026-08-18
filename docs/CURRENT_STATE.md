@@ -2,7 +2,87 @@
 
 ## Versión
 
-v0.34.0 — Transición animada también en el ícono "admin" del bottom nav (desde Previas/Estadísticas) y en Cerrar sesión
+v0.37.0 — Encabezados de Estadísticas: animación aún más lenta (1.35s)
+
+## v0.37.0 — Duración de la animación de encabezados de Estadísticas subida a 1.35s
+
+Único cambio: `.stats-section-heading { transition: ... }` pasa de
+0.85s a 1.35s (`transform` + `opacity`), para que el desplazamiento
+lateral de los 4 encabezados se vea claramente. Todo lo demás sigue
+exactamente igual: mismo `translateX(±16px)`, misma dirección por
+encabezado (1°/3° izquierda, 2°/4° derecha), mismo trigger por
+`IntersectionObserver` al hacer scroll, misma curva, mismo `opacity`,
+una sola animación por encabezado.
+
+## v0.36.0 — Ajustes de encabezados de Estadísticas (animación + texto quitado)
+
+Dos ajustes puntuales sobre los encabezados de sección de v0.35.0:
+
+- La transición de entrada de los 4 encabezados (`.stats-section-heading`)
+  pasa de 0.45s a 0.85s (`transform` + `opacity`), para que se perciba
+  claramente el desplazamiento lateral. Misma dirección por
+  encabezado (1°/3° izquierda, 2°/4° derecha), mismo `±16px`, mismo
+  trigger por `IntersectionObserver` al hacer scroll, una sola vez
+  por encabezado — nada de eso cambió.
+- Se eliminó el texto "Estadísticas del día" (pestaña DÍA, arriba del
+  primer encabezado nuevo). "Estadísticas totales" (pestaña TOTAL) no
+  se tocó.
+
+- **JS**: se quitó el `<div class="section-label">Estadísticas del
+  día</div>` en `renderStatsPanel()`.
+- **CSS**: `.stats-section-heading { transition: ... 0.45s ... }` →
+  `0.85s`.
+- Sin cambios en lógica de estadísticas, día/total, datos, cálculos,
+  persistencia, tarjetas, otros textos, diseño general ni otras
+  animaciones.
+
+## v0.35.0 — Organización visual de Estadísticas + encabezados de sección
+
+`#/stats` (Estadísticas, dentro de /admin — Gio) ahora agrupa sus
+tarjetas de ranking, tanto en DÍA como en TOTAL, bajo 4 encabezados
+temáticos, sin cambiar ningún cálculo ni dato:
+
+1. `-Datos de registro-` → Horas dormidas, Siesta hoy, La quinta
+   comida, Veces que fue al baño, Tiempo dentro del boliche, Gasto
+   total del día.
+2. `-Pulso del viaje-` → Gasto por categoría (tarjeta agregada).
+3. `-Gastos por categoría-` → ranking por jugador de cada categoría de
+   gasto con movimientos (Chocolates/Alcohol/Boliche/Comida/Bebida/
+   Actividades/Otros).
+4. `-PREVIAS-` → Previas del día / de todo el viaje.
+
+Cada encabezado entra con un fade + `translateX` (1° y 3° desde la
+izquierda, 2° y 4° desde la derecha) la primera vez que aparece en el
+viewport al hacer scroll, vía `IntersectionObserver`, y no se vuelve
+a animar aunque el usuario haga scroll hacia arriba y abajo de nuevo.
+Solo los 4 encabezados animan así — las tarjetas, barras e íconos
+existentes siguen con sus animaciones de siempre, sin cambios.
+
+- **JS**: `renderStatsSectionHeading(text, direction)` genera el
+  `<div>` de cada encabezado; se llama 4 veces dentro de
+  `renderDayStatsReal()` y `renderTotalStatsReal()`, sin alterar el
+  orden ni el contenido de ninguna tarjeta existente.
+  `observeStatsSectionHeadings(root)`, llamada desde
+  `renderStatsPanel()` junto a `animateRankingBars(panel)`, maneja el
+  `IntersectionObserver` (uno solo, reutilizado) que agrega
+  `stats-heading-visible` la primera vez que cada encabezado es
+  visible y luego deja de observarlo. Sin soporte de
+  `IntersectionObserver`, se muestran directos sin animar.
+- **CSS**: nuevo bloque `.stats-section-heading` (+ `-left`/`-right`/
+  `-line`/`-text`/`.stats-heading-visible`) en `styles.css`, con la
+  paleta ya resuelta de `.admin-frost` (celeste/blanco). Se ajustó el
+  selector de la cascada de entrada de las tarjetas de
+  `:nth-child(1..8)` a `:nth-of-type(1..8)` para que la posición se
+  siga contando solo entre las tarjetas (`<article>`) y no se vea
+  afectada por los encabezados (`<div>`) intercalados — mismo
+  resultado visual que antes.
+- **Alcance**: `renderStatsPlaceholderCards()` (pantalla vacía, sin
+  días cerrados todavía) no lleva encabezados. No existe una vista de
+  Estadísticas separada para "usuario común" — es la única
+  implementación de Estadísticas de la app (exclusiva de Gio/admin),
+  así que la reorganización se aplicó directamente ahí.
+- No se tocó ningún dato, cálculo, persistencia, permiso, ruta,
+  componente ni estilo existente fuera de lo descripto arriba.
 
 ## v0.34.0 — Transición Previas/Estadísticas → Admin (ícono bottom nav) y Home → Login (Cerrar sesión)
 

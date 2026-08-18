@@ -784,6 +784,53 @@ registró un día) que cada suma/cuenta acumula correctamente y que un
 jugador sin ningún día con determinado dato no aparece en esa
 tarjeta puntual.
 
+### Organización visual: encabezados de sección (`v0.35.0`, duración de
+la animación aumentada y texto "Estadísticas del día" quitado en
+`v0.36.0`, duración subida de nuevo en `v0.37.0`)
+
+Puramente presentacional — no cambia nada de lo descripto arriba
+("Cálculo real de DÍA/TOTAL"): mismos datos, mismo orden de
+tarjetas, mismos títulos y leyendas. Tanto en DÍA como en TOTAL, las
+tarjetas quedan agrupadas bajo 4 encabezados de sección chicos
+("separador elegante", no un título de dashboard), en este orden:
+
+1. `-Datos de registro-` — antes de las estadísticas 1 a 6 (Horas
+   dormidas, Cantidad de siestas, Quinta comida, Veces que fue al
+   baño, Tiempo dentro del boliche, Dinero gastado total).
+2. `-Pulso del viaje-` — antes de la estadística 7 (Dinero gastado
+   por categoría, la tarjeta agregada "¿En qué se fue la plata?").
+3. `-Gastos por categoría-` — antes de la 7b (el ranking por jugador
+   de cada categoría de gasto).
+4. `-PREVIAS-` — antes de la estadística 8 (Cantidad de previas).
+
+En DÍA, estos encabezados quedan como lo primero debajo de la barra
+`← día →`: el `<div class="section-label">Estadísticas del día</div>`
+que antes aparecía ahí (redundante con "-Datos de registro-" justo
+debajo) se quitó por completo en `v0.36.0`, sin reemplazo ni ajuste
+de spacing adicional — el `margin-bottom` ya existente de la barra de
+navegación alcanza para que la transición se vea natural. El
+"Estadísticas totales" de TOTAL no se tocó.
+
+Cada encabezado es una línea sutil a cada lado del texto en
+mayúscula chica (misma tipografía/paleta que el resto de la pantalla:
+`var(--text-faint)`/`var(--border)`, celeste/blanco de `.admin-frost`).
+Al cargar la pantalla no se ve ninguna animación; recién cuando el
+encabezado entra en el viewport por scroll, hace un fade-in + entrada
+horizontal (`translateX`) una única vez — no se repite si se vuelve a
+scrollear hacia arriba y abajo. Alternan de lado: 1° y 3°
+(`-Datos de registro-`, `-Gastos por categoría-`) entran desde la
+izquierda; 2° y 4° (`-Pulso del viaje-`, `-PREVIAS-`) entran desde la
+derecha. Implementado con `IntersectionObserver` (sin dependencias
+nuevas); respeta `prefers-reduced-motion`. Transición de 1.35s (0.45s
+al implementarse en `v0.35.0` → 0.85s en `v0.36.0` → 1.35s en
+`v0.37.0`, subida cada vez para que el desplazamiento lateral se
+perciba con claridad, sin sentirse brusco ni exagerado), misma curva
+`cubic-bezier(0.22, 1, 0.36, 1)`/`ease-out` y mismo desplazamiento
+(±16px) de siempre. La animación es exclusiva de estos 4
+encabezados — las tarjetas, barras e íconos siguen exactamente con
+las animaciones que ya tenían (cascada de entrada, crecimiento de
+barras).
+
 ## Estadísticas futuras (contenido, no implementado)
 
 Ya implementadas para DÍA y TOTAL (ver ambas secciones "Cálculo
