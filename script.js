@@ -365,7 +365,22 @@ const HOME_GREETING_QUESTIONS = [
   "¡Guarda con simon cuando duermas!",
   "Si te sentís mal, acordate que peor es ser hincha de racing",
   "Recordá: por más que empujes, si la pija es corta..",
-  "Eres muy lindo pequeño"
+  "Eres muy lindo pequeño",
+  "Pedazo de putita",
+  "Trolita barata",
+  "Te la saco?",
+  "Chupaverga",
+  "Judío",
+  "¿Ya quebraste pequeño?",
+  "El baño está ocupado (nata 🥛)",
+  "Recuerda: No importa de donde tomes mientras tengas sed.",
+  "Miranda pregunta si sobró una egresada.",
+  "¿Estas masivo bro?",
+  "Cambiate la tanga",
+  "Usá forro (como si fueras a garchar 😔)",
+  "Para qué trajiste los forros???",
+  "Bañate porfa",
+  "Los datos serán enviados a Sperman"
 ];
 
 function pickRandomHomeGreetingQuestion() {
