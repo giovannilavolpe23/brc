@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Bariloche · Viaje de egresados</title>
+<meta name="theme-color" content="#0d0d17">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ===================== NIEVE GLOBAL ===================== -->
+  <!-- Un único nodo, reutilizado en toda la web: script.js lo
+       reubica como primer hijo de la pantalla activa en cada
+       navegación (ver showScreen() y ".global-snowfall" en
+       styles.css). No duplicar este bloque en otras pantallas. -->
+  <div id="global-snowfall" class="global-snowfall" aria-hidden="true">
+    <span class="snowflake" style="left:3%; --dur:14s; --delay:-3s; --size:7px; --drift:12px;"></span>
+    <span class="snowflake" style="left:11%; --dur:18s; --delay:-9s; --size:9px; --drift:-14px;"></span>
+    <span class="snowflake" style="left:19%; --dur:12s; --delay:-1s; --size:6px; --drift:16px;"></span>
+    <span class="snowflake" style="left:27%; --dur:20s; --delay:-15s; --size:10px; --drift:-11px;"></span>
+    <span class="snowflake" style="left:35%; --dur:15s; --delay:-6s; --size:8px; --drift:13px;"></span>
+    <span class="snowflake" style="left:43%; --dur:11s; --delay:-4s; --size:6px; --drift:-9px;"></span>
+    <span class="snowflake" style="left:50%; --dur:17s; --delay:-12s; --size:9px; --drift:15px;"></span>
+    <span class="snowflake" style="left:58%; --dur:13s; --delay:-2s; --size:7px; --drift:-17px;"></span>
+    <span class="snowflake" style="left:66%; --dur:19s; --delay:-8s; --size:11px; --drift:10px;"></span>
+    <span class="snowflake" style="left:74%; --dur:16s; --delay:-5s; --size:6px; --drift:-13px;"></span>
+    <span class="snowflake" style="left:81%; --dur:14.5s; --delay:-11s; --size:8px; --drift:14px;"></span>
+    <span class="snowflake" style="left:88%; --dur:12.5s; --delay:-7s; --size:9px; --drift:-10px;"></span>
+    <span class="snowflake" style="left:95%; --dur:18.5s; --delay:-14s; --size:7px; --drift:16px;"></span>
+    <span class="snowflake" style="left:6%; --dur:21s; --delay:-18s; --size:5px; --drift:-8px;"></span>
+    <span class="snowflake" style="left:47%; --dur:22s; --delay:0s; --size:10px; --drift:9px;"></span>
+    <span class="snowflake" style="left:70%; --dur:10.5s; --delay:-3.5s; --size:6px; --drift:-15px;"></span>
+  </div>
+
+  <!-- ===================== SELECTOR DE USUARIO ===================== -->
+  <section id="screen-select" class="screen login-screen">
+    <div class="login-bg" aria-hidden="true">
+      <div class="login-glow"></div>
+      <p class="login-title-bg" aria-hidden="true">BARILOCHE</p>
+      <svg class="login-mountains" viewBox="0 0 430 200" preserveAspectRatio="none">
+        <path d="M0,200 L60,95 L100,130 L150,55 L190,120 L235,75 L270,135 L300,90 L340,140 L380,105 L430,150 L430,200 Z" fill="url(#lmgrad1)"/>
+        <path d="M0,200 L45,150 L90,175 L140,110 L185,165 L225,125 L270,170 L320,140 L360,175 L400,155 L430,180 L430,200 Z" fill="url(#lmgrad2)"/>
+        <path d="M150,55 L165,72 L172,64 L190,120 L172,95 L162,102 Z" fill="#ffffff" opacity="0.85"/>
+        <path d="M60,95 L72,110 L80,102 L100,130 L82,118 L74,123 Z" fill="#ffffff" opacity="0.75"/>
+        <path d="M270,135 L268,90 L280,105 L300,90 L285,118 L278,112 Z" fill="#ffffff" opacity="0.6"/>
+        <defs>
+          <linearGradient id="lmgrad1" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#bfe3fb"/>
+            <stop offset="1" stop-color="#8fc9ee"/>
+          </linearGradient>
+          <linearGradient id="lmgrad2" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#d9edfb"/>
+            <stop offset="1" stop-color="#b3d9f2"/>
+          </linearGradient>
+        </defs>
+      </svg>
+      <div class="login-snowfall">
+        <span class="snowflake" style="left:4%; --dur:13s; --delay:0s; --size:9px; --drift:14px;"></span>
+        <span class="snowflake" style="left:14%; --dur:17s; --delay:2s; --size:6px; --drift:-10px;"></span>
+        <span class="snowflake" style="left:24%; --dur:11s; --delay:5s; --size:11px; --drift:18px;"></span>
+        <span class="snowflake" style="left:34%; --dur:19s; --delay:1s; --size:7px; --drift:-16px;"></span>
+        <span class="snowflake" style="left:45%; --dur:14s; --delay:7s; --size:8px; --drift:10px;"></span>
+        <span class="snowflake" style="left:55%; --dur:16s; --delay:3s; --size:10px; --drift:-12px;"></span>
+        <span class="snowflake" style="left:64%; --dur:12s; --delay:6s; --size:6px; --drift:16px;"></span>
+        <span class="snowflake" style="left:74%; --dur:18s; --delay:0.5s; --size:9px; --drift:-14px;"></span>
+        <span class="snowflake" style="left:83%; --dur:15s; --delay:4s; --size:7px; --drift:12px;"></span>
+        <span class="snowflake" style="left:92%; --dur:13s; --delay:8s; --size:10px; --drift:-18px;"></span>
+        <span class="snowflake" style="left:60%; --dur:20s; --delay:9s; --size:5px; --drift:8px;"></span>
+        <span class="snowflake" style="left:9%; --dur:16.5s; --delay:11s; --size:8px; --drift:-9px;"></span>
+      </div>
+    </div>
+
+    <div class="login-content">
+      <p class="eyebrow">Viaje de egresados</p>
+      <h1 class="select-title">¿Quién sos?</h1>
+      <p class="select-sub">Elegí tu perfil para entrar</p>
+
+      <div id="participant-grid" class="participant-grid" role="list"></div>
+    </div>
+  </section>
+
+  <!-- ===================== HOME ===================== -->
+  <section id="screen-home" class="screen login-screen">
+    <header class="home-hero">
+      <div class="login-bg" aria-hidden="true">
+        <div class="login-glow"></div>
+        <p class="login-title-bg" aria-hidden="true">BARILOCHE</p>
+        <svg class="login-mountains" viewBox="0 0 430 200" preserveAspectRatio="none">
+          <path d="M0,200 L60,95 L100,130 L150,55 L190,120 L235,75 L270,135 L300,90 L340,140 L380,105 L430,150 L430,200 Z" fill="url(#hmgrad1)"/>
+          <path d="M0,200 L45,150 L90,175 L140,110 L185,165 L225,125 L270,170 L320,140 L360,175 L400,155 L430,180 L430,200 Z" fill="url(#hmgrad2)"/>
+          <path d="M150,55 L165,72 L172,64 L190,120 L172,95 L162,102 Z" fill="#ffffff" opacity="0.85"/>
+          <path d="M60,95 L72,110 L80,102 L100,130 L82,118 L74,123 Z" fill="#ffffff" opacity="0.75"/>
+          <path d="M270,135 L268,90 L280,105 L300,90 L285,118 L278,112 Z" fill="#ffffff" opacity="0.6"/>
+          <defs>
+            <linearGradient id="hmgrad1" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#bfe3fb"/>
+              <stop offset="1" stop-color="#8fc9ee"/>
+            </linearGradient>
+            <linearGradient id="hmgrad2" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#d9edfb"/>
+              <stop offset="1" stop-color="#b3d9f2"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <div class="login-snowfall">
+          <span class="snowflake" style="left:4%; --dur:13s; --delay:0s; --size:9px; --drift:14px;"></span>
+          <span class="snowflake" style="left:14%; --dur:17s; --delay:2s; --size:6px; --drift:-10px;"></span>
+          <span class="snowflake" style="left:24%; --dur:11s; --delay:5s; --size:11px; --drift:18px;"></span>
+          <span class="snowflake" style="left:34%; --dur:19s; --delay:1s; --size:7px; --drift:-16px;"></span>
+          <span class="snowflake" style="left:45%; --dur:14s; --delay:7s; --size:8px; --drift:10px;"></span>
+          <span class="snowflake" style="left:55%; --dur:16s; --delay:3s; --size:10px; --drift:-12px;"></span>
+          <span class="snowflake" style="left:64%; --dur:12s; --delay:6s; --size:6px; --drift:16px;"></span>
+          <span class="snowflake" style="left:74%; --dur:18s; --delay:0.5s; --size:9px; --drift:-14px;"></span>
+          <span class="snowflake" style="left:83%; --dur:15s; --delay:4s; --size:7px; --drift:12px;"></span>
+          <span class="snowflake" style="left:92%; --dur:13s; --delay:8s; --size:10px; --drift:-18px;"></span>
+          <span class="snowflake" style="left:60%; --dur:20s; --delay:9s; --size:5px; --drift:8px;"></span>
+          <span class="snowflake" style="left:9%; --dur:16.5s; --delay:11s; --size:8px; --drift:-9px;"></span>
+        </div>
+      </div>
+      <div class="home-hero-top">
+        <button id="btn-logout" class="icon-btn" type="button" aria-label="Cerrar sesión">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+        <span class="hero-badge">🏔️ Bariloche</span>
+        <span class="icon-btn spacer" aria-hidden="true"></span>
+      </div>
+      <div class="home-hero-bottom">
+        <p class="eyebrow home-greet-hola">Hola,</p>
+        <h1 id="home-username" class="hero-name home-greet-name">—</h1>
+        <p class="eyebrow home-greet-question">¿como estás?</p>
+      </div>
+    </header>
+
+    <main class="home-content">
+      <div class="section-label">Tu viaje</div>
+
+      <div class="card-list">
+        <article class="feature-card" id="card-money">
+          <div class="feature-icon" style="--fc:#ff9f1c22;--fi:#ff9f1c">💸</div>
+          <div class="feature-text">
+            <h3>Dinero</h3>
+            <p>Manejá tu plata registrando tus gastos</p>
+          </div>
+          <svg class="feature-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </article>
+
+        <article class="feature-card tappable" id="card-daily">
+          <div class="feature-icon" style="--fc:#4cc9f022;--fi:#4cc9f0">🌙</div>
+          <div class="feature-text">
+            <h3>Registro diario</h3>
+            <p>Contá cómo fue tu día anterior</p>
+          </div>
+          <svg class="feature-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </article>
+
+        <article class="feature-card tappable" id="card-export">
+          <div class="feature-icon" style="--fc:#c77dff22;--fi:#c77dff">📤</div>
+          <div class="feature-text">
+            <h3>Envío de datos</h3>
+            <p>Compartí tus datos con un administrador</p>
+          </div>
+          <svg class="feature-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </article>
+      </div>
+
+      <p class="home-footnote">Elige la sección a la que te quieras dirigir</p>
+
+      <!-- Sección adicional, solo visible para usuarios con permiso
+           especial para registrar previas (hoy únicamente Jere).
+           Se oculta/muestra en renderHome() según canRegisterLocalPrevia(). -->
+      <div id="home-previas-section" hidden>
+        <div class="section-label">Previas</div>
+        <div class="card-list">
+          <article class="feature-card tappable" id="card-previas-jere">
+            <div class="feature-icon" style="--fc:#ff547022;--fi:#ff5470">🍻</div>
+            <div class="feature-text">
+              <h3>Previas</h3>
+              <p>Registrá una previa y generá su código para Gio</p>
+            </div>
+            <svg class="feature-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </article>
+        </div>
+      </div>
+    </main>
+  </section>
+
+  <!-- ===================== DINERO ===================== -->
+  <section id="screen-money" class="screen admin-frost">
+    <header class="admin-hero money-hero">
+      <div class="admin-hero-top">
+        <button id="btn-money-back" class="icon-btn" type="button" aria-label="Volver a home">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="hero-badge">💸 Dinero</span>
+        <button id="btn-money-settings" class="icon-btn" type="button" aria-label="Editar saldo inicial">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </div>
+      <p class="eyebrow">Tu plata en el</p>
+      <h1 class="hero-name">Viaje</h1>
+    </header>
+
+    <main class="home-content" id="money-main">
+      <!-- contenido inyectado por script.js -->
+    </main>
+  </section>
+
+  <!-- ===================== REGISTRO DIARIO ===================== -->
+  <!-- Lleva la clase admin-frost (misma estética "Bariloche"
+       blanco/celeste que Login/Home/Dinero/Previas/Admin/Envío de
+       datos) desde v0.24.0: cambio puramente visual, sin tocar
+       renderDailyScreen, computeDailyDerived, getYesterdayKey ni
+       ningún otro dato/lógica/localStorage. -->
+  <section id="screen-daily" class="screen admin-frost">
+    <header class="admin-hero daily-hero">
+      <div class="admin-hero-top">
+        <button id="btn-daily-back" class="icon-btn" type="button" aria-label="Volver a home">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="hero-badge">🌙 Registro diario</span>
+        <span class="icon-btn spacer" aria-hidden="true"></span>
+      </div>
+      <p class="eyebrow">Contanos cómo fue</p>
+      <h1 class="hero-name">Tu día</h1>
+    </header>
+
+    <main class="home-content" id="daily-main">
+      <!-- contenido inyectado por script.js -->
+    </main>
+  </section>
+
+  <!-- ===================== ENVÍO DE DATOS ===================== -->
+  <!-- Lleva la clase admin-frost (misma estética "Bariloche"
+       blanco/celeste que Login/Home/Dinero/Previas/Admin) desde
+       v0.22.0: cambio puramente visual, sin tocar generateExportCode,
+       copyExportCode, buildWhatsappUrl ni ningún otro dato/lógica. -->
+  <section id="screen-export" class="screen admin-frost">
+    <header class="admin-hero export-hero">
+      <div class="admin-hero-top">
+        <button id="btn-export-back" class="icon-btn" type="button" aria-label="Volver a home">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="hero-badge">📤 Envío de datos</span>
+        <span class="icon-btn spacer" aria-hidden="true"></span>
+      </div>
+      <p class="eyebrow">Compartí tu</p>
+      <h1 class="hero-name">Progreso</h1>
+    </header>
+
+    <main class="home-content" id="export-main">
+      <!-- contenido inyectado por script.js -->
+    </main>
+  </section>
+
+  <!-- ===================== ADMIN ===================== -->
+  <section id="screen-admin" class="screen admin-frost">
+    <header class="admin-hero">
+      <div class="admin-hero-top">
+        <button id="btn-admin-back" class="icon-btn" type="button" aria-label="Volver a home">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="hero-badge admin-badge">⚙️ Admin</span>
+        <span class="icon-btn spacer" aria-hidden="true"></span>
+      </div>
+      <p class="eyebrow">Panel de</p>
+      <h1 class="hero-name">Administración</h1>
+    </header>
+
+    <main class="home-content">
+      <div class="section-label">Participantes</div>
+      <div id="admin-participants" class="admin-participants"></div>
+      <button type="button" id="btn-admin-update-code" class="admin-add-btn">Actualizar código</button>
+
+      <div class="section-label">Previas</div>
+      <div class="card-list">
+        <article class="feature-card tappable" id="card-admin-previas">
+          <div class="feature-icon" style="--fc:#ff547022;--fi:#ff5470">🍻</div>
+          <div class="feature-text">
+            <h3>Previas</h3>
+            <p>Registrá previas y su historial</p>
+          </div>
+          <svg class="feature-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </article>
+      </div>
+
+      <div class="section-label">Estadísticas</div>
+      <div class="card-list">
+        <article class="feature-card tappable" id="card-admin-stats">
+          <div class="feature-icon" style="--fc:#4cc9f022;--fi:#4cc9f0">📊</div>
+          <div class="feature-text">
+            <h3>Estadísticas</h3>
+            <p>Rankings y comparaciones del viaje</p>
+          </div>
+          <svg class="feature-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </article>
+      </div>
+
+      <!-- Apartado "Títulos": debajo de Estadísticas, misma estética
+           admin-frost. Ver "Títulos (implementado — estructura)" en
+           SPEC.md. -->
+      <div class="section-label">Títulos</div>
+      <div class="card-list">
+        <article class="feature-card tappable" id="card-admin-titulos">
+          <div class="feature-icon" style="--fc:#ffd16622;--fi:#ffd166">🏆</div>
+          <div class="feature-text">
+            <h3>Títulos</h3>
+            <p>Reconocimientos y logros del viaje</p>
+          </div>
+          <svg class="feature-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </article>
+      </div>
+    </main>
+  </section>
+
+  <!-- ===================== ESTADÍSTICAS (ADMIN) ===================== -->
+  <section id="screen-stats" class="screen admin-frost">
+    <header class="admin-hero stats-hero">
+      <div class="admin-hero-top">
+        <button id="btn-stats-back" class="icon-btn" type="button" aria-label="Volver a admin">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="hero-badge">📊 Estadísticas</span>
+        <span class="icon-btn spacer" aria-hidden="true"></span>
+      </div>
+      <p class="eyebrow">Panel de</p>
+      <h1 class="hero-name">Estadísticas</h1>
+    </header>
+
+    <main class="home-content" id="stats-main">
+      <!-- contenido inyectado por script.js -->
+    </main>
+  </section>
+
+  <!-- ===================== TÍTULOS (ADMIN) ===================== -->
+  <!-- Hub de navegación con las 3 subsecciones. Misma estética
+       admin-frost que Admin/Estadísticas/Previas; usa
+       navigateBetweenScreensWithTransition (igual que Admin<->Estadísticas)
+       para entrar/salir. Solo estructura visual y de navegación por
+       ahora: sin lógica de cálculo de títulos todavía. -->
+  <section id="screen-titulos" class="screen admin-frost">
+    <header class="admin-hero titulos-hero">
+      <div class="admin-hero-top">
+        <button id="btn-titulos-back" class="icon-btn" type="button" aria-label="Volver a admin">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="hero-badge">🏆 Títulos</span>
+        <span class="icon-btn spacer" aria-hidden="true"></span>
+      </div>
+      <p class="eyebrow">Reconocimientos del</p>
+      <h1 class="hero-name">Viaje</h1>
+    </header>
+
+    <main class="home-content">
+      <div class="section-label">Categorías</div>
+      <div class="card-list">
+        <article class="feature-card tappable" id="card-titulos-estadistica">
+          <div class="feature-icon" style="--fc:#4cc9f022;--fi:#4cc9f0">📊</div>
+          <div class="feature-text">
+            <h3>Títulos por estadística</h3>
+            <p>Basados en los rankings de Estadísticas</p>
+          </div>
+          <svg class="feature-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </article>
+
+        <article class="feature-card tappable" id="card-titulos-encuesta">
+          <div class="feature-icon" style="--fc:#c77dff22;--fi:#c77dff">🗳️</div>
+          <div class="feature-text">
+            <h3>Títulos por encuesta</h3>
+            <p>Votados por los participantes del viaje</p>
+          </div>
+          <svg class="feature-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </article>
+
+        <article class="feature-card tappable" id="card-titulos-racha">
+          <div class="feature-icon" style="--fc:#ff547022;--fi:#ff5470">🔥</div>
+          <div class="feature-text">
+            <h3>Títulos por racha</h3>
+            <p>Por días consecutivos cumpliendo un hábito</p>
+          </div>
+          <svg class="feature-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </article>
+      </div>
+    </main>
+  </section>
+
+  <!-- ===================== TÍTULOS POR ESTADÍSTICA ===================== -->
+  <!-- Única de las 3 subsecciones con pestañas Día/Total (reutiliza
+       .stats-tabs/.stats-tab, mismas clases que Estadísticas) porque
+       sus títulos van a salir de esa misma fuente de datos: un día
+       cerrado del viaje o el acumulado total. -->
+  <section id="screen-titulos-estadistica" class="screen admin-frost">
+    <header class="admin-hero titulos-hero">
+      <div class="admin-hero-top">
+        <button id="btn-titulos-estadistica-back" class="icon-btn" type="button" aria-label="Volver a Títulos">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="hero-badge">📊 Por estadística</span>
+        <span class="icon-btn spacer" aria-hidden="true"></span>
+      </div>
+      <p class="eyebrow">Títulos</p>
+      <h1 class="hero-name">Por estadística</h1>
+    </header>
+
+    <main class="home-content" id="titulos-estadistica-main">
+      <!-- contenido inyectado por script.js -->
+    </main>
+  </section>
+
+  <!-- ===================== TÍTULOS POR ENCUESTA ===================== -->
+  <section id="screen-titulos-encuesta" class="screen admin-frost">
+    <header class="admin-hero titulos-hero">
+      <div class="admin-hero-top">
+        <button id="btn-titulos-encuesta-back" class="icon-btn" type="button" aria-label="Volver a Títulos">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="hero-badge">🗳️ Por encuesta</span>
+        <span class="icon-btn spacer" aria-hidden="true"></span>
+      </div>
+      <p class="eyebrow">Títulos</p>
+      <h1 class="hero-name">Por encuesta</h1>
+    </header>
+
+    <main class="home-content">
+      <div class="card-list">
+        <article class="feature-card locked">
+          <div class="feature-icon" style="--fc:#c77dff22;--fi:#c77dff">🗳️</div>
+          <div class="feature-text">
+            <h3>Títulos por encuesta</h3>
+            <p>Acá vas a poder crear encuestas y ver los títulos votados por el grupo.</p>
+          </div>
+          <span class="soon-tag">Próximamente</span>
+        </article>
+      </div>
+    </main>
+  </section>
+
+  <!-- ===================== TÍTULOS POR RACHA ===================== -->
+  <section id="screen-titulos-racha" class="screen admin-frost">
+    <header class="admin-hero titulos-hero">
+      <div class="admin-hero-top">
+        <button id="btn-titulos-racha-back" class="icon-btn" type="button" aria-label="Volver a Títulos">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="hero-badge">🔥 Por racha</span>
+        <span class="icon-btn spacer" aria-hidden="true"></span>
+      </div>
+      <p class="eyebrow">Títulos</p>
+      <h1 class="hero-name">Por racha</h1>
+    </header>
+
+    <main class="home-content">
+      <div class="card-list">
+        <article class="feature-card locked">
+          <div class="feature-icon" style="--fc:#ff547022;--fi:#ff5470">🔥</div>
+          <div class="feature-text">
+            <h3>Títulos por racha</h3>
+            <p>Acá vas a poder ver títulos por días consecutivos cumpliendo un hábito.</p>
+          </div>
+          <span class="soon-tag">Próximamente</span>
+        </article>
+      </div>
+    </main>
+  </section>
+
+  <!-- ===================== PREVIAS (ADMIN) ===================== -->
+  <section id="screen-previas" class="screen admin-frost">
+    <header class="admin-hero previas-hero">
+      <div class="admin-hero-top">
+        <button id="btn-previas-back" class="icon-btn" type="button" aria-label="Volver a admin">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="hero-badge">🍻 Previas</span>
+        <span class="icon-btn spacer" aria-hidden="true"></span>
+      </div>
+      <p class="eyebrow">Panel de</p>
+      <h1 class="hero-name">Previas</h1>
+    </header>
+
+    <main class="home-content" id="previas-main">
+      <!-- contenido inyectado por script.js -->
+    </main>
+  </section>
+
+  <!-- ===================== PREVIAS (SECCIÓN DE JERE) ===================== -->
+  <!-- Mismo componente/lógica que la pantalla de Previas de /admin
+       (script.js la arma con previaMode = "local"), pero guarda en
+       "localPrevias:<id>" en vez de "adminPrevias", y sin ninguna otra
+       función administrativa. Solo accesible para usuarios con
+       canRegisterPrevias (hoy únicamente Jere); ver navigate().
+       Lleva la clase admin-frost (misma estética "Bariloche"
+       blanco/celeste que Admin/Previas/Estadísticas/Money) desde
+       v0.21.0: cambio puramente visual, sin tocar previaMode ni el
+       almacenamiento local. -->
+  <section id="screen-previas-jere" class="screen admin-frost">
+    <header class="admin-hero previas-hero">
+      <div class="admin-hero-top">
+        <button id="btn-previas-jere-back" class="icon-btn" type="button" aria-label="Volver a home">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="hero-badge">🍻 Previas</span>
+        <span class="icon-btn spacer" aria-hidden="true"></span>
+      </div>
+      <p class="eyebrow">Registrá una</p>
+      <h1 class="hero-name">Previa</h1>
+    </header>
+
+    <main class="home-content" id="previas-local-main">
+      <!-- contenido inyectado por script.js -->
+    </main>
+  </section>
+
+  <!-- ===================== BOTTOM NAV ===================== -->
+  <nav id="bottom-nav" class="bottom-nav">
+    <button class="nav-btn" data-route="home" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span>Home</span>
+    </button>
+    <button id="nav-admin" class="nav-btn" data-route="admin" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span>Admin</span>
+    </button>
+  </nav>
+
+  <!-- ===================== BOTTOM SHEET (formularios) ===================== -->
+  <div id="sheet-overlay" class="sheet-overlay">
+    <div class="sheet" id="sheet" role="dialog" aria-modal="true">
+      <div class="sheet-handle"></div>
+      <div id="sheet-content"></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

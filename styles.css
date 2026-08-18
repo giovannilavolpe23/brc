@@ -1,0 +1,3031 @@
+/* =========================================================
+   BARILOCHE WEB — estilos
+   Mobile-first. Ancho objetivo real: ~360–430px.
+   Desktop/tablet: la app queda centrada en una "tarjeta" de
+   ancho móvil, como si fuera un simulador de teléfono.
+   ========================================================= */
+
+:root {
+  --bg: #0d0d17;
+  --bg-alt: #15151f;
+  --surface: #1b1b29;
+  --surface-2: #232335;
+  --border: #2c2c40;
+
+  --accent: #ff9f1c;
+  --accent-ink: #1a1200;
+  --accent-2: #4cc9f0;
+  --accent-3: #c77dff;
+  --danger: #ff5470;
+
+  --text: #f5f3f0;
+  --text-dim: #a8a6b8;
+  --text-faint: #6f6d82;
+
+  --radius-lg: 22px;
+  --radius-md: 16px;
+  --radius-sm: 12px;
+
+  --font-display: 'Outfit', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --app-max-width: 480px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  width: 100%;
+}
+
+body {
+  background: var(--bg-alt);
+  color: var(--text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button {
+  font-family: inherit;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+img, svg {
+  display: block;
+  max-width: 100%;
+}
+
+/* ---------------------------------------------------------
+   Shell: en mobile ocupa todo el ancho; en desktop queda
+   centrado con look de "app" (evita que se sienta desktop).
+   --------------------------------------------------------- */
+
+#app {
+  position: relative;
+  width: 100%;
+  max-width: var(--app-max-width);
+  margin: 0 auto;
+  min-height: 100dvh;
+  background: var(--bg);
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 481px) {
+  body {
+    display: flex;
+    justify-content: center;
+    background: #08080e;
+  }
+  #app {
+    min-height: 100dvh;
+    box-shadow: 0 0 60px rgba(0, 0, 0, 0.55);
+  }
+}
+
+.screen {
+  display: none;
+  flex-direction: column;
+  min-height: 100dvh;
+  width: 100%;
+}
+
+.screen.active {
+  display: flex;
+}
+
+/* ---------------------------------------------------------
+   Transición entre pantallas logueadas (Home <-> Dinero / Registro
+   diario / Envío de datos / Previas de Jere / Admin, y dentro de
+   Admin: Admin <-> Previas / Estadísticas). Solo usa opacity +
+   transform para evitar reflow, y respeta prefers-reduced-motion.
+   Las mismas clases (`.home-to-money-exit` / `.money-from-home-enter`)
+   se reutilizan tal cual para todas esas pantallas, vía la función
+   genérica `navigateBetweenScreensWithTransition()` en script.js, ya
+   que todas comparten duración, curva y color de fondo (todas usan
+   `.admin-frost` o `.login-screen`, ambas arrancando en `#eaf6ff`).
+   --------------------------------------------------------- */
+
+.home-to-money-exit {
+  animation: homeToMoneyExit 100ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+.money-from-home-enter {
+  animation: moneyFromHomeEnter 100ms cubic-bezier(0, 0, 0.2, 1) forwards;
+}
+
+@keyframes homeToMoneyExit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes moneyFromHomeEnter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Mientras dura la transición, #app muestra el mismo celeste/blanco
+   de fondo que ya usan Home (.login-screen) y Dinero (.admin-frost)
+   -- el primer tono de ambos degradés, #eaf6ff -- en vez del
+   var(--bg) oscuro por defecto del contenedor. Sin esto, al bajar la
+   opacity de la pantalla saliente/entrante se veía por un instante el
+   fondo oscuro de #app detrás (efecto de "pantalla negra"). Da la
+   sensación de que el contenido se borra y aparece otro, en vez de un
+   parpadeo oscuro entre medio.
+   --------------------------------------------------------- */
+#app.home-money-transition-bg {
+  background: #eaf6ff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-to-money-exit,
+  .money-from-home-enter {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------
+   Cielo / montañas — elemento decorativo compartido
+   --------------------------------------------------------- */
+
+.stars {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(2px 2px at 20px 30px, #ffffff 100%, transparent),
+    radial-gradient(1.5px 1.5px at 90px 60px, #ffffff 100%, transparent),
+    radial-gradient(1.5px 1.5px at 150px 20px, #ffffff 100%, transparent),
+    radial-gradient(2px 2px at 200px 80px, #ffffff 100%, transparent),
+    radial-gradient(1.5px 1.5px at 260px 40px, #ffffff 100%, transparent),
+    radial-gradient(1.5px 1.5px at 320px 70px, #ffffff 100%, transparent),
+    radial-gradient(2px 2px at 60px 100px, #ffffff 100%, transparent),
+    radial-gradient(1.5px 1.5px at 380px 30px, #ffffff 100%, transparent);
+  background-repeat: repeat;
+  background-size: 400px 140px;
+  opacity: 0.55;
+  animation: twinkle 4s ease-in-out infinite alternate;
+}
+
+@keyframes twinkle {
+  from { opacity: 0.3; }
+  to   { opacity: 0.7; }
+}
+
+.mountains {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: auto;
+}
+
+.participant-grid {
+  margin-top: 26px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.participant-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 6px 12px;
+  color: var(--text);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  min-width: 0;
+}
+
+.participant-btn:active {
+  transform: scale(0.95);
+}
+
+.participant-btn:hover {
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+
+.participant-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+  color: #0d0d17;
+  flex-shrink: 0;
+}
+
+.participant-name {
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.admin-pill {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: rgba(255, 159, 28, 0.12);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.eyebrow {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
+/* ---------------------------------------------------------
+   Estética "Bariloche" (celeste/blanco, montañas, nieve) —
+   compartida por LOGIN (#screen-select) y HOME (#screen-home) vía
+   la clase `.login-screen`. El resto de las pantallas (Money,
+   Daily, Export, Admin) siguen con el tema oscuro original.
+   --------------------------------------------------------- */
+
+.login-screen {
+  position: relative;
+  background: linear-gradient(180deg, #eaf6ff 0%, #f5fbff 35%, #ffffff 70%, #ffffff 100%);
+  overflow: hidden;
+}
+
+#screen-select.login-screen {
+  justify-content: flex-end;
+}
+
+.login-bg {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.login-glow {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 55% at 50% 0%, rgba(76, 201, 240, 0.28) 0%, rgba(76, 201, 240, 0) 60%),
+    radial-gradient(80% 40% at 85% 10%, rgba(199, 125, 255, 0.14) 0%, rgba(199, 125, 255, 0) 65%);
+  transform: translate3d(0, 0, 0);
+  transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: transform;
+}
+
+/* Título grande "BARILOCHE" detrás de las montañas: vive en el
+   markup ANTES del <svg class="login-mountains"> (mismo padre,
+   .login-bg, sin z-index propio en ninguno de los dos) para que el
+   orden de pintado natural haga que las montañas lo tapen
+   parcialmente, no solo que quede "debajo" en la posición. Protagonista
+   de la pantalla, tonos del degradé celeste/blanco ya usado en el
+   resto del fondo, con su propia velocidad de parallax (más lenta que
+   las montañas, para reforzar la sensación de estar más lejos/detrás). */
+.login-title-bg {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 72px;
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(34px, 11vw, 64px);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  background: linear-gradient(180deg, #ffffff 0%, #dcf1ff 45%, #6cc9ef 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  transform: translate3d(0, 0, 0);
+  transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: transform;
+}
+
+.login-mountains {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 40px;
+  width: 100%;
+  height: auto;
+  opacity: 0.9;
+  filter: drop-shadow(0 8px 24px rgba(76, 158, 201, 0.25));
+  transform: translate3d(0, 0, 0);
+  transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: transform;
+}
+
+/* Copos: pocos (12), animación CSS pura, sin JS. Empiezan arriba
+   del todo del contenedor y caen con una leve deriva horizontal en
+   loop; `pointer-events: none` en todo el contenedor para que nunca
+   intercepten toques sobre las cards. El contenedor también recibe
+   un desplazamiento sutil ligado al scroll (ver `initLoginParallax`
+   en script.js); cada copo sigue animando su propia caída con
+   `@keyframes login-snow-fall` de forma independiente, los dos
+   transforms se combinan sin pisarse (uno vive en el contenedor,
+   el otro en cada `.snowflake`). */
+.login-snowfall {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  transform: translate3d(0, 0, 0);
+  transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: transform;
+}
+
+/* Con "reducir movimiento" activado, o si JS no llegó a correr
+   (fallback), estas capas nunca reciben más que el transform base
+   0,0,0 de arriba: fondo estático normal, sin parallax. Acá además
+   apagamos la transition para no animar nada de más. */
+@media (prefers-reduced-motion: reduce) {
+  .login-glow,
+  .login-title-bg,
+  .login-mountains,
+  .login-snowfall {
+    transition: none;
+  }
+}
+
+.snowflake {
+  position: absolute;
+  top: -12px;
+  width: var(--size, 8px);
+  height: var(--size, 8px);
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 6px 1px rgba(255, 255, 255, 0.85);
+  opacity: 0.85;
+  animation: login-snow-fall var(--dur, 15s) linear var(--delay, 0s) infinite;
+}
+
+@keyframes login-snow-fall {
+  0% {
+    transform: translate(0, -5vh) translateX(0);
+    opacity: 0;
+  }
+  8% {
+    opacity: 0.9;
+  }
+  92% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate(var(--drift, 12px), 105vh) translateX(var(--drift, 12px));
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .snowflake {
+    animation: none;
+    opacity: 0.5;
+  }
+}
+
+/* ---------------------------------------------------------
+   Nieve global (v0.19.0) — capa ambiental en TODA la web, no
+   solo en LOGIN/HOME.
+
+   Un único componente (`#global-snowfall`, ver `index.html`,
+   vive como hijo directo de `#app` al cargar la página) que
+   `script.js` reubica dentro de `showScreen()` como PRIMER hijo
+   de la pantalla que pasa a estar activa, en cada navegación —
+   en vez de duplicar el markup/CSS de nieve en cada sección. Es
+   el mismo nodo del DOM moviéndose de pantalla en pantalla
+   (`insertBefore`), nunca una copia.
+
+   Por qué así y no un overlay fijo fuera de las pantallas: varias
+   pantallas (las de tema claro "frost": /admin, Previas de admin,
+   Estadísticas, Dinero, Previas de Jere) pintan su propio fondo
+   con degradé opaco directamente en `.screen` (ver
+   `.screen.admin-frost` más abajo). Un overlay puesto ANTES de
+   todas las `.screen` en el DOM quedaría tapado por ese fondo
+   opaco. Al insertarse como primer hijo DENTRO de la pantalla
+   activa, la nieve pinta por encima del fondo propio de esa
+   pantalla pero por debajo de absolutamente todo su contenido
+   real (headers, cards, botones, inputs, textos), que siguen
+   viniendo después en el DOM — nunca se superpone a un elemento
+   interactivo. El bottom nav y los bottom sheets NO son hijos de
+   `.screen` (son hermanos, con sus propios z-index 20/60 ya
+   existentes), así que quedan intactos y por encima siempre.
+
+   `position: fixed` hace que cubra siempre el alto completo del
+   viewport (no solo la parte superior) y seguir "cayendo" sin
+   importar el scroll de la página — no se ve afectada por el
+   scroll de ninguna pantalla, a diferencia del parallax de
+   `.login-snowfall` en LOGIN/HOME (capas totalmente
+   independientes, sin relación entre sí; `initLoginParallax` en
+   script.js sigue leyendo solo `.login-snowfall`, sin tocar esta
+   capa nueva).
+
+   Reutiliza la misma clase `.snowflake` y el mismo `@keyframes
+   login-snow-fall` ya usados en LOGIN/HOME, así que el estilo
+   visual es idéntico; la regla de `prefers-reduced-motion` de
+   arriba ya aplica a `.snowflake` en general, así que también
+   apaga estos copos sin agregar nada más. `pointer-events: none`
+   en el contenedor asegura que nunca intercepte clicks/toques. */
+.global-snowfall {
+  position: fixed;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: var(--app-max-width);
+  height: 100dvh;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.login-content {
+  position: relative;
+  z-index: 2;
+  padding: 24px 20px calc(28px + var(--safe-bottom));
+  background: transparent;
+  border-radius: 0;
+  margin-top: 228px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.login-screen .eyebrow {
+  color: #2f8fd1;
+}
+
+#screen-select.login-screen .select-title {
+  color: #10233a;
+  text-shadow: 0 2px 18px rgba(76, 201, 240, 0.2);
+  margin-top: 14px;
+}
+
+#screen-select.login-screen .select-sub {
+  color: #4d6b82;
+}
+
+/* Home reutiliza el mismo tratamiento de título que el login
+   (`.select-title`) para el saludo (`.hero-name`), en vez de
+   duplicar la regla. */
+.login-screen .hero-name {
+  color: #10233a;
+  text-shadow: 0 2px 18px rgba(76, 201, 240, 0.2);
+}
+
+/* Grid de jugadores: 2 columnas fijas en mobile, cards tipo
+   "vidrio" sobre el fondo claro. Selectores scoped a
+   #screen-select para no tocar `.participant-avatar`/
+   `.participant-name` reutilizados en Admin → Previas. */
+#screen-select .participant-grid {
+  margin-top: 26px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  padding-bottom: 12px;
+}
+
+#screen-select .participant-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(76, 201, 240, 0.35);
+  border-radius: 20px;
+  padding: 20px 10px 16px;
+  color: #10233a;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(76, 158, 201, 0.16);
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  min-width: 0;
+  position: relative;
+}
+
+#screen-select .participant-btn:active {
+  transform: scale(0.95);
+  box-shadow: 0 4px 12px rgba(76, 158, 201, 0.18);
+}
+
+#screen-select .participant-btn:hover {
+  border-color: #4cc9f0;
+  box-shadow: 0 10px 26px rgba(76, 158, 201, 0.24);
+}
+
+#screen-select .participant-avatar {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 17px;
+  color: #0d0d17;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.9), 0 6px 14px rgba(76, 158, 201, 0.25);
+}
+
+#screen-select .participant-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  color: #10233a;
+}
+
+#screen-select .admin-pill {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #ffffff;
+  background: linear-gradient(135deg, #4cc9f0, #2f8fd1);
+  padding: 2px 7px;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(47, 143, 209, 0.35);
+}
+
+@media (max-width: 359px) {
+  #screen-select .participant-grid {
+    gap: 10px;
+  }
+  #screen-select .participant-btn {
+    padding: 16px 6px 12px;
+  }
+  #screen-select .participant-avatar {
+    width: 46px;
+    height: 46px;
+    font-size: 15px;
+  }
+}
+
+/* ---------------------------------------------------------
+   Pantalla: selector de usuario — fin bloque LOGIN.
+   --------------------------------------------------------- */
+
+/* ---------------------------------------------------------
+   Hero compartido (home / admin)
+   --------------------------------------------------------- */
+
+.home-hero, .admin-hero {
+  position: relative;
+  padding: calc(18px + var(--safe-top)) 20px 26px;
+  overflow: hidden;
+  background: radial-gradient(120% 140% at 50% 0%, #262247 0%, #171528 65%, var(--bg) 100%);
+  flex-shrink: 0;
+}
+
+/* Home reutiliza la estética "Bariloche": mismo fondo celeste/blanco
+   que ya trae `.login-screen` en el contenedor, con altura propia
+   para que las montañas + "BARILOCHE" (`.login-bg`, reutilizado tal
+   cual del login) tengan lugar antes del saludo. Sobrescribe el
+   fondo oscuro del hero compartido solo para `.home-hero` (misma
+   especificidad, gana por venir después en el archivo; `.admin-hero`
+   no se toca). */
+.home-hero {
+  background: transparent;
+  min-height: 300px;
+  padding-bottom: 34px;
+}
+
+.home-hero-top, .admin-hero-top {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.icon-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.icon-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.icon-btn.spacer {
+  visibility: hidden;
+}
+
+.hero-badge {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.hero-badge.admin-badge {
+  color: var(--accent);
+  border-color: rgba(255, 159, 28, 0.3);
+  background: rgba(255, 159, 28, 0.08);
+}
+
+/* Botón e insignia del hero de Home sobre el fondo claro: mismos
+   tonos celeste/blanco "vidrio" que ya usan las cards de jugador del
+   login (`#screen-select .participant-btn`), reutilizados tal cual. */
+.home-hero .icon-btn {
+  border-color: rgba(76, 201, 240, 0.35);
+  background: rgba(255, 255, 255, 0.7);
+  color: #10233a;
+}
+
+.home-hero .hero-badge {
+  color: #2f8fd1;
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(76, 201, 240, 0.35);
+}
+
+/* Empuja el saludo por debajo de las montañas (mismo criterio que
+   `.login-content` en el login, que también se corre para no pisar
+   el título "BARILOCHE"/las montañas). */
+.home-hero-bottom {
+  position: relative;
+  z-index: 1;
+  margin-top: 190px;
+}
+
+.hero-name {
+  font-size: clamp(26px, 8vw, 32px);
+  font-weight: 800;
+  word-break: break-word;
+}
+
+/* ---------------------------------------------------------
+   Saludo de Home ("Hola," / nombre / remate aleatorio) —
+   tipografía y color propios, más claros y mejor jerarquizados
+   que el tratamiento genérico de `.eyebrow` (que es pensado para
+   etiquetas chicas en mayúscula, no para un saludo conversacional).
+   Mantiene la paleta celeste/azul de la estética "Bariloche".
+   --------------------------------------------------------- */
+
+.home-greet-hola,
+.home-greet-question {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.home-greet-hola {
+  font-size: 15px;
+  font-weight: 600;
+  color: #5b7c94;
+  margin-bottom: 2px;
+}
+
+.home-greet-name.hero-name {
+  font-size: clamp(28px, 9vw, 36px);
+  margin-bottom: 4px;
+}
+
+.home-greet-question {
+  font-size: 17px;
+  font-weight: 600;
+  color: #2f8fd1;
+  margin-bottom: 0;
+}
+
+/* ---------------------------------------------------------
+   Animación de entrada escalonada del saludo, exclusiva de
+   estos 3 elementos. `.home-greeting-animate` se agrega/quita
+   por JS en cada entrada a Home (ver renderHome() en script.js)
+   para que la secuencia se repita al navegar, sin volver a jugar
+   sola mientras el usuario permanece en la pantalla.
+   Usa solo transform + opacity, sin afectar layout/scroll.
+   --------------------------------------------------------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  .home-greeting-animate .home-greet-hola {
+    animation: homeGreetFromLeft 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .home-greeting-animate .home-greet-name {
+    animation: homeGreetFromDepth 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: 160ms;
+  }
+
+  .home-greeting-animate .home-greet-question {
+    animation: homeGreetFromLeft 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: 340ms;
+  }
+}
+
+@keyframes homeGreetFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-48px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes homeGreetFromDepth {
+  from {
+    opacity: 0;
+    transform: translateX(40px) scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+.admin-hero .eyebrow {
+  margin-top: 18px;
+  position: relative;
+  z-index: 1;
+}
+
+.admin-hero .hero-name {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------------------------------------------------------
+   Contenido principal
+   --------------------------------------------------------- */
+
+.home-content {
+  flex: 1;
+  padding: 22px 20px calc(100px + var(--safe-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.section-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-top: 6px;
+}
+
+.card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.feature-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.feature-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  background: var(--fc, var(--surface-2));
+  color: var(--fi, var(--accent));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.feature-text {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+.feature-text h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.25;
+}
+
+.feature-text p {
+  margin-top: 3px;
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.35;
+}
+
+.feature-card.locked {
+  opacity: 0.75;
+}
+
+.feature-card#card-money,
+.feature-card.tappable {
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.feature-card#card-money:active,
+.feature-card.tappable:active {
+  transform: scale(0.98);
+  border-color: var(--accent);
+}
+
+.feature-arrow {
+  width: 18px;
+  height: 18px;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.soon-tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  padding: 5px 8px;
+  border-radius: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.home-footnote {
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 13px;
+  margin-top: 8px;
+  padding: 0 8px;
+}
+
+/* ---------------------------------------------------------
+   Home — mismo lenguaje visual del login (fondo claro ya viene de
+   `.login-screen`) + tarjetas más grandes para aprovechar mejor el
+   alto de pantalla. Todo scoped a `#screen-home` para no afectar
+   `.feature-card`/`.section-label` de Admin/Estadísticas, que
+   siguen con el tema oscuro original.
+   --------------------------------------------------------- */
+
+#screen-home .home-content {
+  gap: 20px;
+}
+
+#screen-home .card-list {
+  gap: 16px;
+}
+
+#screen-home .section-label {
+  color: #2f8fd1;
+}
+
+/* Cards estilo "vidrio", mismos valores que
+   `#screen-select .participant-btn`, con más padding/ícono más
+   grande para que las 3 secciones ocupen bastante más alto. */
+#screen-home .feature-card {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(76, 201, 240, 0.35);
+  border-radius: 20px;
+  box-shadow: 0 8px 20px rgba(76, 158, 201, 0.16);
+  padding: 24px 20px;
+  gap: 16px;
+  align-items: center;
+}
+
+#screen-home .feature-card#card-money:active,
+#screen-home .feature-card.tappable:active {
+  border-color: #4cc9f0;
+  box-shadow: 0 10px 26px rgba(76, 158, 201, 0.24);
+}
+
+#screen-home .feature-icon {
+  width: 60px;
+  height: 60px;
+  font-size: 28px;
+  border-radius: 16px;
+}
+
+#screen-home .feature-text h3 {
+  font-size: 18px;
+  color: #10233a;
+}
+
+#screen-home .feature-text p {
+  font-size: 14px;
+  margin-top: 4px;
+  color: #4d6b82;
+}
+
+#screen-home .feature-arrow {
+  width: 20px;
+  height: 20px;
+  color: #4cc9f0;
+}
+
+#screen-home .home-footnote {
+  color: #6f92ac;
+}
+
+.admin-participants {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-participant-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+
+.admin-participant-row .participant-avatar {
+  width: 34px;
+  height: 34px;
+  font-size: 13px;
+}
+
+.admin-participant-row .participant-name {
+  font-size: 14px;
+  flex: 1;
+  text-align: left;
+}
+
+.admin-participant-info {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.admin-participant-info .participant-name {
+  display: block;
+}
+
+.admin-participant-meta {
+  font-size: 12px;
+  color: var(--text-faint);
+  margin-top: 1px;
+}
+
+/* ---------------------------------------------------------
+   Admin — actualización de jugadores (códigos de datos)
+   --------------------------------------------------------- */
+
+.admin-add-btn {
+  width: 100%;
+  padding: 13px;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border);
+  background: rgba(255, 159, 28, 0.08);
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.admin-add-btn:active {
+  transform: scale(0.98);
+  border-color: var(--accent);
+}
+
+/* ---------------- Estadísticas (DÍA / TOTAL) ----------------
+   Pulido visual v0.15.0: la estructura (tabs DÍA/TOTAL, navegación
+   de día, tarjetas de ranking con barras horizontales) es la misma
+   de siempre — acá solo se retocan espaciados, jerarquía tipográfica,
+   color y animaciones para que se sienta premium y como una
+   "competencia del viaje", sin saturar la pantalla. ---------------- */
+
+.stats-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+  box-shadow: 0 6px 18px -14px rgba(0, 0, 0, 0.6);
+}
+
+.stats-tab {
+  flex: 1;
+  padding: 10px 0;
+  border: none;
+  border-radius: calc(var(--radius-md) - 4px);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.12s ease;
+}
+
+.stats-tab.active {
+  background: linear-gradient(135deg, var(--accent), #ffb648);
+  color: var(--accent-ink);
+  box-shadow: 0 4px 14px -6px rgba(255, 159, 28, 0.65);
+}
+
+.stats-tab:active {
+  transform: scale(0.96);
+}
+
+.stats-day-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: linear-gradient(180deg, var(--surface), var(--surface-2));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 10px;
+  margin-bottom: 22px;
+}
+
+.stats-day-nav-total {
+  background: linear-gradient(135deg, rgba(199, 125, 255, 0.14), var(--surface));
+  border-color: rgba(199, 125, 255, 0.3);
+}
+
+.stats-day-btn {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s ease, transform 0.12s ease, border-color 0.15s ease;
+}
+
+.stats-day-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.stats-day-btn:active:not(:disabled) {
+  transform: scale(0.9);
+  border-color: var(--accent);
+}
+
+.stats-day-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.stats-day-btn-ghost {
+  border: none;
+  background: transparent;
+  visibility: hidden;
+}
+
+.stats-day-label {
+  flex: 1;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.stats-day-label strong {
+  font-family: var(--font-display);
+  font-size: 15.5px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stats-day-sub {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-3);
+}
+
+/* Banner "todavía no hay días cerrados" — antes era un párrafo
+   suelto; ahora es una tarjeta propia con ícono para que se sienta
+   cuidado en vez de un texto de error genérico. */
+.stats-empty-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  margin: -8px 0 20px;
+}
+
+.stats-empty-banner-icon {
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.stats-empty-banner p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.stats-placeholder-list {
+  margin-bottom: 4px;
+}
+
+.stats-real-list {
+  margin-bottom: 4px;
+  /* Más aire entre tarjetas que el resto de la app: cada estadística
+     necesita respirar para que la pantalla no se sienta saturada. */
+  gap: 20px;
+}
+
+.section-label {
+  position: relative;
+  padding-left: 12px;
+}
+
+.section-label::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* Contenedor que recibe la animación de entrada/transición entre
+   días y entre pestañas Día/Total. Como el contenido se reinyecta
+   por completo en cada render, la animación se vuelve a disparar
+   sola cada vez (elementos nuevos), sin necesidad de estado extra. */
+.stats-panel-inner {
+  animation: statsFadeUp 0.32s ease both;
+}
+
+.stats-panel-inner.stats-slide-next {
+  animation: statsSlideNext 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.stats-panel-inner.stats-slide-prev {
+  animation: statsSlidePrev 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes statsFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes statsSlideNext {
+  from {
+    opacity: 0;
+    transform: translateX(18px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes statsSlidePrev {
+  from {
+    opacity: 0;
+    transform: translateX(-18px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+/* ---------------- Tarjetas de ranking ---------------- */
+
+.ranking-card {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16px;
+  position: relative;
+  overflow: hidden;
+  padding: 16px 14px 15px;
+  opacity: 0;
+  background: linear-gradient(165deg, var(--surface) 0%, var(--surface) 60%, var(--surface-2) 130%);
+  box-shadow: 0 10px 26px -20px rgba(0, 0, 0, 0.75);
+  animation: statsFadeUp 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Filete superior con el color propio de cada estadística, para
+   diferenciarlas de un vistazo (mismo acento que ya usaba el ícono)
+   sin agregar más texto ni elementos a la tarjeta. */
+.ranking-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--ranking-accent, var(--accent)), transparent);
+  opacity: 0.85;
+}
+
+/* Cascada de entrada: cada tarjeta aparece un poco después que la
+   anterior para reforzar la sensación de "revelar resultados".
+   `:nth-of-type` (no `:nth-child`) para que la posición se cuente
+   solo entre los `<article>` (las tarjetas), sin verse afectada por
+   los encabezados de sección (`<div>`) intercalados entre ellas. */
+.stats-real-list .ranking-card:nth-of-type(1) { animation-delay: 0.02s; }
+.stats-real-list .ranking-card:nth-of-type(2) { animation-delay: 0.07s; }
+.stats-real-list .ranking-card:nth-of-type(3) { animation-delay: 0.12s; }
+.stats-real-list .ranking-card:nth-of-type(4) { animation-delay: 0.17s; }
+.stats-real-list .ranking-card:nth-of-type(5) { animation-delay: 0.22s; }
+.stats-real-list .ranking-card:nth-of-type(6) { animation-delay: 0.27s; }
+.stats-real-list .ranking-card:nth-of-type(7) { animation-delay: 0.32s; }
+.stats-real-list .ranking-card:nth-of-type(8) { animation-delay: 0.37s; }
+
+/* ---------------- Encabezados de sección de Estadísticas ----------------
+   Separadores temáticos ("-Datos de registro-", "-Pulso del viaje-",
+   "-Gastos por categoría-", "-PREVIAS-") que agrupan visualmente las
+   tarjetas de Estadísticas sin tocar su lógica ni sus datos. Arrancan
+   desplazados horizontalmente y con opacity 0; el JS
+   (`observeStatsSectionHeadings`) les agrega `.stats-heading-visible`
+   la primera vez que entran al viewport (IntersectionObserver), lo
+   que dispara esta misma transición una única vez por encabezado —
+   no vuelven a moverse si el usuario scrollea hacia arriba y abajo
+   de nuevo. Solo `opacity`/`transform` (sin afectar layout) y el
+   `overflow-x: hidden` ya global de la página evitan que el
+   desplazamiento genere scroll horizontal. */
+.stats-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 2px 0;
+  opacity: 0;
+  transition: transform 1.35s cubic-bezier(0.22, 1, 0.36, 1), opacity 1.35s ease-out;
+  will-change: transform, opacity;
+}
+
+.stats-section-heading-left {
+  transform: translateX(-16px);
+}
+
+.stats-section-heading-right {
+  transform: translateX(16px);
+}
+
+.stats-section-heading.stats-heading-visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.stats-section-heading-line {
+  flex: 1;
+  height: 1px;
+  min-width: 12px;
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
+}
+
+.stats-section-heading-text {
+  flex: none;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+/* El primer encabezado de la lista ("-Datos de registro-") no
+   necesita el margen superior de separación entre grupos. */
+.stats-real-list > .stats-section-heading:first-child {
+  margin-top: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stats-section-heading {
+    transition: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+.ranking-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ranking-card .feature-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  font-size: 19px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ranking-accent, var(--accent)) 35%, transparent);
+}
+
+.ranking-card-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ranking-card-heading h3 {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text);
+  margin: 0;
+  line-height: 1.25;
+  letter-spacing: 0.005em;
+}
+
+.ranking-card-caption {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ranking-accent, var(--text-faint));
+  opacity: 0.85;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ---- Estado vacío por tarjeta: reemplaza al ranking cuando nadie
+   tiene ese dato puntual. Antes era un párrafo suelto; ahora es un
+   bloque centrado y discreto, coherente con el resto de la sección. ---- */
+.ranking-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 8px 6px;
+  text-align: center;
+}
+
+.ranking-empty-icon {
+  font-size: 20px;
+  opacity: 0.7;
+}
+
+.ranking-empty-text {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-faint);
+  line-height: 1.5;
+  max-width: 220px;
+}
+
+.ranking-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  width: 100%;
+}
+
+/* ---- Podio: el primer puesto se separa del resto de la lista para
+   que sea imposible no ver quién va ganando esa estadística. ---- */
+.ranking-podium {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 14px 14px 12px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, rgba(255, 159, 28, 0.18), rgba(255, 209, 102, 0.05) 60%);
+  border: 1px solid rgba(255, 159, 28, 0.5);
+  box-shadow: 0 0 0 1px rgba(255, 159, 28, 0.1), 0 10px 24px -14px rgba(255, 159, 28, 0.6);
+  min-width: 0;
+  width: 100%;
+  position: relative;
+}
+
+.ranking-podium-crown {
+  flex: 0 0 auto;
+  font-size: 28px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 8px rgba(255, 159, 28, 0.5));
+  animation: crownFloat 2.6s ease-in-out infinite;
+}
+
+.ranking-podium-body {
+  flex: 1 1 0%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ranking-podium-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ranking-podium-tag {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  background: rgba(255, 159, 28, 0.14);
+  border: 1px solid rgba(255, 159, 28, 0.4);
+  padding: 3px 7px;
+  border-radius: 999px;
+}
+
+.ranking-podium-value {
+  flex: 0 0 auto;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.ranking-podium-name {
+  font-family: var(--font-display);
+  font-size: 16.5px;
+  font-weight: 800;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+@keyframes crownFloat {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50% { transform: translateY(-3px) rotate(4deg); }
+}
+
+/* ---- Resto del ranking (2° en adelante) ---- */
+
+.ranking-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  width: 100%;
+}
+
+.ranking-row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 72px) 1fr auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ranking-rank {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-faint);
+  background: var(--surface-2);
+  border-radius: 50%;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.ranking-row.is-silver .ranking-rank,
+.ranking-row.is-bronze .ranking-rank {
+  background: transparent;
+  font-size: 15px;
+}
+
+.ranking-row.is-silver .ranking-name {
+  color: #d7d9e6;
+}
+
+.ranking-row.is-bronze .ranking-name {
+  color: #e0b088;
+}
+
+.ranking-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ranking-bar-track {
+  position: relative;
+  height: 13px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  min-width: 0;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.ranking-bar-track-winner {
+  height: 20px;
+  background: rgba(13, 13, 23, 0.5);
+  border-color: rgba(255, 159, 28, 0.5);
+}
+
+.ranking-bar-fill {
+  position: relative;
+  display: block;
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent-2), var(--accent-3));
+  transition: width 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--row-delay, 0ms);
+  overflow: hidden;
+}
+
+.ranking-row.is-silver .ranking-bar-fill {
+  background: linear-gradient(90deg, #9a9db3, #e3e6f2);
+}
+
+.ranking-row.is-bronze .ranking-bar-fill {
+  background: linear-gradient(90deg, #a56438, #e0a978);
+}
+
+.ranking-bar-fill-winner {
+  background: linear-gradient(90deg, var(--accent), #ffd166);
+  box-shadow: 0 0 14px 0 rgba(255, 159, 28, 0.6);
+  transition-duration: 1s;
+}
+
+/* Brillo que recorre la barra ganadora una vez que termina de crecer,
+   como un pequeño "destello" de victoria — puramente decorativo. */
+.ranking-bar-shine {
+  position: absolute;
+  top: 0;
+  left: -40%;
+  width: 30%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  animation: barShine 1.8s 1.1s ease-out 1;
+}
+
+@keyframes barShine {
+  from { left: -40%; }
+  to { left: 120%; }
+}
+
+.ranking-value {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--text);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 360px) {
+  .ranking-row {
+    grid-template-columns: 18px minmax(0, 58px) 1fr auto;
+    gap: 6px;
+  }
+  .ranking-name {
+    font-size: 12px;
+  }
+  .ranking-value {
+    font-size: 11.5px;
+  }
+  .ranking-podium-name {
+    font-size: 14.5px;
+  }
+  .ranking-podium-value {
+    font-size: 13.5px;
+  }
+  .ranking-podium-crown {
+    font-size: 23px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stats-panel-inner,
+  .stats-panel-inner.stats-slide-next,
+  .stats-panel-inner.stats-slide-prev,
+  .ranking-card,
+  .stats-real-list .ranking-card,
+  .ranking-podium-crown,
+  .ranking-bar-shine {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+  .ranking-bar-fill {
+    transition: none !important;
+  }
+}
+
+.admin-import-textarea {
+  width: 100%;
+  min-height: 96px;
+  resize: none;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 10px;
+  word-break: break-all;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.admin-import-textarea:focus {
+  border-color: var(--accent-2);
+}
+
+.admin-import-textarea.error {
+  border-color: var(--danger);
+}
+
+.admin-preview-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-top: 14px;
+}
+
+.admin-preview-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 13px;
+}
+
+.admin-preview-row + .admin-preview-row {
+  border-top: 1px solid var(--border);
+}
+
+.admin-preview-row span:first-child {
+  color: var(--text-faint);
+}
+
+.admin-preview-row span:last-child {
+  color: var(--text);
+  font-weight: 600;
+  text-align: right;
+}
+
+.admin-notice {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.4;
+  background: rgba(255, 159, 28, 0.08);
+  border: 1px solid rgba(255, 159, 28, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin-top: 14px;
+}
+
+/* ---------------------------------------------------------
+   Bottom navigation (app-like)
+   --------------------------------------------------------- */
+
+.bottom-nav {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: var(--app-max-width);
+  display: none;
+  gap: 4px;
+  padding: 10px 20px calc(12px + var(--safe-bottom));
+  /* Vidrio marcado: fondo bastante más transparente que antes (0.88 ->
+     0.55) combinado con un blur más fuerte (14px -> 28px), para que el
+     contenido de atrás se note claramente desenfocado en vez de tapado.
+     Mismo criterio aplica a `.bottom-nav-frost` más abajo. */
+  background: rgba(21, 21, 31, 0.55);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  border-top: 1px solid var(--border);
+  z-index: 20;
+}
+
+.bottom-nav.visible {
+  display: flex;
+}
+
+.nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  background: transparent;
+  border: none;
+  color: var(--text-faint);
+  padding: 6px 4px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nav-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+.nav-btn span {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.nav-btn.active {
+  color: var(--accent);
+}
+
+.nav-btn[hidden] {
+  display: none;
+}
+
+/* Nav frost: mismos tonos celeste/blanco del login y Home, aplicada
+   solo cuando la pantalla activa es Home o Admin (ver `navigate()`
+   en script.js). Money/Registro diario/Envío de datos conservan la
+   barra oscura original. Más transparente que antes (ver bloque
+   `.bottom-nav` de arriba) para que el `backdrop-filter: blur` se
+   note con claridad y se vea desenfocado, no tapado, lo que hay
+   detrás de la navbar. */
+.bottom-nav.bottom-nav-frost {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0%, rgba(234, 246, 255, 0.55) 100%);
+  border-top: 1px solid rgba(76, 201, 240, 0.35);
+}
+
+.bottom-nav.bottom-nav-frost .nav-btn {
+  color: #4d6b82;
+}
+
+.bottom-nav.bottom-nav-frost .nav-btn.active {
+  color: #2f8fd1;
+}
+
+
+/* ---------------------------------------------------------
+   Accesibilidad / utilidades
+   --------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .stars {
+    animation: none;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------
+   Dinero — saldo inicial (prompt)
+   --------------------------------------------------------- */
+
+.money-prompt {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px 18px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.money-prompt .prompt-icon {
+  font-size: 34px;
+}
+
+.money-prompt h3 {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.money-prompt p {
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* ---------------------------------------------------------
+   Dinero — donut
+   --------------------------------------------------------- */
+
+.donut-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.donut-wrap {
+  position: relative;
+  width: 168px;
+  height: 168px;
+  flex-shrink: 0;
+}
+
+.donut-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  transform: rotate(-90deg);
+  shape-rendering: geometricPrecision;
+}
+
+.donut-track {
+  fill: none;
+  stroke: var(--surface-2);
+  stroke-width: 17;
+}
+
+.donut-progress {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 17;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.5s ease;
+}
+
+.donut-hole {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 63%;
+  height: 63%;
+  border-radius: 50%;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  text-align: center;
+  padding: 6px;
+}
+
+.donut-hole .donut-amount {
+  font-family: var(--font-display);
+  font-size: clamp(13px, 4.2vw, 16px);
+  font-weight: 800;
+  color: var(--text);
+  word-break: break-word;
+  line-height: 1.1;
+}
+
+.donut-hole .donut-caption {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.donut-legend {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.legend-item .legend-value {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legend-dot.spent {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.legend-dot.avail {
+  background: var(--accent);
+}
+
+/* ---------------------------------------------------------
+   Dinero — acciones (gasto / ganancia)
+   --------------------------------------------------------- */
+
+.money-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.money-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease;
+}
+
+.money-action:active {
+  transform: scale(0.97);
+}
+
+.money-action.expense {
+  background: rgba(255, 84, 112, 0.1);
+  border-color: rgba(255, 84, 112, 0.35);
+  color: #ff8095;
+}
+
+.money-action.income {
+  background: rgba(76, 201, 240, 0.1);
+  border-color: rgba(76, 201, 240, 0.35);
+  color: var(--accent-2);
+}
+
+/* ---------------------------------------------------------
+   Dinero — historial
+   --------------------------------------------------------- */
+
+.money-history {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.history-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 11px 12px;
+  min-width: 0;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.history-row:active {
+  transform: scale(0.98);
+  border-color: var(--accent-2);
+}
+
+.history-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  flex-shrink: 0;
+  background: var(--surface-2);
+}
+
+.history-row.is-income .history-icon {
+  background: rgba(76, 201, 240, 0.14);
+}
+
+.history-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.history-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-meta {
+  font-size: 12px;
+  color: var(--text-faint);
+  margin-top: 1px;
+}
+
+.history-amount {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.history-row.is-expense .history-amount {
+  color: #ff8095;
+}
+
+.history-row.is-income .history-amount {
+  color: var(--accent-2);
+}
+
+/* ---------------------------------------------------------
+   Admin — Previas
+   --------------------------------------------------------- */
+
+.previa-products-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.previa-product-row {
+  cursor: default;
+}
+
+.previa-product-row:active {
+  transform: none;
+  border-color: var(--border);
+}
+
+.previa-product-remove {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-faint);
+  font-size: 16px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.12s ease, color 0.12s ease;
+}
+
+.previa-product-remove:active {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.previa-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.previa-history-card .admin-preview-row span:last-child {
+  text-align: right;
+  max-width: 62%;
+}
+
+.previa-id {
+  font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+/* ---------------------------------------------------------
+   Envío de datos
+   --------------------------------------------------------- */
+
+.export-hint {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+.export-code-box {
+  width: 100%;
+  resize: none;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 10px;
+  word-break: break-all;
+}
+
+.whatsapp-btn {
+  background: #25d366;
+  color: #06210f;
+}
+
+/* ---------------------------------------------------------
+   Registro diario
+   --------------------------------------------------------- */
+
+.daily-date-banner {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.daily-date-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.daily-date-banner strong {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--text);
+}
+
+.daily-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.daily-section .section-label {
+  margin-top: 0;
+}
+
+.picker-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toggle-chip {
+  align-self: flex-start;
+  padding: 9px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.toggle-chip.selected {
+  background: rgba(255, 84, 112, 0.14);
+  border-color: var(--danger);
+  color: #ff8095;
+}
+
+.add-nap-btn {
+  align-self: flex-start;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--accent-2);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.time-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  padding: 2px 2px 8px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.time-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.time-option {
+  flex: 0 0 auto;
+  scroll-snap-align: center;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
+}
+
+.time-option.selected {
+  background: rgba(76, 201, 240, 0.16);
+  border-color: var(--accent-2);
+  color: var(--accent-2);
+  transform: scale(1.04);
+}
+
+.daily-computed {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-2);
+}
+
+.daily-total-sleep {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+}
+
+.daily-total-sleep strong {
+  color: var(--text);
+  font-family: var(--font-display);
+}
+
+.daily-save-btn {
+  margin-top: 4px;
+}
+
+.daily-save-msg {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-2);
+  min-height: 14px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.daily-save-msg.visible {
+  opacity: 1;
+}
+
+/* ---------------------------------------------------------
+   Bottom sheet (formularios)
+   --------------------------------------------------------- */
+
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 6, 12, 0.6);
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 60;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.sheet-overlay.visible {
+  display: flex;
+  opacity: 1;
+}
+
+.sheet {
+  width: 100%;
+  max-width: var(--app-max-width);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 24px 24px 0 0;
+  padding: 10px 20px calc(22px + var(--safe-bottom));
+  transform: translateY(100%);
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  max-height: 85dvh;
+  overflow-y: auto;
+}
+
+.sheet-overlay.visible .sheet {
+  transform: translateY(0);
+}
+
+.sheet-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--border);
+  margin: 8px auto 14px;
+}
+
+.sheet-title {
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.sheet-sub {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.field {
+  margin-top: 16px;
+}
+
+.field-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 8px;
+}
+
+.field-input {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 13px 14px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 16px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.field-input::placeholder {
+  color: var(--text-faint);
+}
+
+.field-input:focus {
+  border-color: var(--accent-2);
+}
+
+.field-input.amount-input {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.field-input.error {
+  border-color: var(--danger);
+}
+
+/* Indicador dinámico de contraseña: el input real queda funcional
+   (foco, teclado, caret) pero con el texto invisible; encima se
+   dibuja un punto por carácter ya escrito, sin insinuar en ningún
+   momento la longitud esperada. */
+.password-dots-box {
+  position: relative;
+}
+
+.password-dots-box .field-input {
+  color: transparent;
+}
+
+.password-dots-box .field-input::placeholder {
+  color: transparent;
+}
+
+.password-dots {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  pointer-events: none;
+}
+
+.password-dots .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text);
+  flex-shrink: 0;
+}
+
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  padding: 9px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+  white-space: nowrap;
+}
+
+.chip.selected {
+  background: rgba(255, 159, 28, 0.14);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.sheet-error {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--danger);
+  min-height: 14px;
+}
+
+.sheet-submit {
+  width: 100%;
+  margin-top: 18px;
+  padding: 15px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 15px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease;
+}
+
+.sheet-submit:active {
+  transform: scale(0.98);
+}
+
+.sheet-submit + .sheet-submit {
+  margin-top: 10px;
+}
+
+.sheet-submit.danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+.sheet-cancel-link {
+  display: block;
+  text-align: center;
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-faint);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  width: 100%;
+}
+
+/* ---------------------------------------------------------
+   Sheet "frost" — mismo lenguaje visual celeste/blanco del login
+   y de Home, reutilizado tal cual (mismos tonos: #10233a, #2f8fd1,
+   #4d6b82, rgba(76,201,240,x)) para el menú de contraseña. Scoped a
+   `.sheet-frost` (agregada por JS solo cuando el sheet activo es
+   "login-password"): el resto de los sheets de la app (gasto,
+   ganancia, saldo inicial, etc.) no se ve afectado.
+   --------------------------------------------------------- */
+.sheet.sheet-frost {
+  background: linear-gradient(180deg, #ffffff 0%, #eaf6ff 100%);
+  border-color: rgba(76, 201, 240, 0.35);
+}
+
+.sheet.sheet-frost .sheet-handle {
+  background: rgba(76, 201, 240, 0.4);
+}
+
+.sheet.sheet-frost .sheet-title {
+  color: #10233a;
+}
+
+.sheet.sheet-frost .sheet-sub {
+  color: #4d6b82;
+}
+
+.sheet.sheet-frost .field-label {
+  color: #2f8fd1;
+}
+
+.sheet.sheet-frost .field-input {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(76, 201, 240, 0.35);
+  color: #10233a;
+}
+
+.sheet.sheet-frost .password-dots-box .field-input {
+  color: transparent;
+}
+
+.sheet.sheet-frost .field-input:focus {
+  border-color: #4cc9f0;
+}
+
+.sheet.sheet-frost .password-dots .dot {
+  background: #2f8fd1;
+}
+
+.sheet.sheet-frost .sheet-error {
+  color: var(--danger);
+}
+
+.sheet.sheet-frost .sheet-submit {
+  background: #4cc9f0;
+  color: #0b2536;
+}
+
+.sheet.sheet-frost .sheet-cancel-link {
+  color: #4d6b82;
+}
+
+/* .sheet-frost ahora también se usa para los sheets abiertos desde
+   /admin (código de jugador, producto/confirmación de previa, etc. —
+   ver `openSheet()` en script.js). Estos sheets usan además algunos
+   componentes que .sheet-frost todavía no cubría (textarea de
+   importar código, tarjeta de previsualización, aviso, chips y botón
+   "danger" de eliminar). */
+.sheet.sheet-frost .admin-import-textarea {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(76, 201, 240, 0.35);
+  color: #10233a;
+}
+
+.sheet.sheet-frost .admin-import-textarea:focus {
+  border-color: #4cc9f0;
+}
+
+.sheet.sheet-frost .admin-preview-card {
+  background: rgba(233, 246, 255, 0.6);
+  border-color: rgba(76, 201, 240, 0.35);
+}
+
+.sheet.sheet-frost .admin-preview-row + .admin-preview-row {
+  border-top-color: rgba(76, 201, 240, 0.25);
+}
+
+.sheet.sheet-frost .admin-preview-row span:first-child {
+  color: #4d6b82;
+}
+
+.sheet.sheet-frost .admin-preview-row span:last-child {
+  color: #10233a;
+}
+
+.sheet.sheet-frost .admin-notice {
+  color: #2f5a78;
+  background: rgba(76, 201, 240, 0.12);
+  border-color: rgba(76, 201, 240, 0.35);
+}
+
+.sheet.sheet-frost .chip {
+  background: rgba(233, 246, 255, 0.7);
+  border-color: rgba(76, 201, 240, 0.3);
+  color: #4d6b82;
+}
+
+.sheet.sheet-frost .chip.selected {
+  background: rgba(76, 201, 240, 0.16);
+  border-color: #2f8fd1;
+  color: #2f8fd1;
+}
+
+.sheet.sheet-frost .previa-product-remove {
+  background: rgba(233, 246, 255, 0.7);
+  border-color: rgba(76, 201, 240, 0.3);
+  color: #4d6b82;
+}
+
+.sheet.sheet-frost .sheet-submit.danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+/* Código de una previa (sheet "previa-code", modo local de Jere):
+   mismo tratamiento que .admin-import-textarea, para que el cuadro
+   de texto readonly no quede oscuro dentro de un sheet frost. */
+.sheet.sheet-frost .export-code-box {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(76, 201, 240, 0.35);
+  color: #10233a;
+}
+
+/* ---------------------------------------------------------
+   Estética "Bariloche" — sección /admin (Admin, Previas de admin,
+   Estadísticas). Mismo lenguaje visual celeste/blanco de LOGIN/HOME,
+   aplicado con la clase `.admin-frost` sobre cada `.screen` (ver
+   `index.html`). Money y Previas de Jere (`#screen-previas-jere`)
+   también llevan esta clase. Registro diario y Envío de datos siguen
+   con el tema oscuro original. La mayoría de los componentes de /admin ya
+   estaban armados sobre las variables de color (`--surface`,
+   `--border`, `--text`, `--accent`, etc.), así que redefinirlas acá
+   alcanza para heredar el nuevo look en cascada sin reescribir cada
+   clase; solo se sobreescriben, además, los pocos lugares que usaban
+   el ámbar original "a fuego" (podio de estadísticas, tabs, chips
+   seleccionados, botón "agregar", aviso). No se tocó ningún cálculo,
+   dato ni comportamiento: solo color/fondo/sombra.
+   --------------------------------------------------------- */
+
+.screen.admin-frost {
+  --bg: #ffffff;
+  --bg-alt: #eaf6ff;
+  --surface: rgba(255, 255, 255, 0.72);
+  --surface-2: rgba(224, 241, 253, 0.75);
+  --border: rgba(76, 201, 240, 0.32);
+  --accent: #2f8fd1;
+  --accent-ink: #ffffff;
+  --text: #10233a;
+  --text-dim: #4d6b82;
+  --text-faint: #6f92ac;
+  background: linear-gradient(180deg, #eaf6ff 0%, #f5fbff 40%, #ffffff 100%);
+  /* Varios componentes reutilizados (ej. `.participant-name` en las
+     filas de "Jugadores") no declaran `color` propio: heredan el
+     color oscuro original directamente de `body`. Al declararlo acá
+     también, la cascada de herencia queda con el tono correcto para
+     toda la pantalla sin tocar esas clases una por una. */
+  color: var(--text);
+}
+
+/* Cabecera: mismo criterio que `.home-hero` sobre fondo claro (glow
+   celeste suave en vez del cielo nocturno oscuro), sin duplicar las
+   montañas/nieve del login para no saturar una pantalla de trabajo
+   administrativo — el pedido es "sin saturar la interfaz admin". */
+.screen.admin-frost .admin-hero {
+  background:
+    radial-gradient(120% 140% at 50% 0%, rgba(76, 201, 240, 0.22) 0%, rgba(76, 201, 240, 0) 60%),
+    linear-gradient(180deg, #eaf6ff 0%, #ffffff 100%);
+  border-bottom: 1px solid rgba(76, 201, 240, 0.2);
+}
+
+.screen.admin-frost .admin-hero .icon-btn {
+  border-color: rgba(76, 201, 240, 0.35);
+  background: rgba(255, 255, 255, 0.7);
+  color: #10233a;
+}
+
+.screen.admin-frost .admin-hero .hero-badge {
+  color: #2f8fd1;
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(76, 201, 240, 0.35);
+}
+
+.screen.admin-frost .admin-hero .hero-badge.admin-badge {
+  color: #2f8fd1;
+  background: rgba(76, 201, 240, 0.14);
+  border-color: rgba(76, 201, 240, 0.35);
+}
+
+.screen.admin-frost .admin-hero .eyebrow {
+  color: #2f8fd1;
+}
+
+.screen.admin-frost .admin-hero .hero-name {
+  color: #10233a;
+  text-shadow: 0 2px 18px rgba(76, 201, 240, 0.2);
+}
+
+/* Tarjetas "vidrio" (mismo tratamiento que las cards de Home) para
+   que Admin/Previas/Estadísticas se sientan parte de la misma app. */
+.screen.admin-frost .feature-card,
+.screen.admin-frost .admin-participant-row,
+.screen.admin-frost .ranking-card,
+.screen.admin-frost .stats-empty-banner {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 10px 24px -18px rgba(47, 143, 209, 0.35);
+}
+
+.screen.admin-frost .admin-add-btn {
+  border-color: rgba(76, 201, 240, 0.4);
+  background: rgba(76, 201, 240, 0.1);
+  color: #2f8fd1;
+}
+
+.screen.admin-frost .admin-add-btn:active {
+  border-color: #2f8fd1;
+}
+
+.screen.admin-frost .chip.selected {
+  background: rgba(76, 201, 240, 0.16);
+  border-color: #2f8fd1;
+  color: #2f8fd1;
+}
+
+.screen.admin-frost .stats-tab.active {
+  background: linear-gradient(135deg, #2f8fd1, #4cc9f0);
+  color: #ffffff;
+  box-shadow: 0 4px 14px -6px rgba(47, 143, 209, 0.5);
+}
+
+.screen.admin-frost .stats-day-nav-total {
+  background: linear-gradient(135deg, rgba(76, 201, 240, 0.16), var(--surface));
+  border-color: rgba(76, 201, 240, 0.3);
+}
+
+.screen.admin-frost .stats-day-sub {
+  color: #2f8fd1;
+}
+
+.screen.admin-frost .admin-notice {
+  color: #2f5a78;
+  background: rgba(76, 201, 240, 0.12);
+  border-color: rgba(76, 201, 240, 0.35);
+}
+
+/* Podio del 1er puesto: mismo componente, acento celeste en vez de
+   ámbar para no romper la paleta fría. */
+.screen.admin-frost .ranking-podium {
+  background: linear-gradient(135deg, rgba(76, 201, 240, 0.22), rgba(255, 255, 255, 0.5) 60%);
+  border-color: rgba(76, 201, 240, 0.5);
+  box-shadow: 0 0 0 1px rgba(76, 201, 240, 0.12), 0 10px 24px -14px rgba(76, 201, 240, 0.45);
+}
+
+.screen.admin-frost .ranking-podium-crown {
+  filter: drop-shadow(0 2px 8px rgba(76, 201, 240, 0.5));
+}
+
+.screen.admin-frost .ranking-podium-tag {
+  color: #2f8fd1;
+  background: rgba(76, 201, 240, 0.16);
+  border-color: rgba(76, 201, 240, 0.4);
+}
+
+.screen.admin-frost .ranking-bar-track-winner {
+  background: rgba(76, 201, 240, 0.1);
+  border-color: rgba(76, 201, 240, 0.5);
+}
+
+.screen.admin-frost .ranking-bar-fill-winner {
+  background: linear-gradient(90deg, #2f8fd1, #4cc9f0);
+  box-shadow: 0 0 14px 0 rgba(76, 201, 240, 0.55);
+}
+
+.screen.admin-frost .ranking-row.is-silver .ranking-name {
+  color: #6b7a94;
+}
+
+.screen.admin-frost .ranking-row.is-bronze .ranking-name {
+  color: #a56438;
+}
+
+/* Dinero (`#screen-money`) sumado a la estética "Bariloche": mismo
+   scope `.screen.admin-frost`, así que la dona, el saldo y el
+   historial ya heredan la paleta blanca/celeste (`--surface`,
+   `--border`, `--accent`, `--text*`) sin tocar `.donut-*`/
+   `.history-*`/`.money-*` en sí. `.money-hero` reutiliza
+   `.admin-hero` tal cual (mismo glow, mismo header). Solo se
+   suman acá los pocos colores que estaban fijos en vez de usar una
+   variable (rosa de gasto, celeste de ganancia) para que mantengan
+   buen contraste sobre fondo blanco; ningún cálculo, dato ni
+   `localStorage` cambia. */
+
+.screen.admin-frost .donut-card,
+.screen.admin-frost .money-prompt,
+.screen.admin-frost .history-row {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 10px 24px -18px rgba(47, 143, 209, 0.35);
+}
+
+.screen.admin-frost .donut-hole {
+  box-shadow: 0 0 0 1px rgba(76, 201, 240, 0.18);
+}
+
+.screen.admin-frost .money-action.expense {
+  background: rgba(214, 40, 74, 0.1);
+  border-color: rgba(214, 40, 74, 0.35);
+  color: #d6284a;
+}
+
+.screen.admin-frost .money-action.income {
+  background: rgba(76, 201, 240, 0.12);
+  border-color: rgba(76, 201, 240, 0.4);
+  color: #2f8fd1;
+}
+
+.screen.admin-frost .history-row.is-expense .history-amount {
+  color: #d6284a;
+}
+
+.screen.admin-frost .history-row.is-income .history-amount {
+  color: #2f8fd1;
+}
+
+.screen.admin-frost .history-row.is-income .history-icon {
+  background: rgba(76, 201, 240, 0.16);
+}
+
+/* Envío de datos (`#screen-export`) sumado a la estética "Bariloche":
+   mismo scope `.screen.admin-frost`, así que `.export-hint`,
+   `.export-code-box` y `.sheet-cancel-link` ("Copiar código") ya
+   heredan la paleta blanca/celeste sin tocar esas clases. Solo se
+   suma acá el mismo tratamiento "vidrio" (blur + sombra celeste) que
+   ya usan `.donut-card`/`.money-prompt`/`.history-row` en Dinero,
+   aplicado a `.daily-section` (la tarjeta que contiene el código),
+   para que se lea como parte del mismo lenguaje visual. El botón de
+   WhatsApp (`.whatsapp-btn`) conserva su verde de marca sin cambios,
+   igual que en el tema oscuro. Ningún dato, código ni `localStorage`
+   cambia. */
+.screen.admin-frost .daily-section {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 10px 24px -18px rgba(47, 143, 209, 0.35);
+}
+
+/* Registro diario (`#screen-daily`) sumado a la estética "Bariloche":
+   mismo scope `.screen.admin-frost`, así que `.daily-date-banner`,
+   `.daily-section`, `.toggle-chip`, `.chip`, `.picker-block`,
+   `.field-label` y `.daily-total-sleep` ya heredan la paleta blanca/
+   celeste (`--surface`, `--border`, `--text*`) sin tocar esas clases.
+   Solo se sobreescriben acá los pocos colores que estaban fijos en
+   `--accent-2` (cian sobre fondo oscuro) o en rosa "a fuego", que
+   sobre fondo blanco quedarían con bajo contraste: hora
+   seleccionada del scroll, "No dormí"/"No fui al boliche" activados,
+   botón "+ Registrar siesta" y los textos calculados (sueño, siesta,
+   tiempo en el boliche). Ningún cálculo, dato ni `localStorage`
+   cambia: es exclusivamente una capa de presentación sobre la misma
+   sección ya documentada en "Registro diario" de `SPEC.md`. */
+.screen.admin-frost .daily-date-banner {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 10px 24px -18px rgba(47, 143, 209, 0.35);
+}
+
+.screen.admin-frost .time-option.selected {
+  background: rgba(76, 201, 240, 0.16);
+  border-color: #2f8fd1;
+  color: #2f8fd1;
+}
+
+.screen.admin-frost .toggle-chip.selected {
+  background: rgba(214, 40, 74, 0.1);
+  border-color: #d6284a;
+  color: #d6284a;
+}
+
+.screen.admin-frost .add-nap-btn {
+  color: #2f8fd1;
+  border-color: rgba(76, 201, 240, 0.4);
+}
+
+.screen.admin-frost .daily-computed {
+  color: #2f8fd1;
+}
+
+.screen.admin-frost .daily-total-sleep {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 10px 24px -18px rgba(47, 143, 209, 0.35);
+}
+
+.screen.admin-frost .daily-total-sleep strong {
+  color: #10233a;
+}
+
+.screen.admin-frost .daily-save-msg {
+  color: #2f8fd1;
+}
