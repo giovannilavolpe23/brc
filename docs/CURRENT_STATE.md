@@ -2,7 +2,274 @@
 
 ## Versión
 
-v0.37.0 — Encabezados de Estadísticas: animación aún más lenta (1.35s)
+v0.42.0 — Títulos por encuesta: cálculo real ("El más destruido")
+
+## v0.42.0 — Títulos por encuesta: cálculo real ("El más destruido")
+
+Primer título con cálculo real dentro de `#/titulos-encuesta` (antes
+placeholder "Próximamente"), a partir de la encuesta diaria "¿Quién
+estuvo más destruido anoche?" (voto ya capturado desde v0.40.0).
+Reutiliza EXACTAMENTE la misma presentación de perfiles creada en
+v0.41.0 para "Por estadística" — no se creó ningún componente visual
+nuevo.
+
+- **`ENCUESTAS_CONFIG`** (nueva, `script.js`): arreglo de
+  configuración análogo a `TITULOS_CONFIG`, hoy con una sola entrada
+  (`destroyedVote` → título "El más destruido"). Preparado para
+  sumar encuestas futuras sin tocar el resto del render.
+- **`tallyVotesForDay(dateKey, field)`/`tallyVotesForDays(closedDays,
+  field)`** (nuevas): cuentan los votos de un campo de encuesta
+  dentro de `dailyEntries` — por día puntual o sumando todos los
+  días cerrados. `votesToRankingRows()` convierte ese conteo a filas
+  `name/value/display` ordenadas de mayor a menor (reutiliza
+  `sortRankingDesc`, ya usado por las estadísticas).
+- **`buildTitulosByPlayerFromEncuestas(getRows)`** (nueva): agrupa
+  por jugador igual que `buildTitulosByPlayer` (v0.41.0), pero
+  reparte el título entre **todos los empatados en el primer
+  puesto** en vez de a uno solo — así un empate de votos no rompe la
+  interfaz ni obliga a elegir arbitrariamente un ganador.
+  `buildTitulosByPlayer`, usado por "Por estadística", no se tocó.
+- **`renderTitulosEncuestaDayReal()`/`renderTitulosEncuestaTotalReal()`**
+  (nuevas): arman la lista de perfiles reutilizando tal cual
+  `renderTituloProfileCard` (la misma tarjeta de perfil de "Por
+  estadística", sin ningún cambio); mismo `.stats-empty-banner`
+  cuando nadie votó en el período.
+- **DÍA/TOTAL propios**: `titulosEncuestaTab`,
+  `titulosEncuestaDayIndex`, `titulosEncuestaNavDir` — mismo patrón
+  de pestañas y barra `← día →` sobre `getStatsClosedDays()` que ya
+  usa "Por estadística" (`renderTitulosEncuestaPanel()`,
+  `renderTitulosEncuestaScreen()`), estado completamente
+  independiente del de "Por estadística" y de Estadísticas.
+- **index.html**: `#screen-titulos-encuesta` dejó de ser
+  `.feature-card.locked` con `.soon-tag` y ahora tiene
+  `<main id="titulos-encuesta-main">`, igual que
+  `#screen-titulos-estadistica`.
+- **Ruteo**: `navigate("titulos-encuesta")` ahora llama a
+  `renderTitulosEncuestaScreen()` antes de mostrar la pantalla
+  (antes solo hacía `showScreen`).
+- **Sin CSS nuevo**: cero clases nuevas — el resultado se ve
+  idéntico a los perfiles de "Por estadística" (`.titulo-profile-card`/
+  `.titulo-badge` de v0.41.0), tal como pedía el enunciado.
+- No se tocó ninguna estadística de `#/stats`, ningún cálculo de
+  "Por estadística" (`TITULOS_CONFIG`/`buildTitulosByPlayer`), la
+  captura del voto en Registro diario, ni "Títulos por racha" (sigue
+  como placeholder).
+- Verificado: `node --check script.js` sin errores; llaves de
+  `styles.css` balanceadas; simulación manual del conteo de votos
+  con empate (dos participantes con la misma cantidad de votos en un
+  día) confirmando que ambos quedan en la lista con `value` igual y
+  que `buildTitulosByPlayerFromEncuestas` les otorga el título a los
+  dos.
+
+## v0.41.0 — Títulos por estadística: nueva presentación visual (perfiles de jugador)
+
+Rediseño **puramente visual** de `#/titulos-estadistica` (ver
+v0.39.0 más abajo para el cálculo, que no cambió). Antes se mostraba
+una tarjeta por estadística con el mismo look que un ranking de
+Estadísticas (podio + barra); ahora se agrupa por jugador, porque un
+título representa un logro obtenido, no una competencia en curso.
+
+- **Qué cambió**: en vez de "una tarjeta por título", ahora es "un
+  perfil por jugador con la lista de títulos que ganó". El cálculo
+  de quién gana cada título sigue siendo exactamente
+  `TITULOS_CONFIG` + `dayRanking...`/`totalRanking...` de
+  Estadísticas (ver v0.39.0) — no se tocó ni un número.
+- **`buildTitulosByPlayer(getRows)`** (nueva, `script.js`): recorre
+  `TITULOS_CONFIG`, resuelve el ganador de cada título (mismo
+  `rows[0]` de siempre) y agrupa esos resultados por nombre de
+  jugador. Devuelve un perfil por cada participante de
+  `PARTICIPANTS` que ganó al menos un título, en el mismo orden que
+  esa lista. Un jugador sin ningún título todavía **no genera
+  perfil** (mismo criterio de "no inventar nada" que ya regía antes
+  para las tarjetas vacías).
+- **Render nuevo**: `renderTituloBadge()` (una insignia: ícono +
+  nombre del título + estadística/valor con que se ganó),
+  `renderTituloProfileCard()` (perfil de un jugador: avatar +
+  nombre + lista de insignias) y `renderTitulosProfiles()` (arma
+  todos los perfiles del período). `renderTitulosDayReal()`/
+  `renderTitulosTotalReal()` ahora llaman a estas funciones nuevas
+  en vez de a `renderTituloCard()`/`renderTitulosCards()`, que se
+  eliminaron. Mismos mensajes de `.stats-empty-banner` que antes
+  cuando no hay ningún título repartido en el período.
+- **CSS nuevo**: `.titulo-profile-card`, `.titulo-profile-header`,
+  `.titulo-profile-avatar` (mismas `getInitials()`/`colorForId()`
+  que el resto de la app), `.titulo-badge-list`, `.titulo-badge` y
+  overrides en `.screen.admin-frost` para el tratamiento "vidrio"
+  blanco/celeste. Sin barras horizontales ni número de puesto —
+  deliberadamente distinto de `.ranking-card`/`.ranking-podium`
+  (que Estadísticas sigue usando sin cambios). Insignias con
+  medallón/glow del color propio del título para dar sensación de
+  trofeo sin exagerar. Misma cascada de entrada (`statsFadeUp`),
+  misma navegación Día/Total, mismo hub/bottom nav/nieve global que
+  antes — nada de eso se tocó.
+- No se tocó ninguna estadística de `#/stats`, ningún cálculo de
+  Dinero/Registro diario/Previas, `TITULOS_CONFIG`, "Títulos por
+  encuesta" ni "Títulos por racha" (siguen como placeholders).
+- Verificado: `node --check script.js` sin errores; llaves de
+  `styles.css` balanceadas; simulación manual del agrupamiento por
+  jugador con datos de prueba (mismo resultado esperado: cada
+  ganador aparece una sola vez con todos sus títulos juntos).
+
+## v0.40.0 — Encuesta diaria "¿Quién estuvo más destruido anoche?" en Registro diario
+
+Nueva pregunta dentro de Registro diario, debajo de la sección de
+boliche y antes del botón "Guardar registro". Solo captura y
+persiste el voto — **no se implementó ningún título ni ranking a
+partir de esta encuesta todavía** (queda para una próxima
+iteración, según lo pedido).
+
+- **`defaultDailyEntry()`** suma un campo nuevo, `destroyedVote`
+  (id de `PARTICIPANTS` votado, o `null`), al mismo objeto que ya
+  guarda sueño, siesta, quinta comida, baño y boliche — no es una
+  clave de `localStorage` separada, así que viaja automáticamente
+  con el resto de `dailyLog.entries[<fecha>]`: se importa en
+  `adminPlayers` y se incluye en el código de exportación sin tocar
+  `buildExportPayload` (ya serializaba `dailyEntries` completo).
+- **UI**: nueva `.daily-section` con chips (`#destroyed-vote-group`,
+  mismo componente `.chip-group`/`.chip` que "Quinta comida"/"Veces
+  al baño") con una opción por participante — **excepto el usuario
+  logueado**, que directamente no aparece en la lista (así "no te
+  podés votar a vos mismo" queda garantizado por diseño, sin
+  validación adicional en la UI). Selección única: tocar una opción
+  reemplaza cualquier voto anterior.
+- **`saveDailyEntry()`**: además de limpiar sueño/boliche cuando
+  corresponde, descarta el voto si por algún motivo coincidiera con
+  el id del usuario logueado (defensa extra, ya que la UI ya excluye
+  esa opción). El resto del guardado no cambió: mismo mecanismo de
+  "sobrescribir en vez de duplicar" que ya usa Registro diario
+  (misma clave de fecha `dailyDateKey`), así que si el usuario ya
+  había votado ese día, volver a guardar no crea una segunda
+  entrada — y al reabrir Registro diario, el voto guardado se
+  precarga seleccionado (mismo patrón que el resto de los campos).
+- Sin CSS nuevo: reutiliza `.daily-section`, `.section-label`,
+  `.chip-group`, `.chip` (con `flex-wrap`, ya soportaba una fila
+  larga de opciones sin overflow horizontal). Misma estética
+  "Bariloche" blanco/celeste del resto de Registro diario.
+- No se tocó ningún otro campo de Registro diario, ninguna función
+  `dayRanking*`/`totalRanking*` de Estadísticas, ni "Títulos por
+  encuesta" (sigue como placeholder "Próximamente").
+- Verificado: `node --check script.js` sin errores.
+
+## v0.39.0 — Cálculo real de "Títulos por estadística"
+
+Dentro de `#/titulos-estadistica` (ver v0.38.0 más abajo para la
+estructura de navegación), las pestañas Día/Total ya calculan
+títulos reales en vez de mostrar siempre el estado vacío fijo.
+
+- **Qué es un "título por estadística"**: para cada estadística
+  competitiva que ya calcula Estadísticas (horas dormidas, siestas,
+  quinta comida, veces al baño, tiempo en el boliche, dinero
+  gastado, previas), se le asigna un título humorístico a quien
+  tenga el mejor resultado. DÍA y TOTAL se calculan por separado:
+  - **DÍA** usa exactamente las mismas funciones `dayRanking*` de
+    Estadísticas, así que el título de un día puntual se calcula
+    solamente con los datos disponibles hasta ese día.
+  - **TOTAL** usa las mismas funciones `totalRanking*`, acumulando
+    todos los días cerrados disponibles.
+  - Ninguna de las 14 funciones (`dayRanking*`/`totalRanking*`) se
+    tocó ni se duplicó: Títulos las reutiliza tal cual como fuente
+    única de verdad, así que un cambio futuro en el cálculo de una
+    estadística se refleja automáticamente en su título.
+- **Datos reales, sin inventar nada**: si ninguna estadística tiene
+  datos todavía en el período mostrado, se ve un
+  `.stats-empty-banner` explicativo; si una estadística puntual no
+  tiene ningún dato cargado en ese período, simplemente no genera su
+  tarjeta de título (no se inventa un ganador). No se usa ni se
+  muestra el saldo inicial en ningún lado (igual que en el resto de
+  la app).
+- **Navegación DÍA propia**: se agregó la misma barra `← día →` que
+  ya usa Estadísticas (`getStatsClosedDays()`, nunca el día actual ni
+  uno futuro), con su propio estado
+  (`titulosEstadisticaDayIndex`/`titulosStatsNavDir`), independiente
+  del de Estadísticas — navegar los días en Títulos no afecta el día
+  seleccionado en `#/stats`, y viceversa.
+- **Preparado para agregar/modificar títulos fácilmente**: nuevo
+  `TITULOS_CONFIG` en `script.js`, un arreglo donde cada entrada es
+  `{ icon, accent, title, caption, provisional?, dayFn, totalFn }`.
+  Agregar un título nuevo (o cambiar el nombre de uno existente) es
+  sumar/editar una sola entrada; no hay que tocar el resto del
+  render. Los títulos sin nombre definitivo todavía llevan
+  `provisional: true` y muestran una etiqueta "Provisional" junto al
+  nombre — hoy son todos menos "El más dormilón" (horas dormidas) y
+  "El más gastador" (dinero gastado), que ya se consideran
+  definitivos por ser ejemplos exactos del pedido original.
+- **Diseño**: cada título se muestra con el mismo look que una
+  tarjeta de ranking de Estadísticas (`renderRankingCard`/
+  `renderRankingBars`, sin tocarlas), pero mostrando únicamente el
+  podio del ganador (se le pasa solo `rows[0]`, nunca el resto del
+  ranking) — tiene más sentido como "título" que como lista
+  completa. Mismas animaciones (barras que crecen, cascada de
+  tarjetas, slide entre días) y misma estética "Bariloche" que el
+  resto de `/admin`, sin CSS nuevo salvo una regla mínima para la
+  etiqueta "Provisional" (reutiliza `.soon-tag` ya existente).
+- No se tocó ninguna estadística existente de `#/stats`, ningún
+  cálculo de Dinero/Registro diario/Previas, "Títulos por encuesta"
+  ni "Títulos por racha" (siguen como placeholders "Próximamente").
+- Verificado: `node --check script.js` sin errores; llaves de
+  `styles.css` balanceadas; revisado a mano que las 7 estadísticas
+  configuradas en `TITULOS_CONFIG` reutilizan exactamente las mismas
+  funciones `dayRanking*`/`totalRanking*` ya probadas en
+  Estadísticas, sin reimplementar ningún cálculo.
+
+## v0.38.0 — Apartado "Títulos" en /admin: estructura de navegación (3 subsecciones)
+
+Nuevo apartado `/admin` → **Títulos** (`#/titulos`), debajo de
+Estadísticas. Por ahora es solo estructura visual y de navegación —
+sin ningún cálculo de títulos todavía —, pensada para conectar la
+lógica real más adelante sin tener que rehacer el andamiaje.
+
+- En la pantalla Admin, debajo de la sección "Estadísticas" se agregó
+  una nueva sección `"Títulos"` con una única card `#card-admin-titulos`
+  (ícono 🏆) que navega a `#/titulos`.
+- `#/titulos` (`screen-titulos`) es un hub con 3 subsecciones, cada
+  una en su propia pantalla:
+  1. **Títulos por estadística** (`#/titulos-estadistica`,
+     `#card-titulos-estadistica`) — única de las 3 con pestañas
+     **Día/Total** (reutiliza `.stats-tabs`/`.stats-tab`, el mismo
+     componente y comportamiento que usa Estadísticas), porque sus
+     títulos van a salir de la misma fuente de datos (día cerrado del
+     viaje / acumulado total). Cada pestaña muestra por ahora un
+     `.stats-empty-banner` ("Todavía no hay títulos por día/totales…").
+  2. **Títulos por encuesta** (`#/titulos-encuesta`,
+     `#card-titulos-encuesta`) — placeholder `"Próximamente"`
+     (`.feature-card.locked` + `.soon-tag`, mismo componente que ya
+     usaban las tarjetas bloqueadas de Estadísticas).
+  3. **Títulos por racha** (`#/titulos-racha`, `#card-titulos-racha`)
+     — mismo tratamiento de placeholder que Por encuesta.
+- Todas las pantallas nuevas (`screen-titulos`,
+  `screen-titulos-estadistica`, `screen-titulos-encuesta`,
+  `screen-titulos-racha`) llevan la clase `admin-frost` (misma
+  estética "Bariloche" blanco/celeste que Admin/Estadísticas/Previas),
+  reutilizan `.admin-hero`/`.hero-badge`/`.hero-name`/`.card-list`/
+  `.feature-card` sin escribir CSS nuevo, y muestran la nieve global
+  igual que el resto (`placeGlobalSnowfall`).
+- **Navegación e integración**: se agregaron las 4 rutas nuevas
+  (`titulos`, `titulos-estadistica`, `titulos-encuesta`,
+  `titulos-racha`) al router existente (`screens`, `navigate()`,
+  `routeFromHash()`), protegidas por el mismo guard de "solo admin"
+  que ya usan `admin`/`previas`/`stats`. El bottom nav las trata como
+  parte del tab "Admin" (`updateNav`) y usa la variante clara
+  `.bottom-nav-frost`, igual que Estadísticas/Previas.
+- **Animación de entrada/salida**: Admin↔Títulos, Títulos↔"Por
+  estadística", Títulos↔"Por encuesta" y Títulos↔"Por racha" usan
+  exactamente la misma función genérica
+  `navigateBetweenScreensWithTransition(fromRoute, toRoute)` que ya
+  usan Admin↔Previas y Admin↔Estadísticas (fade + `translateY`, mismo
+  timing, misma curva, mismo fondo `#eaf6ff` durante la transición).
+  No se creó ninguna animación nueva. También se sumaron las 4 rutas
+  a las listas de orígenes animados del bottom nav (íconos "Home" y
+  "Admin"), igual que Previas/Estadísticas.
+- Nueva función `renderTitulosEstadisticaScreen()` (+ su panel
+  `renderTitulosEstadisticaPanel()`) en `script.js`, con su propio
+  estado de pestaña `titulosEstadisticaTab` ("dia" | "total"),
+  independiente de `statsTab`. Las otras 2 subsecciones no necesitan
+  función de render: su placeholder es HTML estático en `index.html`.
+- No se tocó ningún dato, cálculo, `localStorage`, ni el
+  comportamiento de Estadísticas, Previas o cualquier otra sección
+  existente — verificado con un recorrido completo (Admin → Títulos →
+  cada subsección → volver, y Admin → Estadísticas / Admin → Previas
+  siguen funcionando igual que antes).
+- Sin CSS nuevo: todo el look reutiliza clases ya existentes.
 
 ## v0.37.0 — Duración de la animación de encabezados de Estadísticas subida a 1.35s
 

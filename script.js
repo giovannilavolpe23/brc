@@ -380,7 +380,7 @@ const HOME_GREETING_QUESTIONS = [
   "Usá forro (como si fueras a garchar 😔)",
   "Para qué trajiste los forros???",
   "Bañate porfa",
-  "Los datos serán enviados a Sperman"
+  "Los datos serán enviados a Sperman."
 ];
 
 function pickRandomHomeGreetingQuestion() {
@@ -1823,6 +1823,7 @@ function defaultDailyEntry() {
     fifthMeal: null, // "yes" | "no" | null
     bathroom: null, // 0-5 | null
     boliche: { didNotGo: false, time: null },
+    destroyedVote: null, // id de PARTICIPANTS | null — encuesta "¿Quién estuvo más destruido anoche?"
   };
 }
 
@@ -1939,6 +1940,18 @@ function renderDailyScreen() {
       </div>
     </div>
 
+    <div class="daily-section">
+      <div class="section-label">🥴 ¿Quién estuvo más destruido anoche?</div>
+      <div class="chip-group daily-poll-group" id="destroyed-vote-group">
+        ${PARTICIPANTS.filter((p) => p.id !== user.id)
+          .map(
+            (p) =>
+              `<button type="button" class="chip${s.destroyedVote === p.id ? " selected" : ""}" data-value="${p.id}">${escapeHtml(p.name)}</button>`
+          )
+          .join("")}
+      </div>
+    </div>
+
     <button type="button" id="btn-save-daily" class="sheet-submit daily-save-btn">Guardar registro</button>
     <p class="daily-save-msg" id="daily-save-msg"></p>
   `;
@@ -2036,6 +2049,16 @@ function attachDailyListeners() {
     });
   }
 
+  const destroyedVoteGroup = document.getElementById("destroyed-vote-group");
+  if (destroyedVoteGroup) {
+    destroyedVoteGroup.addEventListener("click", (e) => {
+      const btn = e.target.closest(".chip");
+      if (!btn) return;
+      dailyState.destroyedVote = btn.dataset.value;
+      renderDailyScreen();
+    });
+  }
+
   const noBolicheBtn = document.getElementById("btn-no-boliche");
   if (noBolicheBtn) {
     noBolicheBtn.addEventListener("click", () => {
@@ -2072,6 +2095,12 @@ function saveDailyEntry() {
   }
   if (dailyState.boliche.didNotGo) {
     dailyState.boliche.time = null;
+  }
+  // Defensa extra: la UI ya excluye al propio usuario de las opciones,
+  // pero si por algún motivo quedó un voto a sí mismo en el estado, se
+  // descarta antes de guardar (nunca se persiste un autovoto).
+  if (dailyState.destroyedVote === user.id) {
+    dailyState.destroyedVote = null;
   }
 
   const data = ensureDailyLogData(user.id);
@@ -3278,6 +3307,605 @@ function renderStatsScreen() {
   renderStatsPanel();
 }
 
+/* =============================================================
+   TÍTULOS (ADMIN)
+   =============================================================
+   Estructura de navegación de /admin → Títulos: un hub (screen-titulos)
+   con 3 categorías — por estadística, por encuesta, por racha —, cada
+   una en su propia pantalla. Todavía sin lógica de cálculo: cada
+   subsección deja lista la estructura visual ("Próximamente") para
+   conectar los títulos reales más adelante.
+   "Por estadística" ya prepara pestañas Día/Total (reutiliza
+   .stats-tabs, igual que Estadísticas) porque sus títulos van a
+   salir de esa misma fuente de datos (día cerrado del viaje /
+   acumulado total).
+   ============================================================= */
+
+let titulosEstadisticaTab = "dia"; // "dia" | "total"
+let titulosEstadisticaDayIndex = null; // índice dentro de getStatsClosedDays(), propio de Títulos
+let titulosStatsNavDir = 0; // -1 anterior / 0 sin dirección / 1 siguiente (mismo patrón que statsNavDir)
+
+/* -----------------------------------------------------------
+   Configuración de "Títulos por estadística"
+   -----------------------------------------------------------
+   Cada entrada define un título competitivo: el título se lo lleva
+   quien tenga el mejor resultado en esa estadística (ganador del
+   ranking ya calculado por Estadísticas — mismas funciones
+   dayRanking.../totalRanking..., sin duplicar ningún cálculo).
+   Agregar o modificar un título es sumar/editar una entrada acá; no
+   hace falta tocar el resto del render.
+
+   `title` es el nombre del título en sí. Los marcados con
+   `provisional: true` todavía no tienen nombre definitivo — se
+   muestran con una etiqueta "Provisional" hasta que se definan.
+   `caption` describe el dato literal que decide al ganador, igual
+   que la leyenda de las tarjetas de Estadísticas.
+   ----------------------------------------------------------- */
+const TITULOS_CONFIG = [
+  {
+    key: "sleep",
+    icon: "😴",
+    accent: "#4cc9f0",
+    title: "El más dormilón",
+    caption: "Horas dormidas",
+    dayFn: dayRankingHorasDormidas,
+    totalFn: totalRankingHorasDormidas,
+  },
+  {
+    key: "nap",
+    icon: "🛌",
+    accent: "#c77dff",
+    title: "El rey de la siesta",
+    caption: "Siestas",
+    provisional: true,
+    dayFn: dayRankingSiestas,
+    totalFn: totalRankingSiestas,
+  },
+  {
+    key: "fifthMeal",
+    icon: "🍔",
+    accent: "#ff9f1c",
+    title: "El más comilón",
+    caption: "Quinta comida",
+    provisional: true,
+    dayFn: dayRankingQuintaComida,
+    totalFn: totalRankingQuintaComida,
+  },
+  {
+    key: "bathroom",
+    icon: "🚽",
+    accent: "#06d6a0",
+    title: "El más urgente",
+    caption: "Veces que fue al baño",
+    provisional: true,
+    dayFn: dayRankingBanio,
+    totalFn: totalRankingBanio,
+  },
+  {
+    key: "boliche",
+    icon: "🕺",
+    accent: "#ff5470",
+    title: "El más aguante del boliche",
+    caption: "Tiempo en el boliche",
+    provisional: true,
+    dayFn: dayRankingBoliche,
+    totalFn: totalRankingBoliche,
+  },
+  {
+    key: "money",
+    icon: "💸",
+    accent: "#ffd166",
+    title: "El más gastador",
+    caption: "Dinero gastado",
+    dayFn: dayRankingDineroTotal,
+    totalFn: totalRankingDineroTotal,
+  },
+  {
+    key: "previas",
+    icon: "🍻",
+    accent: "#118ab2",
+    title: "El más previero",
+    caption: "Previas",
+    provisional: true,
+    dayFn: dayRankingPrevias,
+    totalFn: totalRankingPrevias,
+  },
+];
+
+/* -----------------------------------------------------------
+   Presentación de "Títulos por estadística": perfiles de jugador
+   -----------------------------------------------------------
+   El CÁLCULO de quién gana cada título sigue siendo exactamente el
+   mismo (config.dayFn/config.totalFn → mismas funciones
+   dayRanking.../totalRanking... de Estadísticas, `rows[0]` = ganador).
+   Lo único que cambia acá es cómo se agrupa y se dibuja ese
+   resultado: en vez de una tarjeta por estadística (con barra de
+   ranking, como una competencia), se arma un perfil por jugador con
+   la lista de títulos que ganó — porque un título es un logro
+   obtenido, no una competencia en curso. Ningún dato ni cálculo se
+   toca acá, solo el agrupamiento y el HTML/CSS de presentación.
+   ----------------------------------------------------------- */
+
+// Recorre TITULOS_CONFIG, resuelve el ganador de cada título
+// (idéntico cálculo que antes) y agrupa esos resultados por nombre
+// de jugador. Un título sin datos en el período mostrado
+// simplemente no se reparte (no se inventa un ganador, igual que
+// antes). Devuelve un array en el mismo orden que PARTICIPANTS,
+// incluyendo solo a quienes ganaron al menos un título.
+function buildTitulosByPlayer(getRows) {
+  const wonByName = new Map(); // nombre del jugador -> [{ config, winner }]
+  TITULOS_CONFIG.forEach((config) => {
+    const rows = getRows(config);
+    if (!rows.length) return;
+    const winner = rows[0];
+    if (!wonByName.has(winner.name)) wonByName.set(winner.name, []);
+    wonByName.get(winner.name).push({ config, winner });
+  });
+
+  return PARTICIPANTS.filter((p) => wonByName.has(p.name)).map((p) => ({
+    participant: p,
+    titles: wonByName.get(p.name),
+  }));
+}
+
+// Una insignia/trofeo individual dentro del perfil de un jugador:
+// ícono + nombre del título + descripción de qué estadística ganó
+// (misma leyenda `caption` que ya usaba la tarjeta por estadística,
+// más el valor puntual con el que lo ganó).
+function renderTituloBadge({ config, winner }) {
+  const provisionalTag = config.provisional
+    ? ' <span class="soon-tag titulo-provisional-tag">Provisional</span>'
+    : "";
+  return `
+    <div class="titulo-badge" style="--titulo-accent:${config.accent}">
+      <span class="titulo-badge-icon" aria-hidden="true">${config.icon}</span>
+      <div class="titulo-badge-text">
+        <span class="titulo-badge-name">${config.title}${provisionalTag}</span>
+        <span class="titulo-badge-caption">${config.caption} · ${winner.display}</span>
+      </div>
+    </div>
+  `;
+}
+
+// Perfil de un jugador: nombre + avatar (mismas iniciales/color que
+// el resto de la app, `getInitials`/`colorForId`) y, debajo, la
+// lista de títulos que ganó.
+function renderTituloProfileCard({ participant, titles }) {
+  const badgesHtml = titles.map(renderTituloBadge).join("");
+  return `
+    <article class="titulo-profile-card">
+      <div class="titulo-profile-header">
+        <div class="titulo-profile-avatar" style="background:${colorForId(participant.id)}">${getInitials(participant.name)}</div>
+        <div class="titulo-profile-heading">
+          <h3>${escapeHtml(participant.name)}</h3>
+          <span class="titulo-profile-count">${titles.length} título${titles.length === 1 ? "" : "s"}</span>
+        </div>
+      </div>
+      <div class="titulo-badge-list">${badgesHtml}</div>
+    </article>
+  `;
+}
+
+// Arma un perfil por cada jugador que ganó al menos un título en el
+// período mostrado (`getRows(config)` ya resuelve DÍA o TOTAL).
+function renderTitulosProfiles(getRows) {
+  const profiles = buildTitulosByPlayer(getRows);
+  return profiles.map(renderTituloProfileCard).join("");
+}
+
+// DÍA: cada título se calcula únicamente con los datos disponibles
+// hasta ese día puntual (mismas funciones dayRanking* que usa
+// Estadísticas, que ya filtran por `dateKey`).
+function renderTitulosDayReal(dateKey) {
+  const profilesHtml = renderTitulosProfiles((config) => config.dayFn(dateKey));
+  if (!profilesHtml) {
+    return `
+      <div class="stats-empty-banner">
+        <span class="stats-empty-banner-icon" aria-hidden="true">🏆</span>
+        <p>Todavía no hay datos cargados para este día, así que no hay ningún título para repartir.</p>
+      </div>
+    `;
+  }
+  return `<div class="card-list titulos-profile-list">${profilesHtml}</div>`;
+}
+
+// TOTAL: cada título se calcula acumulando todos los días cerrados
+// disponibles (mismas funciones totalRanking* que usa Estadísticas).
+function renderTitulosTotalReal(closedDays) {
+  const profilesHtml = renderTitulosProfiles((config) => config.totalFn(closedDays));
+  if (!profilesHtml) {
+    return `
+      <div class="stats-empty-banner">
+        <span class="stats-empty-banner-icon" aria-hidden="true">🏆</span>
+        <p>Todavía no hay datos acumulados del viaje, así que no hay ningún título para repartir.</p>
+      </div>
+    `;
+  }
+  return `<div class="card-list titulos-profile-list">${profilesHtml}</div>`;
+}
+
+function renderTitulosEstadisticaPanel() {
+  const panel = document.getElementById("titulos-estadistica-panel");
+  if (!panel) return;
+  const closedDays = getStatsClosedDays();
+
+  const navDir = titulosStatsNavDir;
+  titulosStatsNavDir = 0;
+  const innerClass = navDir === 1 ? "stats-slide-next" : navDir === -1 ? "stats-slide-prev" : "";
+
+  if (titulosEstadisticaTab === "dia") {
+    if (titulosEstadisticaDayIndex === null || titulosEstadisticaDayIndex >= closedDays.length) {
+      titulosEstadisticaDayIndex = closedDays.length - 1;
+    }
+
+    const hasDays = closedDays.length > 0;
+    const currentKey = hasDays ? closedDays[titulosEstadisticaDayIndex] : null;
+    const atFirst = !hasDays || titulosEstadisticaDayIndex <= 0;
+    const atLast = !hasDays || titulosEstadisticaDayIndex >= closedDays.length - 1;
+
+    panel.innerHTML = `
+      <div class="stats-panel-inner ${innerClass}">
+        <div class="stats-day-nav">
+          <button type="button" id="titulos-day-prev" class="stats-day-btn" ${atFirst ? "disabled" : ""} aria-label="Día anterior">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <div class="stats-day-label">
+            ${hasDays ? `<strong>${formatDailyDate(currentKey)}</strong>` : `<strong>Sin días cerrados</strong>`}
+          </div>
+          <button type="button" id="titulos-day-next" class="stats-day-btn" ${atLast ? "disabled" : ""} aria-label="Día siguiente">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+        ${
+          hasDays
+            ? ""
+            : `<div class="stats-empty-banner"><span class="stats-empty-banner-icon" aria-hidden="true">🏆</span><p>Todavía no hay días cerrados del viaje. En cuanto se registre e importe el primer día completo, vas a poder ver los títulos de ese día acá.</p></div>`
+        }
+        ${hasDays ? renderTitulosDayReal(currentKey) : ""}
+      </div>
+    `;
+
+    if (hasDays) {
+      document.getElementById("titulos-day-prev").addEventListener("click", () => {
+        if (titulosEstadisticaDayIndex > 0) {
+          titulosEstadisticaDayIndex -= 1;
+          titulosStatsNavDir = -1;
+          renderTitulosEstadisticaPanel();
+        }
+      });
+      document.getElementById("titulos-day-next").addEventListener("click", () => {
+        if (titulosEstadisticaDayIndex < closedDays.length - 1) {
+          titulosEstadisticaDayIndex += 1;
+          titulosStatsNavDir = 1;
+          renderTitulosEstadisticaPanel();
+        }
+      });
+    }
+  } else {
+    const hasDays = closedDays.length > 0;
+    panel.innerHTML = `
+      <div class="stats-panel-inner ${innerClass}">
+        <div class="stats-day-nav stats-day-nav-total">
+          <span class="stats-day-btn stats-day-btn-ghost" aria-hidden="true"></span>
+          <div class="stats-day-label">
+            <strong>Todo el viaje</strong>
+            <span class="stats-day-sub">${closedDays.length} día${closedDays.length === 1 ? "" : "s"} cerrado${closedDays.length === 1 ? "" : "s"}</span>
+          </div>
+          <span class="stats-day-btn stats-day-btn-ghost" aria-hidden="true"></span>
+        </div>
+        ${
+          hasDays
+            ? ""
+            : `<div class="stats-empty-banner"><span class="stats-empty-banner-icon" aria-hidden="true">🏆</span><p>Todavía no hay días cerrados del viaje. En cuanto se registre e importe el primer día completo, vas a poder ver los títulos de todo el viaje acá.</p></div>`
+        }
+        ${hasDays ? renderTitulosTotalReal(closedDays) : ""}
+      </div>
+    `;
+  }
+
+  animateRankingBars(panel);
+  observeStatsSectionHeadings(panel);
+}
+
+function renderTitulosEstadisticaScreen() {
+  const main = document.getElementById("titulos-estadistica-main");
+  main.innerHTML = `
+    <div class="stats-tabs" role="tablist">
+      <button type="button" class="stats-tab${titulosEstadisticaTab === "dia" ? " active" : ""}" data-tab="dia" role="tab" aria-selected="${titulosEstadisticaTab === "dia"}">Día</button>
+      <button type="button" class="stats-tab${titulosEstadisticaTab === "total" ? " active" : ""}" data-tab="total" role="tab" aria-selected="${titulosEstadisticaTab === "total"}">Total</button>
+    </div>
+    <div id="titulos-estadistica-panel"></div>
+  `;
+
+  main.querySelectorAll(".stats-tab").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (titulosEstadisticaTab === btn.dataset.tab) return;
+      titulosEstadisticaTab = btn.dataset.tab;
+      renderTitulosEstadisticaPanel();
+      main.querySelectorAll(".stats-tab").forEach((b) => {
+        b.classList.toggle("active", b === btn);
+        b.setAttribute("aria-selected", b === btn ? "true" : "false");
+      });
+    });
+  });
+
+  renderTitulosEstadisticaPanel();
+}
+
+/* =============================================================
+   TÍTULOS POR ENCUESTA
+   -------------------------------------------------------------
+   Títulos que se otorgan a partir de encuestas votadas por los
+   participantes (no de una estadística medida por la app). Por
+   ahora hay una sola encuesta implementada — "¿Quién estuvo más
+   destruido anoche?" (el voto ya se captura y persiste dentro de
+   Registro diario, ver `destroyedVote` en `defaultDailyEntry()`) —
+   pero la estructura (`ENCUESTAS_CONFIG`) está preparada para sumar
+   encuestas futuras de la misma forma en que `TITULOS_CONFIG` ya
+   permite sumar estadísticas nuevas: una entrada nueva, sin tocar
+   el resto del render.
+
+   Misma separación DÍA/TOTAL que "Por estadística": propio estado
+   (`titulosEncuestaTab`/`titulosEncuestaDayIndex`), propia barra
+   `← día →` sobre los mismos días cerrados (`getStatsClosedDays()`),
+   y el resultado se dibuja reutilizando EXACTAMENTE la misma
+   estructura visual de perfiles (`renderTituloProfileCard`/
+   `renderTituloBadge`, sin ningún componente ni CSS nuevo) — nunca
+   como un ranking de estadísticas.
+   ============================================================= */
+
+let titulosEncuestaTab = "dia"; // "dia" | "total"
+let titulosEncuestaDayIndex = null; // índice dentro de getStatsClosedDays(), propio de Títulos por encuesta
+let titulosEncuestaNavDir = 0; // -1 anterior / 0 sin dirección / 1 siguiente (mismo patrón que statsNavDir)
+
+// Cuenta los votos de una encuesta para un día puntual: recorre el
+// registro diario de ese día de cada jugador importado y suma 1 al
+// id votado en `field` (ignora a quien no votó ese día — no se
+// inventa ningún voto). `field` es el nombre del campo dentro de
+// `dailyEntries[dateKey]` (hoy solo existe "destroyedVote", pero
+// cualquier encuesta futura que se guarde del mismo modo dentro del
+// registro diario puede reutilizar esta misma función).
+function tallyVotesForDay(dateKey, field) {
+  const tally = {}; // id del votado -> cantidad de votos
+  getAdminPlayersArray().forEach((player) => {
+    const entry = (player.data.dailyEntries || {})[dateKey];
+    if (!entry) return;
+    const votedId = entry[field];
+    if (!votedId) return;
+    tally[votedId] = (tally[votedId] || 0) + 1;
+  });
+  return tally;
+}
+
+// TOTAL: suma los votos de todos los días cerrados disponibles,
+// reutilizando tallyVotesForDay día por día (sin duplicar el
+// cálculo de conteo).
+function tallyVotesForDays(closedDays, field) {
+  const tally = {};
+  closedDays.forEach((dateKey) => {
+    const dayTally = tallyVotesForDay(dateKey, field);
+    Object.keys(dayTally).forEach((id) => {
+      tally[id] = (tally[id] || 0) + dayTally[id];
+    });
+  });
+  return tally;
+}
+
+// Convierte un conteo de votos { id: cantidad } en filas
+// name/value/display ya ordenadas de mayor a menor (mismo formato y
+// mismo `sortRankingDesc` que usan las estadísticas de siempre), así
+// el resto del pipeline de Títulos (que arma perfiles a partir de
+// filas ordenadas) no necesita saber que estas filas vienen de una
+// votación y no de una medición.
+function votesToRankingRows(tally) {
+  const rows = Object.keys(tally).map((id) => {
+    const participant = PARTICIPANTS.find((p) => p.id === id);
+    const votes = tally[id];
+    return {
+      name: participant ? participant.name : id,
+      value: votes,
+      display: votes === 1 ? "1 voto" : `${votes} votos`,
+    };
+  });
+  return sortRankingDesc(rows);
+}
+
+/* -----------------------------------------------------------
+   Configuración de "Títulos por encuesta"
+   -----------------------------------------------------------
+   Cada entrada define un título votado: se lo lleva quien haya
+   recibido más votos en la encuesta correspondiente. Agregar una
+   encuesta nueva es sumar una entrada acá (con su propio `dayFn`/
+   `totalFn` armados sobre `tallyVotesForDay`/`tallyVotesForDays` +
+   `votesToRankingRows`) — no hace falta tocar el resto del render.
+   ----------------------------------------------------------- */
+const ENCUESTAS_CONFIG = [
+  {
+    key: "destroyedVote",
+    icon: "🥴",
+    accent: "#c77dff",
+    title: "El más destruido",
+    caption: 'Ganó la votación de "¿Quién estuvo más destruido anoche?"',
+    dayFn: (dateKey) => votesToRankingRows(tallyVotesForDay(dateKey, "destroyedVote")),
+    totalFn: (closedDays) => votesToRankingRows(tallyVotesForDays(closedDays, "destroyedVote")),
+  },
+];
+
+// Agrupa los títulos por encuesta ganados por cada jugador, igual
+// que `buildTitulosByPlayer` para "Por estadística" — con una
+// diferencia: acá el título se reparte a TODOS los que hayan
+// quedado empatados en el primer puesto (empate de votos), no solo
+// al primero de la lista, para no elegir arbitrariamente un ganador
+// entre un empate real. Esto es lo que permite "resolver empates
+// sin romper la interfaz": cada empatado recibe su propio perfil
+// con el mismo título, en vez de forzar un único ganador o mostrar
+// un estado roto.
+function buildTitulosByPlayerFromEncuestas(getRows) {
+  const wonByName = new Map(); // nombre del jugador -> [{ config, winner }]
+  ENCUESTAS_CONFIG.forEach((config) => {
+    const rows = getRows(config);
+    if (!rows.length) return;
+    const topVotes = rows[0].value;
+    const winners = rows.filter((row) => row.value === topVotes);
+    winners.forEach((winner) => {
+      if (!wonByName.has(winner.name)) wonByName.set(winner.name, []);
+      wonByName.get(winner.name).push({ config, winner });
+    });
+  });
+
+  return PARTICIPANTS.filter((p) => wonByName.has(p.name)).map((p) => ({
+    participant: p,
+    titles: wonByName.get(p.name),
+  }));
+}
+
+// Arma un perfil por cada jugador que ganó al menos un título por
+// encuesta en el período mostrado, reutilizando EXACTAMENTE la misma
+// tarjeta de perfil que "Por estadística" (`renderTituloProfileCard`)
+// — nunca como un ranking de estadísticas.
+function renderTitulosEncuestaProfiles(getRows) {
+  const profiles = buildTitulosByPlayerFromEncuestas(getRows);
+  return profiles.map(renderTituloProfileCard).join("");
+}
+
+// DÍA: cada título por encuesta se calcula únicamente con los votos
+// de ese día puntual.
+function renderTitulosEncuestaDayReal(dateKey) {
+  const profilesHtml = renderTitulosEncuestaProfiles((config) => config.dayFn(dateKey));
+  if (!profilesHtml) {
+    return `
+      <div class="stats-empty-banner">
+        <span class="stats-empty-banner-icon" aria-hidden="true">🗳️</span>
+        <p>Todavía no hay votos cargados para este día, así que no hay ningún título por encuesta para repartir.</p>
+      </div>
+    `;
+  }
+  return `<div class="card-list titulos-profile-list">${profilesHtml}</div>`;
+}
+
+// TOTAL: cada título por encuesta se calcula sumando los votos de
+// todos los días cerrados disponibles.
+function renderTitulosEncuestaTotalReal(closedDays) {
+  const profilesHtml = renderTitulosEncuestaProfiles((config) => config.totalFn(closedDays));
+  if (!profilesHtml) {
+    return `
+      <div class="stats-empty-banner">
+        <span class="stats-empty-banner-icon" aria-hidden="true">🗳️</span>
+        <p>Todavía no hay votos acumulados del viaje, así que no hay ningún título por encuesta para repartir.</p>
+      </div>
+    `;
+  }
+  return `<div class="card-list titulos-profile-list">${profilesHtml}</div>`;
+}
+
+function renderTitulosEncuestaPanel() {
+  const panel = document.getElementById("titulos-encuesta-panel");
+  if (!panel) return;
+  const closedDays = getStatsClosedDays();
+
+  const navDir = titulosEncuestaNavDir;
+  titulosEncuestaNavDir = 0;
+  const innerClass = navDir === 1 ? "stats-slide-next" : navDir === -1 ? "stats-slide-prev" : "";
+
+  if (titulosEncuestaTab === "dia") {
+    if (titulosEncuestaDayIndex === null || titulosEncuestaDayIndex >= closedDays.length) {
+      titulosEncuestaDayIndex = closedDays.length - 1;
+    }
+
+    const hasDays = closedDays.length > 0;
+    const currentKey = hasDays ? closedDays[titulosEncuestaDayIndex] : null;
+    const atFirst = !hasDays || titulosEncuestaDayIndex <= 0;
+    const atLast = !hasDays || titulosEncuestaDayIndex >= closedDays.length - 1;
+
+    panel.innerHTML = `
+      <div class="stats-panel-inner ${innerClass}">
+        <div class="stats-day-nav">
+          <button type="button" id="titulos-encuesta-day-prev" class="stats-day-btn" ${atFirst ? "disabled" : ""} aria-label="Día anterior">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <div class="stats-day-label">
+            ${hasDays ? `<strong>${formatDailyDate(currentKey)}</strong>` : `<strong>Sin días cerrados</strong>`}
+          </div>
+          <button type="button" id="titulos-encuesta-day-next" class="stats-day-btn" ${atLast ? "disabled" : ""} aria-label="Día siguiente">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+        ${
+          hasDays
+            ? ""
+            : `<div class="stats-empty-banner"><span class="stats-empty-banner-icon" aria-hidden="true">🗳️</span><p>Todavía no hay días cerrados del viaje. En cuanto se registre e importe el primer día completo, vas a poder ver los títulos por encuesta de ese día acá.</p></div>`
+        }
+        ${hasDays ? renderTitulosEncuestaDayReal(currentKey) : ""}
+      </div>
+    `;
+
+    if (hasDays) {
+      document.getElementById("titulos-encuesta-day-prev").addEventListener("click", () => {
+        if (titulosEncuestaDayIndex > 0) {
+          titulosEncuestaDayIndex -= 1;
+          titulosEncuestaNavDir = -1;
+          renderTitulosEncuestaPanel();
+        }
+      });
+      document.getElementById("titulos-encuesta-day-next").addEventListener("click", () => {
+        if (titulosEncuestaDayIndex < closedDays.length - 1) {
+          titulosEncuestaDayIndex += 1;
+          titulosEncuestaNavDir = 1;
+          renderTitulosEncuestaPanel();
+        }
+      });
+    }
+  } else {
+    const hasDays = closedDays.length > 0;
+    panel.innerHTML = `
+      <div class="stats-panel-inner ${innerClass}">
+        <div class="stats-day-nav stats-day-nav-total">
+          <span class="stats-day-btn stats-day-btn-ghost" aria-hidden="true"></span>
+          <div class="stats-day-label">
+            <strong>Todo el viaje</strong>
+            <span class="stats-day-sub">${closedDays.length} día${closedDays.length === 1 ? "" : "s"} cerrado${closedDays.length === 1 ? "" : "s"}</span>
+          </div>
+          <span class="stats-day-btn stats-day-btn-ghost" aria-hidden="true"></span>
+        </div>
+        ${
+          hasDays
+            ? ""
+            : `<div class="stats-empty-banner"><span class="stats-empty-banner-icon" aria-hidden="true">🗳️</span><p>Todavía no hay días cerrados del viaje. En cuanto se registre e importe el primer día completo, vas a poder ver los títulos por encuesta de todo el viaje acá.</p></div>`
+        }
+        ${hasDays ? renderTitulosEncuestaTotalReal(closedDays) : ""}
+      </div>
+    `;
+  }
+
+  animateRankingBars(panel);
+  observeStatsSectionHeadings(panel);
+}
+
+function renderTitulosEncuestaScreen() {
+  const main = document.getElementById("titulos-encuesta-main");
+  main.innerHTML = `
+    <div class="stats-tabs" role="tablist">
+      <button type="button" class="stats-tab${titulosEncuestaTab === "dia" ? " active" : ""}" data-tab="dia" role="tab" aria-selected="${titulosEncuestaTab === "dia"}">Día</button>
+      <button type="button" class="stats-tab${titulosEncuestaTab === "total" ? " active" : ""}" data-tab="total" role="tab" aria-selected="${titulosEncuestaTab === "total"}">Total</button>
+    </div>
+    <div id="titulos-encuesta-panel"></div>
+  `;
+
+  main.querySelectorAll(".stats-tab").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (titulosEncuestaTab === btn.dataset.tab) return;
+      titulosEncuestaTab = btn.dataset.tab;
+      renderTitulosEncuestaPanel();
+      main.querySelectorAll(".stats-tab").forEach((b) => {
+        b.classList.toggle("active", b === btn);
+        b.setAttribute("aria-selected", b === btn ? "true" : "false");
+      });
+    });
+  });
+
+  renderTitulosEncuestaPanel();
+}
+
 /* -----------------------------------------------------------
    Routing simple (hash-based, sin backend)
    ----------------------------------------------------------- */
@@ -3292,6 +3920,10 @@ const screens = {
   previas: document.getElementById("screen-previas"),
   "previas-jere": document.getElementById("screen-previas-jere"),
   stats: document.getElementById("screen-stats"),
+  titulos: document.getElementById("screen-titulos"),
+  "titulos-estadistica": document.getElementById("screen-titulos-estadistica"),
+  "titulos-encuesta": document.getElementById("screen-titulos-encuesta"),
+  "titulos-racha": document.getElementById("screen-titulos-racha"),
 };
 
 const bottomNav = document.getElementById("bottom-nav");
@@ -3338,7 +3970,15 @@ function navigate(route) {
     return;
   }
 
-  if ((route === "admin" || route === "previas" || route === "stats") && !user.isAdmin) {
+  const isAdminOnlyRoute =
+    route === "admin" ||
+    route === "previas" ||
+    route === "stats" ||
+    route === "titulos" ||
+    route === "titulos-estadistica" ||
+    route === "titulos-encuesta" ||
+    route === "titulos-racha";
+  if (isAdminOnlyRoute && !user.isAdmin) {
     route = "home";
   }
 
@@ -3359,6 +3999,20 @@ function navigate(route) {
     location.hash = "#/stats";
     renderStatsScreen();
     showScreen("stats");
+  } else if (route === "titulos") {
+    location.hash = "#/titulos";
+    showScreen("titulos");
+  } else if (route === "titulos-estadistica") {
+    location.hash = "#/titulos-estadistica";
+    renderTitulosEstadisticaScreen();
+    showScreen("titulos-estadistica");
+  } else if (route === "titulos-encuesta") {
+    location.hash = "#/titulos-encuesta";
+    renderTitulosEncuestaScreen();
+    showScreen("titulos-encuesta");
+  } else if (route === "titulos-racha") {
+    location.hash = "#/titulos-racha";
+    showScreen("titulos-racha");
   } else if (route === "previas-jere") {
     location.hash = "#/previas-jere";
     previaMode = "local";
@@ -3396,6 +4050,10 @@ function navigate(route) {
       route === "admin" ||
       route === "previas" ||
       route === "stats" ||
+      route === "titulos" ||
+      route === "titulos-estadistica" ||
+      route === "titulos-encuesta" ||
+      route === "titulos-racha" ||
       route === "money" ||
       route === "previas-jere" ||
       route === "export" ||
@@ -3403,11 +4061,17 @@ function navigate(route) {
   );
   // Dinero, Registro diario, Envío de datos y Previas (sección de
   // Jere) son parte de Home: mantenemos ese tab activo.
-  // Previas de /admin es parte de Admin: mantenemos ese tab activo.
+  // Previas, Estadísticas y Títulos (con sus 3 subsecciones) son
+  // parte de Admin: mantenemos ese tab activo.
   updateNav(
     route === "money" || route === "daily" || route === "export" || route === "previas-jere"
       ? "home"
-      : route === "previas" || route === "stats"
+      : route === "previas" ||
+        route === "stats" ||
+        route === "titulos" ||
+        route === "titulos-estadistica" ||
+        route === "titulos-encuesta" ||
+        route === "titulos-racha"
       ? "admin"
       : route
   );
@@ -3418,6 +4082,10 @@ function routeFromHash() {
   if (hash === "admin") return "admin";
   if (hash === "previas") return "previas";
   if (hash === "stats") return "stats";
+  if (hash === "titulos") return "titulos";
+  if (hash === "titulos-estadistica") return "titulos-estadistica";
+  if (hash === "titulos-encuesta") return "titulos-encuesta";
+  if (hash === "titulos-racha") return "titulos-racha";
   if (hash === "previas-jere") return "previas-jere";
   if (hash === "money") return "money";
   if (hash === "daily") return "daily";
@@ -3456,6 +4124,38 @@ document.getElementById("card-admin-stats").addEventListener("click", () => {
 
 document.getElementById("btn-stats-back").addEventListener("click", () => {
   navigateBetweenScreensWithTransition("stats", "admin");
+});
+
+document.getElementById("card-admin-titulos").addEventListener("click", () => {
+  navigateBetweenScreensWithTransition("admin", "titulos");
+});
+
+document.getElementById("btn-titulos-back").addEventListener("click", () => {
+  navigateBetweenScreensWithTransition("titulos", "admin");
+});
+
+document.getElementById("card-titulos-estadistica").addEventListener("click", () => {
+  navigateBetweenScreensWithTransition("titulos", "titulos-estadistica");
+});
+
+document.getElementById("btn-titulos-estadistica-back").addEventListener("click", () => {
+  navigateBetweenScreensWithTransition("titulos-estadistica", "titulos");
+});
+
+document.getElementById("card-titulos-encuesta").addEventListener("click", () => {
+  navigateBetweenScreensWithTransition("titulos", "titulos-encuesta");
+});
+
+document.getElementById("btn-titulos-encuesta-back").addEventListener("click", () => {
+  navigateBetweenScreensWithTransition("titulos-encuesta", "titulos");
+});
+
+document.getElementById("card-titulos-racha").addEventListener("click", () => {
+  navigateBetweenScreensWithTransition("titulos", "titulos-racha");
+});
+
+document.getElementById("btn-titulos-racha-back").addEventListener("click", () => {
+  navigateBetweenScreensWithTransition("titulos-racha", "titulos");
 });
 
 document.getElementById("card-previas-jere").addEventListener("click", () => {
@@ -3535,6 +4235,10 @@ bottomNav.addEventListener("click", (e) => {
       "admin",
       "previas",
       "stats",
+      "titulos",
+      "titulos-estadistica",
+      "titulos-encuesta",
+      "titulos-racha",
     ].find((r) => screens[r] && screens[r].classList.contains("active"));
     if (activeAnimatedRoute) {
       navigateScreenToHomeWithTransition(activeAnimatedRoute);
@@ -3548,9 +4252,15 @@ bottomNav.addEventListener("click", (e) => {
   // otro origen (o si ya estamos en Admin) se mantiene el
   // `navigate()` instantáneo.
   if (route === "admin") {
-    const activeAnimatedOrigin = ["home", "previas", "stats"].find(
-      (r) => screens[r] && screens[r].classList.contains("active")
-    );
+    const activeAnimatedOrigin = [
+      "home",
+      "previas",
+      "stats",
+      "titulos",
+      "titulos-estadistica",
+      "titulos-encuesta",
+      "titulos-racha",
+    ].find((r) => screens[r] && screens[r].classList.contains("active"));
     if (activeAnimatedOrigin) {
       navigateBetweenScreensWithTransition(activeAnimatedOrigin, "admin");
       return;

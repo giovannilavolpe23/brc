@@ -300,6 +300,21 @@
           <svg class="feature-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </article>
       </div>
+
+      <!-- Apartado "Títulos": debajo de Estadísticas, misma estética
+           admin-frost. Ver "Títulos (implementado — estructura)" en
+           SPEC.md. -->
+      <div class="section-label">Títulos</div>
+      <div class="card-list">
+        <article class="feature-card tappable" id="card-admin-titulos">
+          <div class="feature-icon" style="--fc:#ffd16622;--fi:#ffd166">🏆</div>
+          <div class="feature-text">
+            <h3>Títulos</h3>
+            <p>Reconocimientos y logros del viaje</p>
+          </div>
+          <svg class="feature-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </article>
+      </div>
     </main>
   </section>
 
@@ -319,6 +334,128 @@
 
     <main class="home-content" id="stats-main">
       <!-- contenido inyectado por script.js -->
+    </main>
+  </section>
+
+  <!-- ===================== TÍTULOS (ADMIN) ===================== -->
+  <!-- Hub de navegación con las 3 subsecciones. Misma estética
+       admin-frost que Admin/Estadísticas/Previas; usa
+       navigateBetweenScreensWithTransition (igual que Admin<->Estadísticas)
+       para entrar/salir. Solo estructura visual y de navegación por
+       ahora: sin lógica de cálculo de títulos todavía. -->
+  <section id="screen-titulos" class="screen admin-frost">
+    <header class="admin-hero titulos-hero">
+      <div class="admin-hero-top">
+        <button id="btn-titulos-back" class="icon-btn" type="button" aria-label="Volver a admin">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="hero-badge">🏆 Títulos</span>
+        <span class="icon-btn spacer" aria-hidden="true"></span>
+      </div>
+      <p class="eyebrow">Reconocimientos del</p>
+      <h1 class="hero-name">Viaje</h1>
+    </header>
+
+    <main class="home-content">
+      <div class="section-label">Categorías</div>
+      <div class="card-list">
+        <article class="feature-card tappable" id="card-titulos-estadistica">
+          <div class="feature-icon" style="--fc:#4cc9f022;--fi:#4cc9f0">📊</div>
+          <div class="feature-text">
+            <h3>Títulos por estadística</h3>
+            <p>Basados en los rankings de Estadísticas</p>
+          </div>
+          <svg class="feature-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </article>
+
+        <article class="feature-card tappable" id="card-titulos-encuesta">
+          <div class="feature-icon" style="--fc:#c77dff22;--fi:#c77dff">🗳️</div>
+          <div class="feature-text">
+            <h3>Títulos por encuesta</h3>
+            <p>Votados por los participantes del viaje</p>
+          </div>
+          <svg class="feature-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </article>
+
+        <article class="feature-card tappable" id="card-titulos-racha">
+          <div class="feature-icon" style="--fc:#ff547022;--fi:#ff5470">🔥</div>
+          <div class="feature-text">
+            <h3>Títulos por racha</h3>
+            <p>Por días consecutivos cumpliendo un hábito</p>
+          </div>
+          <svg class="feature-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </article>
+      </div>
+    </main>
+  </section>
+
+  <!-- ===================== TÍTULOS POR ESTADÍSTICA ===================== -->
+  <!-- Única de las 3 subsecciones con pestañas Día/Total (reutiliza
+       .stats-tabs/.stats-tab, mismas clases que Estadísticas) porque
+       sus títulos van a salir de esa misma fuente de datos: un día
+       cerrado del viaje o el acumulado total. -->
+  <section id="screen-titulos-estadistica" class="screen admin-frost">
+    <header class="admin-hero titulos-hero">
+      <div class="admin-hero-top">
+        <button id="btn-titulos-estadistica-back" class="icon-btn" type="button" aria-label="Volver a Títulos">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="hero-badge">📊 Por estadística</span>
+        <span class="icon-btn spacer" aria-hidden="true"></span>
+      </div>
+      <p class="eyebrow">Títulos</p>
+      <h1 class="hero-name">Por estadística</h1>
+    </header>
+
+    <main class="home-content" id="titulos-estadistica-main">
+      <!-- contenido inyectado por script.js -->
+    </main>
+  </section>
+
+  <!-- ===================== TÍTULOS POR ENCUESTA ===================== -->
+  <section id="screen-titulos-encuesta" class="screen admin-frost">
+    <header class="admin-hero titulos-hero">
+      <div class="admin-hero-top">
+        <button id="btn-titulos-encuesta-back" class="icon-btn" type="button" aria-label="Volver a Títulos">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="hero-badge">🗳️ Por encuesta</span>
+        <span class="icon-btn spacer" aria-hidden="true"></span>
+      </div>
+      <p class="eyebrow">Títulos</p>
+      <h1 class="hero-name">Por encuesta</h1>
+    </header>
+
+    <main class="home-content" id="titulos-encuesta-main">
+      <!-- contenido inyectado por script.js -->
+    </main>
+  </section>
+
+  <!-- ===================== TÍTULOS POR RACHA ===================== -->
+  <section id="screen-titulos-racha" class="screen admin-frost">
+    <header class="admin-hero titulos-hero">
+      <div class="admin-hero-top">
+        <button id="btn-titulos-racha-back" class="icon-btn" type="button" aria-label="Volver a Títulos">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="hero-badge">🔥 Por racha</span>
+        <span class="icon-btn spacer" aria-hidden="true"></span>
+      </div>
+      <p class="eyebrow">Títulos</p>
+      <h1 class="hero-name">Por racha</h1>
+    </header>
+
+    <main class="home-content">
+      <div class="card-list">
+        <article class="feature-card locked">
+          <div class="feature-icon" style="--fc:#ff547022;--fi:#ff5470">🔥</div>
+          <div class="feature-text">
+            <h3>Títulos por racha</h3>
+            <p>Acá vas a poder ver títulos por días consecutivos cumpliendo un hábito.</p>
+          </div>
+          <span class="soon-tag">Próximamente</span>
+        </article>
+      </div>
     </main>
   </section>
 

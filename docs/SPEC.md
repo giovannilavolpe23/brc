@@ -111,6 +111,8 @@ Cada día el usuario podrá registrar datos como:
 - cantidad de veces que fue al baño
 - hora de salida del boliche (u opcionalmente "no fui al boliche")
 - otros datos humorísticos o estadísticos (futuro)
+- encuesta diaria **"¿Quién estuvo más destruido anoche?"** (ver
+  detalle más abajo)
 
 Los datos pertenecen al día correspondiente del viaje. Por ahora cada
 registro se identifica con la fecha calendario real del día anterior
@@ -133,6 +135,50 @@ es la fecha real del dispositivo salvo que esté activa la
 herramienta de testing `day(dia, mes)` (ver "Reglas para IA" /
 `CURRENT_STATE.md`), en cuyo caso usa esa fecha simulada. Nunca hay
 una fecha hardcodeada en el HTML/JS de esta sección.
+
+## Encuesta diaria: "¿Quién estuvo más destruido anoche?" (implementado)
+
+Dentro de Registro diario, además de los datos ya existentes
+(sueño, siesta, quinta comida, baño, boliche), cada usuario responde
+una encuesta de una sola pregunta sobre el día que está registrando:
+
+- **Opciones**: todos los participantes de `PARTICIPANTS`, **excepto
+  el propio usuario logueado** (no se muestra como opción tocable —
+  no hace falta validar "no te podés votar" porque la opción ni
+  siquiera aparece en la lista).
+- **Selección única**: chips tocables (`.chip-group`, mismo patrón
+  visual que "Quinta comida"/"Veces al baño"), solo una persona
+  seleccionada a la vez; tocar otra opción reemplaza la anterior.
+- **Almacenamiento**: el voto se guarda como `destroyedVote` (id del
+  participante votado, o `null` si todavía no votó) dentro del mismo
+  objeto de registro diario del usuario
+  (`userData:<id>.dailyLog.entries[<fecha>]`), junto con sueño,
+  siesta, quinta comida, baño y boliche de ese mismo día — no es una
+  clave de `localStorage` separada. Viaja también dentro del código
+  de exportación de ese usuario (`buildExportPayload` ya incluye
+  `dailyEntries` completo, sin necesidad de listar el campo a mano) y
+  queda disponible en `adminPlayers[id].data.dailyEntries` una vez
+  importado, igual que el resto de los campos del día.
+- **Sin duplicados**: como el voto vive dentro del mismo registro
+  diario (identificado por la fecha, `dailyDateKey`), guardar de
+  nuevo el mismo día sobrescribe la entrada existente en vez de
+  crear una segunda (mismo mecanismo que ya usa el resto de Registro
+  diario — "si ya existe un registro para la fecha del día anterior,
+  se sobrescribe"). Si el usuario ya había votado ese día, al reabrir
+  Registro diario su voto se precarga seleccionado (mismo patrón que
+  el resto de los campos ya guardados).
+- **Defensa extra contra autovoto**: aunque la UI ya excluye al
+  propio usuario de las opciones, `saveDailyEntry()` descarta
+  explícitamente el voto si por algún motivo coincidiera con el id
+  del usuario logueado, así nunca se persiste un autovoto.
+- **Usado por Títulos por encuesta**: el campo se lee desde
+  "Títulos por encuesta" (`#/titulos-encuesta`, ver más abajo) para
+  otorgar el título "El más destruido" a quien reciba más votos,
+  por día o acumulado. Todavía no se lee desde Estadísticas
+  (`#/stats`).
+- Mismo estilo visual que el resto de Registro diario (tema
+  "Bariloche" blanco/celeste, `.daily-section`, `.section-label`,
+  chips), sin ningún componente ni color nuevo.
 
 ## Previas
 
@@ -846,6 +892,202 @@ arriba:
 - hora promedio de salida del boliche
 - rankings compuestos y títulos humorísticos
 - comparaciones entre participantes más allá del ranking simple
+- ranking/título a partir de la encuesta "¿Quién estuvo más
+  destruido anoche?" (el voto ya se captura y persiste en Registro
+  diario — ver esa sección más arriba —, y ya se lee desde Títulos
+  por encuesta; todavía no se lee desde Estadísticas)
+
+
+## Títulos
+
+Sección **Títulos**, accesible desde /admin → tarjeta "Títulos"
+(`#/titulos`), ubicada debajo de "Estadísticas". Exclusiva de Gio:
+si otro usuario fuerza el hash `#/titulos` (o el de cualquiera de
+sus 3 subsecciones), se lo redirige a `/home`, igual que
+`#/admin`/`#/previas`/`#/stats`.
+
+### Estructura
+
+`#/titulos` es un hub con 3 subsecciones, cada una en su propia
+pantalla, con su propio botón "volver" hacia el hub (no directo a
+Admin, igual que Dinero/Registro diario/Envío de datos vuelven a
+Home y no a otro lado):
+
+1. **Títulos por estadística** (`#/titulos-estadistica`, implementado
+   — ver más abajo) — la única de las 3 con pestañas **Día / Total**
+   (mismo componente `.stats-tabs`/`.stats-tab` que usa Estadísticas,
+   con su propio estado independiente `titulosEstadisticaTab`).
+2. **Títulos por encuesta** (`#/titulos-encuesta`, implementado —
+   ver más abajo) — mismas pestañas **Día / Total** que "Por
+   estadística" (estado propio `titulosEncuestaTab`), otorga
+   títulos a partir de encuestas votadas por los participantes en
+   vez de estadísticas medidas por la app.
+3. **Títulos por racha** (`#/titulos-racha`) — mismo tratamiento de
+   placeholder que tenía antes "Por encuesta". Pensada para títulos
+   por días consecutivos cumpliendo un hábito (ej. rachas de
+   Registro diario).
+
+### Títulos por estadística (implementado — cálculo real)
+
+Cada estadística competitiva que ya calcula la sección Estadísticas
+(ver "Cálculo real de DÍA/TOTAL" más arriba) puede generar un
+**título** para quien tenga el mejor resultado en esa estadística.
+DÍA y TOTAL se mantienen completamente separados, igual que en
+Estadísticas:
+
+- **DÍA**: mismo componente de navegación `← día →` que Estadísticas
+  (`getStatsClosedDays()`, nunca el día actual ni un día futuro),
+  con su propio estado (`titulosEstadisticaDayIndex`,
+  independiente de `statsDayIndex`). El título de cada estadística
+  se calcula **solamente con los datos disponibles hasta ese día**
+  (reutiliza tal cual las mismas funciones `dayRanking*` de
+  Estadísticas — `dayRankingHorasDormidas`, `dayRankingSiestas`,
+  `dayRankingQuintaComida`, `dayRankingBanio`, `dayRankingBoliche`,
+  `dayRankingDineroTotal`, `dayRankingPrevias` — sin duplicar ningún
+  cálculo).
+- **TOTAL**: misma estructura visual que DÍA (sin flechas, "Todo el
+  viaje" + cantidad de días cerrados), acumulando **todos los días
+  cerrados disponibles** (reutiliza las funciones `totalRanking*`
+  equivalentes de Estadísticas).
+- **Datos reales, sin inventar nada**: si una estadística puntual no
+  tiene ningún dato cargado en el período mostrado, simplemente no
+  genera su tarjeta de título (no se inventa un ganador). Si ninguna
+  estadística tiene datos todavía, se muestra el mismo
+  `.stats-empty-banner` explicativo que usa Estadísticas cuando no
+  hay días cerrados. El saldo inicial nunca se usa ni se muestra.
+- **Sistema preparado para agregar/modificar títulos fácilmente**:
+  `TITULOS_CONFIG` (`script.js`) es un arreglo de configuración,
+  cada entrada `{ icon, accent, title, caption, provisional?, dayFn,
+  totalFn }`. Agregar un título nuevo o cambiar el nombre de uno
+  existente es sumar/editar una sola entrada — no hay que tocar el
+  resto del render (`renderTituloCard`, `renderTitulosCards`,
+  `renderTitulosDayReal`/`renderTitulosTotalReal`,
+  `renderTitulosEstadisticaPanel`).
+- **Títulos provisionales**: los que todavía no tienen nombre
+  definitivo llevan `provisional: true` en su entrada de
+  `TITULOS_CONFIG` y muestran una etiqueta "Provisional" junto al
+  nombre (reutiliza `.soon-tag`). Estado actual:
+  - **"El más dormilón"** (horas dormidas) — definitivo, ejemplo
+    exacto del pedido original.
+  - **"El más gastador"** (dinero gastado total) — definitivo,
+    ejemplo exacto del pedido original.
+  - "El rey de la siesta" (siestas) — provisional.
+  - "El más comilón" (quinta comida) — provisional.
+  - "El más urgente" (veces que fue al baño) — provisional.
+  - "El más aguante del boliche" (tiempo en el boliche) —
+    provisional.
+  - "El más previero" (cantidad de previas) — provisional.
+- **Diseño (perfiles de jugador, no tarjetas de ranking)**: la
+  presentación es deliberadamente distinta a Estadísticas — un
+  título es un logro ya obtenido, no una competencia en curso, así
+  que no se muestran barras horizontales ni número de puesto. En vez
+  de una tarjeta por estadística, se agrupa por jugador
+  (`buildTitulosByPlayer()` en `script.js`, sin tocar el cálculo:
+  sigue usando `rows[0]` de las mismas `dayFn`/`totalFn` de siempre):
+  - Un **perfil por cada jugador que ganó al menos un título** en el
+    período mostrado (DÍA o TOTAL), en el mismo orden que
+    `PARTICIPANTS`. Cada perfil muestra el nombre del jugador y su
+    avatar (mismas iniciales/color que el resto de la app), y debajo
+    la lista de títulos que ganó — cada uno con su ícono, nombre del
+    título y una descripción de qué estadística ganó (con el valor
+    puntual, ej. "Horas dormidas · 8h 40m").
+  - Un jugador sin ningún título en el período mostrado **no genera
+    perfil** (mismo criterio de "no inventar nada" que ya regía
+    para las tarjetas por estadística); no se muestran perfiles
+    vacíos.
+  - Estética propia: cards blanco/celeste con gradientes fríos y
+    filete superior degradé, insignias tipo "trofeo" (ícono en
+    medallón con glow del color propio del título) sin exagerar el
+    efecto. Misma cascada de entrada (`statsFadeUp`), misma
+    navegación Día/Total, mismo `.stats-empty-banner` cuando no hay
+    ningún título repartido y misma estética "Bariloche" del resto
+    de `/admin` — ver `.titulo-profile-card`/`.titulo-badge` en
+    `styles.css`.
+- No se agregaron todavía títulos por categoría de gasto en
+  particular ni títulos compuestos entre varias estadísticas (fuera
+  de alcance de este pase).
+
+### Títulos por encuesta (implementado — cálculo real)
+
+Títulos que se otorgan a partir de una **votación de los
+participantes** (no de una estadística medida por la app). Reutiliza
+la misma estructura de pantalla que "Por estadística": pestañas
+**Día / Total** (`titulosEncuestaTab`), con su propia barra
+`← día →` sobre los mismos días cerrados (`getStatsClosedDays()`,
+estado independiente `titulosEncuestaDayIndex`).
+
+- **Encuesta implementada**: "¿Quién estuvo más destruido anoche?"
+  (el voto ya se capturaba y persistía en Registro diario —
+  `destroyedVote` dentro de `dailyEntries[<fecha>]` de cada
+  jugador, ver esa sección más arriba). El título otorgado es
+  **"El más destruido"**.
+- **Conteo**: para un día puntual, se cuenta un voto por cada
+  jugador que ese día haya votado a alguien (`tallyVotesForDay`);
+  para TOTAL, se suman los conteos de todos los días cerrados
+  disponibles (`tallyVotesForDays`, sin duplicar el cálculo día por
+  día). La UI de Registro diario ya excluye la autovotación, así
+  que nadie se vota a sí mismo.
+- **DÍA**: usa únicamente los votos cargados ese día puntual.
+- **TOTAL**: usa la suma de votos de todos los días cerrados del
+  viaje.
+- **Empates resueltos sin romper la interfaz**: si dos o más
+  participantes quedan empatados en la cantidad de votos (en el
+  primer puesto), el título se reparte entre **todos** los
+  empatados — cada uno recibe su propio perfil con el mismo título
+  — en vez de elegir arbitrariamente a uno solo o mostrar un estado
+  inconsistente.
+- **Sin datos, sin título**: si nadie votó en el período mostrado,
+  no se otorga el título (mismo criterio de "no inventar nada" que
+  usa "Por estadística"); se muestra el mismo tipo de
+  `.stats-empty-banner` explicativo.
+- **Misma presentación visual que "Por estadística" — exactamente**:
+  reutiliza tal cual `renderTituloProfileCard`/`renderTituloBadge`
+  (perfil del jugador con avatar + nombre, lista de insignias con
+  ícono/nombre del título/descripción debajo), sin ranking de
+  barras ni número de puesto. Ejemplo:
+
+  ```
+  GER
+  • El más destruido
+    Ganó la votación de "¿Quién estuvo más destruido anoche?" · 3 votos
+  ```
+
+- **Preparado para agregar encuestas futuras**: `ENCUESTAS_CONFIG`
+  (`script.js`) es un arreglo de configuración, cada entrada
+  `{ key, icon, accent, title, caption, dayFn, totalFn }`, igual
+  que `TITULOS_CONFIG` de "Por estadística". Agregar una encuesta
+  nueva (con su propio campo dentro de `dailyEntries`) es sumar una
+  entrada acá; no hace falta tocar el resto del render.
+- No se agregaron todavía títulos compuestos entre varias encuestas
+  ni encuestas nuevas más allá de "¿Quién estuvo más destruido
+  anoche?" (fuera de alcance de este pase).
+
+### Diseño e integración
+
+Las 4 pantallas nuevas (`screen-titulos` y sus 3 subsecciones)
+comparten exactamente la estética "Bariloche" blanco/celeste del
+resto de /admin (clase `admin-frost`, nieve global, `.admin-hero`,
+`.card-list`/`.feature-card`) sin ningún CSS nuevo. Están integradas
+al router existente (`screens`, `navigate()`, `routeFromHash()`) y al
+bottom nav: quedan como parte del tab "Admin" (igual que
+Previas/Estadísticas) y usan la variante clara `.bottom-nav-frost`.
+
+Entrar y salir del apartado (Admin↔Títulos) y navegar entre el hub y
+cada subsección usa la misma animación fade + `translateY` que ya
+usan Admin↔Previas y Admin↔Estadísticas — la función genérica
+`navigateBetweenScreensWithTransition(fromRoute, toRoute)` (ver
+"Animaciones de micro-interacción" más abajo). No se creó ninguna
+animación nueva.
+
+### Pendiente
+
+- Cálculo de rachas (días consecutivos) para "Títulos por racha" —
+  "Por estadística" y "Por encuesta" ya tienen cálculo real, ver
+  arriba.
+- Nombres definitivos para los títulos marcados `provisional: true`
+  en `TITULOS_CONFIG`.
+- Títulos por categoría de gasto en particular y títulos compuestos
+  entre varias estadísticas.
 
 
 ## Diseño
@@ -1210,21 +1452,28 @@ respetan `prefers-reduced-motion`.
 
 - **Transición Login → Home / Home ↔ Dinero / Registro diario / Envío
   de datos / Previas de Jere / Admin / Admin ↔ Previas / Admin ↔
-  Estadísticas / Home → Login (Cerrar sesión)** (`v0.26.0`, timing y
+  Estadísticas / Admin ↔ Títulos / Títulos ↔ sus 3 subsecciones / Home
+  → Login (Cerrar sesión)** (`v0.26.0`, timing y
   color de fondo ajustados en `v0.29.0`, extendida a Registro diario y
   Envío de datos en `v0.30.0`, a Login → Home en `v0.31.0`, a la
   vuelta Dinero/Registro diario/Envío de datos → Home en `v0.32.0`, a
   Home ↔ Admin, Admin ↔ Previas, Admin ↔ Estadísticas y Home ↔ Previas
-  de Jere en `v0.33.0`, y al ícono "admin" del bottom nav desde
-  Previas/Estadísticas y a Cerrar sesión en `v0.34.0`): al pulsar
+  de Jere en `v0.33.0`, al ícono "admin" del bottom nav desde
+  Previas/Estadísticas y a Cerrar sesión en `v0.34.0`, y a Admin ↔
+  Títulos junto con Títulos ↔ "Por estadística"/"Por encuesta"/"Por
+  racha" (hub y las 3 subsecciones) en `v0.38.0`): al pulsar
   `#card-money`, `#card-daily`, `#card-export` o `#card-previas-jere`
   desde Home; al pulsar el ícono "admin" del bottom nav desde Home,
-  Previas o Estadísticas; al pulsar `#card-admin-previas` o
-  `#card-admin-stats` desde Admin; al ingresar la contraseña correcta
-  en el selector de usuario (Login → Home); al pulsar "Cerrar sesión"
-  desde Home; o al volver de cualquiera de esas secciones (botón
-  "volver" de cada pantalla, o ícono "home"/"admin" del bottom nav
-  según corresponda), la pantalla de origen hace fade-out +
+  Previas, Estadísticas, Títulos o cualquiera de sus 3 subsecciones;
+  al pulsar `#card-admin-previas`, `#card-admin-stats` o
+  `#card-admin-titulos` desde Admin; al pulsar
+  `#card-titulos-estadistica`, `#card-titulos-encuesta` o
+  `#card-titulos-racha` desde Títulos; al ingresar la contraseña
+  correcta en el selector de usuario (Login → Home); al pulsar
+  "Cerrar sesión" desde Home; o al volver de cualquiera de esas
+  secciones (botón "volver" de cada pantalla, o ícono "home"/"admin"
+  del bottom nav según corresponda), la pantalla de origen hace
+  fade-out +
   `translateY(-10px)` (100ms) y, justo después, la pantalla destino
   hace fade-in + `translateY(10px→0)` (100ms), ambas con una curva
   `cubic-bezier` suave (`0.4, 0, 1, 1` de salida / `0, 0, 0.2, 1` de
