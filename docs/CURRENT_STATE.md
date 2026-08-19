@@ -2758,4 +2758,3 @@ Títulos/premios humorísticos compuestos a partir de los rankings de
 DÍA/TOTAL ya calculados (más allá del ganador destacado por tarjeta,
 ya resuelto visualmente en v0.13.0), y sistema de días del viaje
 (fecha de inicio configurada).
-
