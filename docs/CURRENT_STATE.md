@@ -2,7 +2,132 @@
 
 ## Versión
 
-v0.42.0 — Títulos por encuesta: cálculo real ("El más destruido")
+v0.44.0 — Títulos: pulido visual final de las 3 subsecciones
+
+## v0.44.0 — Títulos: pulido visual final de las 3 subsecciones
+
+Pulido final, puramente visual, de las 3 subsecciones de `#/titulos`
+(`#/titulos-estadistica`, `#/titulos-encuesta`, `#/titulos-racha`),
+que ya tenían cálculo real (v0.39.0, v0.42.0 y v0.43.0
+respectivamente). No se tocó ningún cálculo ni dato — ver esas 3
+entradas para el detalle de cómo se calcula cada título. Como las 3
+comparten `renderTituloProfileCard`/`renderTituloBadge`, el pulido se
+hizo en un único lugar y se refleja en las 3 por igual.
+
+- **Estructura conceptual, igual en las 3** (sin cambios, solo mejor
+  presentada): cada perfil es JUGADOR (avatar + nombre) → una o más
+  insignias, cada una `🏆 Título` + descripción del logro obtenido
+  (leyenda de la estadística/encuesta/racha + valor puntual). Nunca
+  ranking de barras horizontales ni número de puesto — los títulos
+  son premios ya obtenidos, no una competencia en curso.
+- **De dónde sale el título de cada subsección, explícito**:
+  `renderTitulosSourceNote(icon, accent, html)` (nueva, `script.js`)
+  agrega una línea corta arriba de las pestañas Día/Total de cada
+  pantalla — "📊 estadísticas que ya mide la app" (Por estadística),
+  "🗳️ encuestas votadas por los participantes" (Por encuesta), "🔥
+  racha más larga de días consecutivos" (Por racha) — para que la
+  fuente de cada subsección quede clara aunque las 3 compartan
+  exactamente el mismo diseño de perfil/insignia. CSS nueva:
+  `.titulos-source-note` (+ variante clara en `.screen.admin-frost`).
+- **Jerarquía y espaciado mejorados** (`styles.css`): nombre del
+  jugador más grande (17px→19px) con recorte por ellipsis para
+  nombres largos; avatar más grande (46px→52px) con anillo doble;
+  insignia de cantidad de títulos rediseñada como píldora con ícono
+  🏆; separación entre perfiles de jugador aumentada (`gap`
+  14px→22px en `.titulos-profile-list`); insignias de título con más
+  padding e ícono de medallón más grande (38px→42px); watermark de
+  🏆 muy translúcido en cada tarjeta (puramente decorativo, oculto
+  con `prefers-reduced-motion`).
+- **Animaciones**: se mantiene tal cual la cascada de entrada
+  existente (`statsFadeUp`, mismo delay escalonado); se suma
+  únicamente una transición liviana al tocar tarjeta/insignia
+  (`:active`), sin animaciones nuevas de por sí.
+- **Mobile-first**: nuevo `@media (max-width: 359px)` para los
+  anchos más chicos del rango objetivo; verificado sin scroll
+  horizontal en 360–430px, incluso con nombres largos.
+- **Verificado explícitamente que ninguna de las 3 subsecciones use
+  rankings**: ni barras horizontales, ni número de puesto, ni
+  ningún componente `.ranking-*` de Estadísticas — se comprobó
+  navegando Día/Total en las 3 pantallas.
+- No se tocó `buildTitulosByPlayer`, `buildTitulosByPlayerAllTiedWinners`,
+  `TITULOS_CONFIG`, `ENCUESTAS_CONFIG`, `RACHAS_CONFIG` ni ninguna
+  `dayFn`/`totalFn`.
+
+## v0.43.0 — Títulos por racha: cálculo real (boliche, quinta comida, baño, chocolates, alcohol)
+
+Primer cálculo real dentro de `#/titulos-racha` (antes placeholder
+"Próximamente"). El título se lo lleva quien haya conseguido la
+racha más larga de días CONSECUTIVOS EN EL CALENDARIO cumpliendo un
+hábito — no un valor puntual de un día ni una votación. Reutiliza
+EXACTAMENTE la misma presentación de perfiles de v0.41.0/v0.42.0 —
+ningún componente ni CSS nuevo.
+
+- **5 tipos de racha implementados** (`RACHAS_CONFIG`, nombres
+  provisionales, `provisional: true`, fáciles de renombrar):
+  - 🕺 "Rey de la noche" — mayor racha yendo al boliche.
+  - 🍔 "Racha comilona" — mayor racha comiendo quinta comida.
+  - 🚽 "Intestino de hierro" — mayor racha yendo al baño.
+  - 🍫 "Racha dulce" — mayor racha gastando en categoría Chocolates.
+  - 🍷 "Racha alcohólica" — mayor racha gastando en categoría
+    Alcohol.
+- **`isNextDayKey(prevKey, dateKey)`** (nueva): compara dos claves
+  YYYY-MM-DD y dice si son días calendario consecutivos. Motor de
+  rachas nuevo: `longestStreak(days, predicateFn)` recorre una
+  lista de días cerrados y devuelve la racha más larga de días
+  consecutivos donde el predicado dio `true` — un día que no cumple,
+  o un salto de calendario entre dos días de la lista (aunque ambos
+  hayan cumplido), corta la racha.
+- **Predicados por hábito** (nuevos, uno por tipo de racha):
+  `playerFueAlBoliche`, `playerComioQuintaComida`,
+  `playerFueAlBanio`, `playerGastoEnCategoria(player, dateKey,
+  category)` — todos leen exactamente los mismos campos que ya usan
+  Estadísticas/Títulos por estadística (`entry.computed.bolicheMinutes`,
+  `entry.fifthMeal`, `entry.bathroom`, `dayExpenses()`), sin ningún
+  cálculo nuevo sobre datos crudos.
+- **`streakRankingRows(days, predicate)`** (nueva): arma filas
+  name/value/display con la racha más larga de cada jugador
+  (`sortRankingDesc`, reutilizada); un jugador con racha 0 no entra
+  en las filas.
+- **DÍA usa el historial hasta ese día, no solo ese día** (a
+  diferencia de "Por estadística"/"Por encuesta"): `daysUpTo(closedDays,
+  dateKey)` recorta `closedDays` hasta el día seleccionado inclusive
+  antes de calcular la racha — una racha por definición necesita el
+  historial previo.
+- **TOTAL** usa todo el historial de días cerrados del viaje.
+- **Empates resueltos igual que "Por encuesta"**:
+  `buildTitulosByPlayerAllTiedWinners(configs, getRows)` (nueva,
+  generalizada a partir de la función que antes se llamaba
+  `buildTitulosByPlayerFromEncuestas` — ahora un wrapper de una
+  línea sobre esta) reparte el título entre TODOS los jugadores
+  empatados en la racha máxima. `buildTitulosByPlayerFromRachas` la
+  reutiliza sin duplicar lógica.
+- **DÍA/TOTAL propios**: `titulosRachaTab`, `titulosRachaDayIndex`,
+  `titulosRachaNavDir` — mismo patrón de pestañas y barra
+  `← día →` sobre `getStatsClosedDays()` que "Por estadística"/"Por
+  encuesta" (`renderTitulosRachaPanel()`,
+  `renderTitulosRachaScreen()`), estado completamente independiente.
+- **index.html**: `#screen-titulos-racha` dejó de ser
+  `.feature-card.locked` con `.soon-tag` y ahora tiene
+  `<main id="titulos-racha-main">`, igual que las otras 2
+  subsecciones.
+- **Ruteo**: `navigate("titulos-racha")` ahora llama a
+  `renderTitulosRachaScreen()` antes de mostrar la pantalla.
+- **Sin CSS nuevo**: el resultado usa exactamente
+  `.titulo-profile-card`/`.titulo-badge` de v0.41.0 — mismo look que
+  "Por estadística"/"Por encuesta".
+- No se tocó ninguna estadística de `#/stats`, ni el cálculo de
+  "Por estadística" (`TITULOS_CONFIG`/`buildTitulosByPlayer`) ni el
+  de "Por encuesta" (`ENCUESTAS_CONFIG`, salvo el refactor no
+  funcional de `buildTitulosByPlayerFromEncuestas` mencionado
+  arriba, que produce exactamente el mismo resultado que antes).
+- Verificado: `node --check script.js` sin errores; llaves de
+  `styles.css` balanceadas; simulación manual de `longestStreak`
+  confirmando que (a) un salto de calendario entre dos días
+  "cerrados" corta la racha aunque ambos días cumplan el hábito, (b)
+  el recorte "hasta ese día" (`daysUpTo`) no ve datos futuros, y (c)
+  dos jugadores con la misma racha máxima quedan ambos con el mismo
+  `value`, listos para que `buildTitulosByPlayerAllTiedWinners` les
+  otorgue el título a los dos.
 
 ## v0.42.0 — Títulos por encuesta: cálculo real ("El más destruido")
 

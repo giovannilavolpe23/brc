@@ -3427,6 +3427,23 @@ const TITULOS_CONFIG = [
    toca acá, solo el agrupamiento y el HTML/CSS de presentación.
    ----------------------------------------------------------- */
 
+// Nota corta de "de dónde sale el título" arriba de las pestañas
+// Día/Total de cada una de las 3 subsecciones de Títulos. Las 3
+// comparten exactamente la misma estructura de perfil/insignia
+// (`renderTituloProfileCard`/`renderTituloBadge`), así que esta línea
+// es lo que deja explícito, en cada pantalla, cuál es la fuente de
+// esos títulos puntuales (estadística medida por la app, votación de
+// los participantes o racha de días consecutivos) sin duplicar CSS
+// ni componentes nuevos.
+function renderTitulosSourceNote(icon, accent, html) {
+  return `
+    <div class="titulos-source-note" style="--titulos-source-accent:${accent}">
+      <span class="titulos-source-note-icon" aria-hidden="true">${icon}</span>
+      <p>${html}</p>
+    </div>
+  `;
+}
+
 // Recorre TITULOS_CONFIG, resuelve el ganador de cada título
 // (idéntico cálculo que antes) y agrupa esos resultados por nombre
 // de jugador. Un título sin datos en el período mostrado
@@ -3611,6 +3628,7 @@ function renderTitulosEstadisticaPanel() {
 function renderTitulosEstadisticaScreen() {
   const main = document.getElementById("titulos-estadistica-main");
   main.innerHTML = `
+    ${renderTitulosSourceNote("📊", "#4cc9f0", "Estos títulos salen de las <strong>estadísticas</strong> que ya mide la app (sueño, gastos, boliche, baño, previas...): se lo lleva quien tenga el mejor resultado en cada una.")}
     <div class="stats-tabs" role="tablist">
       <button type="button" class="stats-tab${titulosEstadisticaTab === "dia" ? " active" : ""}" data-tab="dia" role="tab" aria-selected="${titulosEstadisticaTab === "dia"}">Día</button>
       <button type="button" class="stats-tab${titulosEstadisticaTab === "total" ? " active" : ""}" data-tab="total" role="tab" aria-selected="${titulosEstadisticaTab === "total"}">Total</button>
@@ -3732,22 +3750,21 @@ const ENCUESTAS_CONFIG = [
   },
 ];
 
-// Agrupa los títulos por encuesta ganados por cada jugador, igual
-// que `buildTitulosByPlayer` para "Por estadística" — con una
-// diferencia: acá el título se reparte a TODOS los que hayan
-// quedado empatados en el primer puesto (empate de votos), no solo
-// al primero de la lista, para no elegir arbitrariamente un ganador
-// entre un empate real. Esto es lo que permite "resolver empates
-// sin romper la interfaz": cada empatado recibe su propio perfil
-// con el mismo título, en vez de forzar un único ganador o mostrar
-// un estado roto.
-function buildTitulosByPlayerFromEncuestas(getRows) {
+// Agrupa por jugador los títulos que resultan de un conjunto de
+// "configs" (cada uno con su propio `getRows(config)` ya resuelto
+// para DÍA o TOTAL), repartiendo el título entre TODOS los que
+// hayan quedado empatados en el primer puesto — no solo al primero
+// de la lista — para no elegir arbitrariamente un ganador entre un
+// empate real. Es el mismo criterio de "resolver empates sin romper
+// la interfaz" que usan tanto "Por encuesta" como "Por racha", así
+// que vive acá una sola vez y ambos lo reutilizan.
+function buildTitulosByPlayerAllTiedWinners(configs, getRows) {
   const wonByName = new Map(); // nombre del jugador -> [{ config, winner }]
-  ENCUESTAS_CONFIG.forEach((config) => {
+  configs.forEach((config) => {
     const rows = getRows(config);
     if (!rows.length) return;
-    const topVotes = rows[0].value;
-    const winners = rows.filter((row) => row.value === topVotes);
+    const topValue = rows[0].value;
+    const winners = rows.filter((row) => row.value === topValue);
     winners.forEach((winner) => {
       if (!wonByName.has(winner.name)) wonByName.set(winner.name, []);
       wonByName.get(winner.name).push({ config, winner });
@@ -3758,6 +3775,19 @@ function buildTitulosByPlayerFromEncuestas(getRows) {
     participant: p,
     titles: wonByName.get(p.name),
   }));
+}
+
+// Agrupa los títulos por encuesta ganados por cada jugador, igual
+// que `buildTitulosByPlayer` para "Por estadística" — con una
+// diferencia: acá el título se reparte a TODOS los que hayan
+// quedado empatados en el primer puesto (empate de votos), no solo
+// al primero de la lista, para no elegir arbitrariamente un ganador
+// entre un empate real. Esto es lo que permite "resolver empates
+// sin romper la interfaz": cada empatado recibe su propio perfil
+// con el mismo título, en vez de forzar un único ganador o mostrar
+// un estado roto.
+function buildTitulosByPlayerFromEncuestas(getRows) {
+  return buildTitulosByPlayerAllTiedWinners(ENCUESTAS_CONFIG, getRows);
 }
 
 // Arma un perfil por cada jugador que ganó al menos un título por
@@ -3885,6 +3915,7 @@ function renderTitulosEncuestaPanel() {
 function renderTitulosEncuestaScreen() {
   const main = document.getElementById("titulos-encuesta-main");
   main.innerHTML = `
+    ${renderTitulosSourceNote("🗳️", "#c77dff", "Estos títulos salen de las <strong>encuestas votadas por los participantes</strong> en Registro diario (ej. \"¿Quién estuvo más destruido anoche?\"): se lo lleva quien reciba más votos.")}
     <div class="stats-tabs" role="tablist">
       <button type="button" class="stats-tab${titulosEncuestaTab === "dia" ? " active" : ""}" data-tab="dia" role="tab" aria-selected="${titulosEncuestaTab === "dia"}">Día</button>
       <button type="button" class="stats-tab${titulosEncuestaTab === "total" ? " active" : ""}" data-tab="total" role="tab" aria-selected="${titulosEncuestaTab === "total"}">Total</button>
@@ -3905,6 +3936,363 @@ function renderTitulosEncuestaScreen() {
   });
 
   renderTitulosEncuestaPanel();
+}
+
+/* =============================================================
+   TÍTULOS POR RACHA
+   -------------------------------------------------------------
+   Títulos que se otorgan a partir de la MEJOR RACHA de días
+   consecutivos cumpliendo un hábito (ir al boliche, comer quinta
+   comida, ir al baño, gastar en una categoría puntual, etc.) — no
+   de un valor puntual de un día ni de una votación. El título se lo
+   lleva quien haya conseguido la racha más larga en el período
+   mostrado.
+
+   "Racha" = días CONSECUTIVOS EN EL CALENDARIO (no solo índices
+   consecutivos dentro de `getStatsClosedDays()`): si hay un día sin
+   cerrar en el medio, la racha se corta ahí, aunque ese hueco no
+   aparezca en la lista de días cerrados (`isNextDayKey`).
+
+   - **DÍA**: la racha se calcula con los datos disponibles HASTA
+     ese día puntual (todos los días cerrados desde el principio del
+     viaje hasta el día seleccionado en la barra `← día →`) — a
+     diferencia de "Por estadística"/"Por encuesta", donde DÍA usa
+     solo el dato de ESE día. Acá no aplica: una racha por
+     definición necesita el historial previo.
+   - **TOTAL**: la racha se calcula con todo el historial de días
+     cerrados del viaje.
+
+   `RACHAS_CONFIG` es un arreglo de configuración igual en espíritu a
+   `TITULOS_CONFIG`/`ENCUESTAS_CONFIG`: cada entrada define un
+   `predicate(player, dateKey)` que dice si ESE jugador cumplió el
+   hábito ESE día — el motor de rachas (`longestStreak`) hace el
+   resto. Agregar un tipo de racha nuevo es sumar una entrada acá;
+   no hace falta tocar el resto del render. Los nombres de título
+   son provisionales (`provisional: true`, misma convención que
+   `TITULOS_CONFIG`) y quedan fáciles de renombrar más adelante.
+
+   El resultado se dibuja reutilizando EXACTAMENTE la misma
+   estructura visual de perfiles que "Por estadística"/"Por
+   encuesta" (`renderTituloProfileCard`/`renderTituloBadge`, sin
+   ningún componente ni CSS nuevo) — nunca como un ranking de
+   barras. Empates (misma racha máxima entre dos o más jugadores) se
+   resuelven con `buildTitulosByPlayerAllTiedWinners`, igual que
+   "Por encuesta": el título se reparte entre todos los empatados.
+   ============================================================= */
+
+let titulosRachaTab = "dia"; // "dia" | "total"
+let titulosRachaDayIndex = null; // índice dentro de getStatsClosedDays(), propio de Títulos por racha
+let titulosRachaNavDir = 0; // -1 anterior / 0 sin dirección / 1 siguiente (mismo patrón que statsNavDir)
+
+// ¿`dateKey` es exactamente el día calendario siguiente a `prevKey`?
+// Ambas claves son YYYY-MM-DD. Se usa para saber si dos días
+// cerrados consecutivos en la lista son también consecutivos en el
+// calendario (si no lo son, la racha se corta ahí).
+function isNextDayKey(prevKey, dateKey) {
+  const [py, pm, pd] = prevKey.split("-").map(Number);
+  const prevDate = new Date(py, pm - 1, pd);
+  prevDate.setDate(prevDate.getDate() + 1);
+  const nextKey = `${prevDate.getFullYear()}-${pad2(prevDate.getMonth() + 1)}-${pad2(prevDate.getDate())}`;
+  return nextKey === dateKey;
+}
+
+// Motor de rachas: recorre `days` (claves YYYY-MM-DD ya ordenadas de
+// más antigua a más reciente) y devuelve la racha más larga de días
+// consecutivos en el calendario donde `predicateFn(dateKey)` dio
+// `true`. Un día que no cumple corta la racha en curso; un salto de
+// calendario entre dos días de la lista también la corta, aunque
+// ambos hayan cumplido el hábito.
+function longestStreak(days, predicateFn) {
+  let best = 0;
+  let current = 0;
+  let prevKey = null;
+  days.forEach((dateKey) => {
+    const consecutive = prevKey !== null && isNextDayKey(prevKey, dateKey);
+    if (predicateFn(dateKey)) {
+      current = consecutive ? current + 1 : 1;
+      if (current > best) best = current;
+    } else {
+      current = 0;
+    }
+    prevKey = dateKey;
+  });
+  return best;
+}
+
+// Arma las filas name/value/display (mismo formato que
+// Estadísticas) con la racha más larga de cada jugador para un
+// `predicate` dado, sobre el conjunto `days` ya recortado (hasta el
+// día seleccionado para DÍA, o todo el historial para TOTAL). Un
+// jugador con racha 0 (nunca cumplió el hábito en el período) no
+// entra en las filas — no hay racha que premiar.
+function streakRankingRows(days, predicate) {
+  const rows = getAdminPlayersArray()
+    .map((player) => {
+      const streak = longestStreak(days, (dateKey) => predicate(player, dateKey));
+      return {
+        name: player.name,
+        value: streak,
+        display: streak === 1 ? "1 día" : `${streak} días`,
+      };
+    })
+    .filter((row) => row.value > 0);
+  return sortRankingDesc(rows);
+}
+
+// `days` recortado HASTA `dateKey` inclusive, dentro de
+// `closedDays` (para DÍA: la racha usa todo lo disponible hasta ese
+// punto, no solo ese día suelto).
+function daysUpTo(closedDays, dateKey) {
+  const idx = closedDays.indexOf(dateKey);
+  if (idx === -1) return closedDays;
+  return closedDays.slice(0, idx + 1);
+}
+
+// Predicados: ¿el jugador cumplió el hábito ESE día puntual? Todos
+// leen exactamente los mismos campos que ya usan Estadísticas/
+// Títulos por estadística, sin ningún cálculo nuevo sobre los datos
+// crudos.
+function playerFueAlBoliche(player, dateKey) {
+  const entry = (player.data.dailyEntries || {})[dateKey];
+  return !!(entry && entry.computed && entry.computed.bolicheMinutes !== null && entry.computed.bolicheMinutes !== undefined);
+}
+
+function playerComioQuintaComida(player, dateKey) {
+  const entry = (player.data.dailyEntries || {})[dateKey];
+  return !!entry && entry.fifthMeal === "yes";
+}
+
+function playerFueAlBanio(player, dateKey) {
+  const entry = (player.data.dailyEntries || {})[dateKey];
+  return !!entry && entry.bathroom !== null && entry.bathroom !== undefined && entry.bathroom > 0;
+}
+
+// ¿El jugador tuvo al menos un gasto en `category` ese día? Reusa
+// `dayExpenses(dateKey)`, la misma fuente que ya arma los rankings
+// por categoría de Estadísticas.
+function playerGastoEnCategoria(player, dateKey, category) {
+  return dayExpenses(dateKey).some((e) => e.playerName === player.name && e.category === category);
+}
+
+/* -----------------------------------------------------------
+   Configuración de "Títulos por racha"
+   -----------------------------------------------------------
+   Cada entrada define un título de racha: se lo lleva quien haya
+   conseguido la racha más larga de días consecutivos cumpliendo
+   `predicate`. `dayFn(closedDays, dateKey)`/`totalFn(closedDays)`
+   arman las filas ya recortadas al período correspondiente sobre
+   `streakRankingRows`. Agregar un tipo de racha nuevo (u otra
+   categoría de gasto) es sumar una entrada acá.
+   ----------------------------------------------------------- */
+const RACHAS_CONFIG = [
+  {
+    key: "streakBoliche",
+    icon: "🕺",
+    accent: "#ff5470",
+    title: "Rey de la noche",
+    caption: "Mayor racha de días yendo al boliche",
+    provisional: true,
+    dayFn: (closedDays, dateKey) => streakRankingRows(daysUpTo(closedDays, dateKey), playerFueAlBoliche),
+    totalFn: (closedDays) => streakRankingRows(closedDays, playerFueAlBoliche),
+  },
+  {
+    key: "streakFifthMeal",
+    icon: "🍔",
+    accent: "#ff9f1c",
+    title: "Racha comilona",
+    caption: "Mayor racha de días comiendo quinta comida",
+    provisional: true,
+    dayFn: (closedDays, dateKey) => streakRankingRows(daysUpTo(closedDays, dateKey), playerComioQuintaComida),
+    totalFn: (closedDays) => streakRankingRows(closedDays, playerComioQuintaComida),
+  },
+  {
+    key: "streakBathroom",
+    icon: "🚽",
+    accent: "#06d6a0",
+    title: "Intestino de hierro",
+    caption: "Mayor racha de días yendo al baño",
+    provisional: true,
+    dayFn: (closedDays, dateKey) => streakRankingRows(daysUpTo(closedDays, dateKey), playerFueAlBanio),
+    totalFn: (closedDays) => streakRankingRows(closedDays, playerFueAlBanio),
+  },
+  {
+    key: "streakChocolates",
+    icon: "🍫",
+    accent: "#c77dff",
+    title: "Racha dulce",
+    caption: "Mayor racha de días gastando en chocolates",
+    provisional: true,
+    dayFn: (closedDays, dateKey) =>
+      streakRankingRows(daysUpTo(closedDays, dateKey), (player, dk) => playerGastoEnCategoria(player, dk, "Chocolates")),
+    totalFn: (closedDays) => streakRankingRows(closedDays, (player, dk) => playerGastoEnCategoria(player, dk, "Chocolates")),
+  },
+  {
+    key: "streakAlcohol",
+    icon: "🍷",
+    accent: "#118ab2",
+    title: "Racha alcohólica",
+    caption: "Mayor racha de días gastando en alcohol",
+    provisional: true,
+    dayFn: (closedDays, dateKey) =>
+      streakRankingRows(daysUpTo(closedDays, dateKey), (player, dk) => playerGastoEnCategoria(player, dk, "Alcohol")),
+    totalFn: (closedDays) => streakRankingRows(closedDays, (player, dk) => playerGastoEnCategoria(player, dk, "Alcohol")),
+  },
+];
+
+// Agrupa los títulos por racha ganados por cada jugador, con el
+// mismo criterio de empates que "Por encuesta": el título se
+// reparte entre TODOS los que hayan quedado con la racha máxima.
+function buildTitulosByPlayerFromRachas(getRows) {
+  return buildTitulosByPlayerAllTiedWinners(RACHAS_CONFIG, getRows);
+}
+
+// Arma un perfil por cada jugador que ganó al menos un título por
+// racha en el período mostrado, reutilizando EXACTAMENTE la misma
+// tarjeta de perfil que "Por estadística"/"Por encuesta"
+// (`renderTituloProfileCard`) — nunca como un ranking de barras.
+function renderTitulosRachaProfiles(getRows) {
+  const profiles = buildTitulosByPlayerFromRachas(getRows);
+  return profiles.map(renderTituloProfileCard).join("");
+}
+
+// DÍA: cada racha se calcula con los datos disponibles hasta ese día
+// puntual (`daysUpTo` ya recorta `closedDays` dentro de cada
+// `dayFn` de `RACHAS_CONFIG`).
+function renderTitulosRachaDayReal(closedDays, dateKey) {
+  const profilesHtml = renderTitulosRachaProfiles((config) => config.dayFn(closedDays, dateKey));
+  if (!profilesHtml) {
+    return `
+      <div class="stats-empty-banner">
+        <span class="stats-empty-banner-icon" aria-hidden="true">🔥</span>
+        <p>Todavía no hay ninguna racha en curso hasta este día, así que no hay ningún título por racha para repartir.</p>
+      </div>
+    `;
+  }
+  return `<div class="card-list titulos-profile-list">${profilesHtml}</div>`;
+}
+
+// TOTAL: cada racha se calcula sobre todo el historial de días
+// cerrados del viaje.
+function renderTitulosRachaTotalReal(closedDays) {
+  const profilesHtml = renderTitulosRachaProfiles((config) => config.totalFn(closedDays));
+  if (!profilesHtml) {
+    return `
+      <div class="stats-empty-banner">
+        <span class="stats-empty-banner-icon" aria-hidden="true">🔥</span>
+        <p>Todavía no hay ninguna racha registrada en todo el viaje, así que no hay ningún título por racha para repartir.</p>
+      </div>
+    `;
+  }
+  return `<div class="card-list titulos-profile-list">${profilesHtml}</div>`;
+}
+
+function renderTitulosRachaPanel() {
+  const panel = document.getElementById("titulos-racha-panel");
+  if (!panel) return;
+  const closedDays = getStatsClosedDays();
+
+  const navDir = titulosRachaNavDir;
+  titulosRachaNavDir = 0;
+  const innerClass = navDir === 1 ? "stats-slide-next" : navDir === -1 ? "stats-slide-prev" : "";
+
+  if (titulosRachaTab === "dia") {
+    if (titulosRachaDayIndex === null || titulosRachaDayIndex >= closedDays.length) {
+      titulosRachaDayIndex = closedDays.length - 1;
+    }
+
+    const hasDays = closedDays.length > 0;
+    const currentKey = hasDays ? closedDays[titulosRachaDayIndex] : null;
+    const atFirst = !hasDays || titulosRachaDayIndex <= 0;
+    const atLast = !hasDays || titulosRachaDayIndex >= closedDays.length - 1;
+
+    panel.innerHTML = `
+      <div class="stats-panel-inner ${innerClass}">
+        <div class="stats-day-nav">
+          <button type="button" id="titulos-racha-day-prev" class="stats-day-btn" ${atFirst ? "disabled" : ""} aria-label="Día anterior">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <div class="stats-day-label">
+            ${hasDays ? `<strong>${formatDailyDate(currentKey)}</strong>` : `<strong>Sin días cerrados</strong>`}
+          </div>
+          <button type="button" id="titulos-racha-day-next" class="stats-day-btn" ${atLast ? "disabled" : ""} aria-label="Día siguiente">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+        ${
+          hasDays
+            ? ""
+            : `<div class="stats-empty-banner"><span class="stats-empty-banner-icon" aria-hidden="true">🔥</span><p>Todavía no hay días cerrados del viaje. En cuanto se registre e importe el primer día completo, vas a poder ver los títulos por racha hasta ese día acá.</p></div>`
+        }
+        ${hasDays ? renderTitulosRachaDayReal(closedDays, currentKey) : ""}
+      </div>
+    `;
+
+    if (hasDays) {
+      document.getElementById("titulos-racha-day-prev").addEventListener("click", () => {
+        if (titulosRachaDayIndex > 0) {
+          titulosRachaDayIndex -= 1;
+          titulosRachaNavDir = -1;
+          renderTitulosRachaPanel();
+        }
+      });
+      document.getElementById("titulos-racha-day-next").addEventListener("click", () => {
+        if (titulosRachaDayIndex < closedDays.length - 1) {
+          titulosRachaDayIndex += 1;
+          titulosRachaNavDir = 1;
+          renderTitulosRachaPanel();
+        }
+      });
+    }
+  } else {
+    const hasDays = closedDays.length > 0;
+    panel.innerHTML = `
+      <div class="stats-panel-inner ${innerClass}">
+        <div class="stats-day-nav stats-day-nav-total">
+          <span class="stats-day-btn stats-day-btn-ghost" aria-hidden="true"></span>
+          <div class="stats-day-label">
+            <strong>Todo el viaje</strong>
+            <span class="stats-day-sub">${closedDays.length} día${closedDays.length === 1 ? "" : "s"} cerrado${closedDays.length === 1 ? "" : "s"}</span>
+          </div>
+          <span class="stats-day-btn stats-day-btn-ghost" aria-hidden="true"></span>
+        </div>
+        ${
+          hasDays
+            ? ""
+            : `<div class="stats-empty-banner"><span class="stats-empty-banner-icon" aria-hidden="true">🔥</span><p>Todavía no hay días cerrados del viaje. En cuanto se registre e importe el primer día completo, vas a poder ver los títulos por racha de todo el viaje acá.</p></div>`
+        }
+        ${hasDays ? renderTitulosRachaTotalReal(closedDays) : ""}
+      </div>
+    `;
+  }
+
+  animateRankingBars(panel);
+  observeStatsSectionHeadings(panel);
+}
+
+function renderTitulosRachaScreen() {
+  const main = document.getElementById("titulos-racha-main");
+  main.innerHTML = `
+    ${renderTitulosSourceNote("🔥", "#ff5470", "Estos títulos salen de la <strong>racha más larga de días consecutivos</strong> cumpliendo un hábito (ir al boliche, comer quinta comida, gastar en una categoría...): se lo lleva quien sostenga la racha más larga.")}
+    <div class="stats-tabs" role="tablist">
+      <button type="button" class="stats-tab${titulosRachaTab === "dia" ? " active" : ""}" data-tab="dia" role="tab" aria-selected="${titulosRachaTab === "dia"}">Día</button>
+      <button type="button" class="stats-tab${titulosRachaTab === "total" ? " active" : ""}" data-tab="total" role="tab" aria-selected="${titulosRachaTab === "total"}">Total</button>
+    </div>
+    <div id="titulos-racha-panel"></div>
+  `;
+
+  main.querySelectorAll(".stats-tab").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (titulosRachaTab === btn.dataset.tab) return;
+      titulosRachaTab = btn.dataset.tab;
+      renderTitulosRachaPanel();
+      main.querySelectorAll(".stats-tab").forEach((b) => {
+        b.classList.toggle("active", b === btn);
+        b.setAttribute("aria-selected", b === btn ? "true" : "false");
+      });
+    });
+  });
+
+  renderTitulosRachaPanel();
 }
 
 /* -----------------------------------------------------------
@@ -4013,6 +4401,7 @@ function navigate(route) {
     showScreen("titulos-encuesta");
   } else if (route === "titulos-racha") {
     location.hash = "#/titulos-racha";
+    renderTitulosRachaScreen();
     showScreen("titulos-racha");
   } else if (route === "previas-jere") {
     location.hash = "#/previas-jere";

@@ -922,10 +922,11 @@ Home y no a otro lado):
    estadística" (estado propio `titulosEncuestaTab`), otorga
    títulos a partir de encuestas votadas por los participantes en
    vez de estadísticas medidas por la app.
-3. **Títulos por racha** (`#/titulos-racha`) — mismo tratamiento de
-   placeholder que tenía antes "Por encuesta". Pensada para títulos
-   por días consecutivos cumpliendo un hábito (ej. rachas de
-   Registro diario).
+3. **Títulos por racha** (`#/titulos-racha`, implementado — ver más
+   abajo) — mismas pestañas **Día / Total** (estado propio
+   `titulosRachaTab`), otorga títulos a partir de la racha más larga
+   de días consecutivos cumpliendo un hábito (ej. ir al boliche
+   varios días seguidos).
 
 ### Títulos por estadística (implementado — cálculo real)
 
@@ -1003,6 +1004,17 @@ Estadísticas:
     ningún título repartido y misma estética "Bariloche" del resto
     de `/admin` — ver `.titulo-profile-card`/`.titulo-badge` en
     `styles.css`.
+  - **Pulido visual final (implementado, `v0.44.0`)**: nombre del
+    jugador con más jerarquía (más grande, recorte por ellipsis si es
+    largo), avatar más grande con anillo doble, mayor separación
+    entre perfiles de jugador, insignias de título con más aire e
+    ícono de medallón más grande, watermark de 🏆 muy translúcido
+    puramente decorativo, y una nota corta (`.titulos-source-note`)
+    arriba de las pestañas Día/Total que aclara en una oración de
+    dónde sale el título de esa subsección puntual. Nada de esto
+    toca el cálculo: sigue siendo `rows[0]` de las mismas
+    `dayFn`/`totalFn` de siempre, y sigue sin haber barras
+    horizontales ni número de puesto.
 - No se agregaron todavía títulos por categoría de gasto en
   particular ni títulos compuestos entre varias estadísticas (fuera
   de alcance de este pase).
@@ -1044,11 +1056,18 @@ estado independiente `titulosEncuestaDayIndex`).
   reutiliza tal cual `renderTituloProfileCard`/`renderTituloBadge`
   (perfil del jugador con avatar + nombre, lista de insignias con
   ícono/nombre del título/descripción debajo), sin ranking de
-  barras ni número de puesto. Ejemplo:
+  barras ni número de puesto — incluye el mismo pulido visual final
+  de `v0.44.0` (ver "Pulido visual final" dentro de "Títulos por
+  estadística" más arriba), por ser el mismo componente. Arriba de
+  las pestañas Día/Total lleva su propia nota de origen ("🗳️ ...
+  encuestas votadas por los participantes...",
+  `renderTitulosSourceNote`) para dejar claro que, a diferencia de
+  "Por estadística", estos títulos salen de una votación y no de un
+  dato medido por la app. Ejemplo:
 
   ```
   GER
-  • El más destruido
+  🏆 El más destruido
     Ganó la votación de "¿Quién estuvo más destruido anoche?" · 3 votos
   ```
 
@@ -1061,6 +1080,80 @@ estado independiente `titulosEncuestaDayIndex`).
 - No se agregaron todavía títulos compuestos entre varias encuestas
   ni encuestas nuevas más allá de "¿Quién estuvo más destruido
   anoche?" (fuera de alcance de este pase).
+
+### Títulos por racha (implementado — cálculo real)
+
+Títulos que se otorgan a partir de la **MEJOR RACHA de días
+consecutivos** cumpliendo un hábito — no de un valor puntual de un
+día ni de una votación. Misma estructura de pantalla que "Por
+estadística"/"Por encuesta": pestañas **Día / Total**
+(`titulosRachaTab`), con su propia barra `← día →` sobre los mismos
+días cerrados (`getStatsClosedDays()`, estado independiente
+`titulosRachaDayIndex`).
+
+- **"Racha" = días consecutivos en el calendario**, no solo índices
+  consecutivos dentro de la lista de días cerrados: si hay un día
+  sin cerrar en el medio, la racha se corta ahí aunque los dos días
+  "cerrados" que lo rodean hayan cumplido el hábito
+  (`isNextDayKey`/`longestStreak` en `script.js`).
+- **5 tipos de racha implementados** (`RACHAS_CONFIG`), nombres
+  **provisionales** (`provisional: true`, misma convención que
+  `TITULOS_CONFIG`, fáciles de renombrar más adelante):
+  - 🕺 **"Rey de la noche"** — mayor racha de días yendo al boliche
+    (`entry.computed.bolicheMinutes` no nulo ese día).
+  - 🍔 **"Racha comilona"** — mayor racha de días comiendo quinta
+    comida (`entry.fifthMeal === "yes"`).
+  - 🚽 **"Intestino de hierro"** — mayor racha de días yendo al baño
+    (`entry.bathroom > 0`).
+  - 🍫 **"Racha dulce"** — mayor racha de días con al menos un gasto
+    en la categoría Chocolates (`dayExpenses()`).
+  - 🍷 **"Racha alcohólica"** — mayor racha de días con al menos un
+    gasto en la categoría Alcohol (`dayExpenses()`).
+- **DÍA**: la racha se calcula con los datos disponibles **hasta ese
+  día** (todo el historial desde el principio del viaje hasta el día
+  seleccionado en la barra `← día →`, `daysUpTo()`) — a diferencia
+  de "Por estadística"/"Por encuesta", donde DÍA usa solo el dato de
+  ESE día puntual. Una racha, por definición, necesita el historial
+  previo.
+- **TOTAL**: la racha se calcula con todo el historial de días
+  cerrados del viaje.
+- **Sin racha, sin título**: un jugador que nunca cumplió el hábito
+  en el período mostrado (racha 0) no entra en el cálculo — no se
+  otorga el título (mismo criterio de "no inventar nada" que usan
+  "Por estadística"/"Por encuesta"); se muestra el mismo tipo de
+  `.stats-empty-banner` explicativo cuando nadie tiene ninguna racha.
+- **Empates resueltos correctamente**: si dos o más jugadores quedan
+  con la misma racha máxima, el título se reparte entre **todos**
+  los empatados — mismo mecanismo que "Por encuesta"
+  (`buildTitulosByPlayerAllTiedWinners`, generalizada a partir de la
+  función que antes usaba solo "Por encuesta").
+- **Misma presentación visual que "Por estadística"/"Por
+  encuesta" — exactamente**: reutiliza tal cual
+  `renderTituloProfileCard`/`renderTituloBadge` (perfil del jugador
+  con avatar + nombre, lista de insignias con ícono/nombre del
+  título/descripción debajo), nunca como un ranking de barras —
+  incluye el mismo pulido visual final de `v0.44.0`. Arriba de las
+  pestañas Día/Total lleva su propia nota de origen ("🔥 ... racha
+  más larga de días consecutivos...", `renderTitulosSourceNote`)
+  para dejar claro que estos títulos salen de una racha y no de un
+  valor puntual ni de una votación. Ejemplo:
+
+  ```
+  GER
+  🏆 Rey de la noche
+    Mayor racha de días yendo al boliche: 4 días
+  ```
+
+- **Preparado para agregar tipos de racha futuros**:
+  `RACHAS_CONFIG` (`script.js`) es un arreglo de configuración,
+  cada entrada `{ key, icon, accent, title, caption, provisional,
+  dayFn, totalFn }`, igual que `TITULOS_CONFIG`/`ENCUESTAS_CONFIG`.
+  Agregar un tipo de racha nuevo (u otra categoría de gasto) es
+  sumar una entrada acá, con su propio `predicate(player, dateKey)`
+  — no hace falta tocar el motor de rachas ni el resto del render.
+- No se agregaron todavía rachas compuestas entre varios hábitos ni
+  categorías de gasto más allá de Chocolates/Alcohol (fuera de
+  alcance de este pase).
 
 ### Diseño e integración
 
@@ -1081,13 +1174,12 @@ animación nueva.
 
 ### Pendiente
 
-- Cálculo de rachas (días consecutivos) para "Títulos por racha" —
-  "Por estadística" y "Por encuesta" ya tienen cálculo real, ver
-  arriba.
 - Nombres definitivos para los títulos marcados `provisional: true`
-  en `TITULOS_CONFIG`.
-- Títulos por categoría de gasto en particular y títulos compuestos
-  entre varias estadísticas.
+  en `TITULOS_CONFIG` y en `RACHAS_CONFIG` (las 3 subsecciones de
+  Títulos ya tienen cálculo real, ver arriba).
+- Títulos por categoría de gasto en particular (más allá de
+  Chocolates/Alcohol en "Por racha") y títulos compuestos entre
+  varias estadísticas o entre varios hábitos de racha.
 
 
 ## Diseño
