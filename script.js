@@ -403,7 +403,7 @@ function renderHome(user) {
   const fuente = contextoAudio.createMediaElementSource(turip);
   const controlVolumen = contextoAudio.createGain();
 
-  controlVolumen.gain.value = 0.1; 
+  controlVolumen.gain.value = 0.02; 
 
   fuente.connect(controlVolumen);
   controlVolumen.connect(contextoAudio.destination);
