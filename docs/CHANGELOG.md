@@ -1,5 +1,53 @@
 # CHANGELOG
 
+## v0.45.0 (Modo prueba: `testData()` / `clearTestData()`)
+
+Herramienta de testing exclusiva de consola, **aislada del
+funcionamiento normal de la app** (no agrega ninguna pantalla, botón
+ni ruta). No se creó ninguna estructura de datos nueva: reutiliza tal
+cual `userData:<id>.money`/`dailyLog` y `adminPlayers` exactamente
+como ya los escribe la app real.
+
+- **`testData()`**: genera para TODOS los `PARTICIPANTS` un saldo
+  inicial ficticio ($200.000–$400.000, nunca mostrado ni usado en
+  estadísticas), gastos variados en las 7 categorías vigentes (nunca
+  Transporte, con nombre/monto/cantidad de compras distintos por
+  jugador), algunas ganancias aleatorias, y 6 días de Registro diario
+  ficticios (sueño, siesta, quinta comida, baño 0–5, salida del
+  boliche siempre posterior a la 01:00 cuando corresponde, y voto de
+  la encuesta "¿Quién estuvo más destruido anoche?"). El gasto total
+  de cada jugador deja entre 0% y 20% del saldo inicial sin gastar y
+  nunca supera el saldo disponible (inicial + ganancias).
+- Los datos se escriben en `userData:<id>` (para que Dinero/Registro
+  diario/Envío de datos del propio usuario funcionen con datos de
+  prueba) **y** en `adminPlayers` (porque Estadísticas/Títulos/Rachas
+  siempre leen de ahí, nunca de `userData:<id>` directamente — ver
+  SPEC.md → "Estadísticas"), usando el mismo `EXPORT_CODE_VERSION` y
+  la misma forma de objeto (`{ id, name, data, sourceVersion,
+  importedAt, updatedAt }`) que ya escribe `confirmAdminImport`.
+- **Aislamiento y reversión sin pérdida de datos reales**: antes de
+  sobreescribir nada, `testData()` guarda un backup (`localStorage`,
+  clave `__testDataBackup`) de lo que hubiera antes en
+  `userData:<id>` y en `adminPlayers[id]` de cada jugador (o `null`
+  si no había nada). **`clearTestData()`** restaura ese backup tal
+  cual (o borra la clave si no existía antes) y elimina el backup —
+  nunca toca `currentUser` ni ningún otro dato.
+- Los días de prueba se calculan sobre `getSimulatedToday()` (respeta
+  la herramienta de testing `day()` si está activa), siempre como
+  días cerrados válidos para `getStatsClosedDays()`.
+- No se agregó ninguna UI: ambas funciones se exponen únicamente en
+  `window.testData`/`window.clearTestData` para uso manual desde la
+  consola del navegador, igual que `day()`.
+- Verificado: `node --check script.js` sin errores; simulación
+  completa en Node (localStorage simulado) corriendo `testData()`
+  para los 11 participantes — cada uno con las 7 categorías de gasto
+  presentes, ninguna con "Transporte", gasto total siempre ≤ saldo
+  disponible, salida del boliche siempre > 01:00 cuando fue, 6 días
+  cerrados detectados por `getStatsClosedDays()` — y luego
+  `clearTestData()` restaurando exactamente los datos reales previos
+  de un usuario de prueba y dejando `adminPlayers` vacío (no había
+  ninguno antes de `testData()`).
+
 ## v0.44.0 (Títulos — pulido visual final de las 3 subsecciones)
 
 Pulido puramente **visual/presentacional** de `#/titulos-estadistica`,

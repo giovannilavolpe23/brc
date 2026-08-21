@@ -13,7 +13,7 @@
    ----------------------------------------------------------- */
 const PARTICIPANTS = [
   { id: "gio", name: "Gio", password: "lv", isAdmin: true },
-  { id: "marto", name: "Marto", password: "ze" },
+  { id: "marto", name: "Marto", password: "ze"},
   { id: "sebas", name: "Sebas", password: "do" },
   { id: "ger", name: "Ger", password: "te" },
   { id: "nerea", name: "Nerea", password: "ri" },
@@ -394,11 +394,30 @@ function renderHome(user) {
   if (greetQuestion) {
     greetQuestion.textContent = pickRandomHomeGreetingQuestion();
     if (greetQuestion.textContent == "Turip ip ip") {
-      const turip = new Audio('ip.mp3');
-      turip.volume = 0.02;
-      turip.play()
-    }
+  const turip = new Audio('ip.mp3');
+  turip.crossOrigin = "anonymous";
+
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  const contextoAudio = new AudioContext();
+
+  const fuente = contextoAudio.createMediaElementSource(turip);
+  const controlVolumen = contextoAudio.createGain();
+
+  controlVolumen.gain.value = 0.1; 
+
+  fuente.connect(controlVolumen);
+  controlVolumen.connect(contextoAudio.destination);
+
+  if (contextoAudio.state === 'suspended') {
+    contextoAudio.resume();
   }
+  
+  turip.currentTime = 0; 
+  turip.play().catch(() => {});
+  }
+}
+
+
   const previasSection = document.getElementById("home-previas-section");
   if (previasSection) {
     previasSection.hidden = !canRegisterLocalPrevia(user.id);
@@ -4736,6 +4755,273 @@ function initLoginParallax() {
   }
   window.addEventListener("scroll", onLoginParallaxScroll, { passive: true });
   window.addEventListener("resize", onLoginParallaxScroll, { passive: true });
+}
+
+/* =============================================================
+   MODO PRUEBA — testData() / clearTestData()
+   =============================================================
+   Herramienta exclusiva de testing manual (consola del navegador),
+   totalmente aislada del funcionamiento normal de la app. No agrega
+   ninguna estructura nueva de datos: reutiliza tal cual userData:<id>
+   (money/dailyLog) y adminPlayers, exactamente como los escribe la
+   app real (ver ensureMoneyData/ensureDailyLogData, "money" en
+   submitSheet, y confirmAdminImport).
+
+   testData():
+     - genera saldo inicial, gastos (todas las categorías vigentes
+       salvo Transporte), ganancias y varios días de Registro diario
+       ficticios para TODOS los PARTICIPANTS;
+     - los escribe en userData:<id> (para que el propio usuario vea
+       sus datos en Dinero/Registro diario/Envío de datos) Y en
+       adminPlayers (porque Estadísticas/Títulos/Rachas SIEMPRE leen
+       de adminPlayers, nunca de userData:<id> directamente — ver
+       SPEC.md → "Estadísticas");
+     - antes de sobreescribir, guarda un backup de lo que hubiera en
+       ambas claves para cada jugador.
+
+   clearTestData() restaura ese backup (o borra la clave si no había
+   nada real antes), eliminando únicamente lo generado por testData().
+   ----------------------------------------------------------- */
+
+const TEST_DATA_MARKER = "__isTestData";
+const TEST_BACKUP_KEY = "__testDataBackup";
+
+function tdRandInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+function tdPick(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+function tdTimeStr(hh, mm) {
+  return `${pad2(hh % 24)}:${pad2(mm)}`;
+}
+
+// Descripciones variadas por categoría (solo para que los gastos de
+// prueba no se vean todos iguales; no es una estructura nueva, sigue
+// siendo el mismo campo "name" de siempre).
+const TEST_EXPENSE_DESCRIPTIONS = {
+  Chocolates: ["Cofler", "Bon o Bon", "Alfajor Guaymallén", "Milka", "Rocklets"],
+  Alcohol: ["Fernet", "Cerveza", "Gin tonic", "Vino", "Vodka"],
+  Boliche: ["Entrada", "Guardarropa", "Trago en la barra", "Remis a la vuelta"],
+  Comida: ["Panchos", "Hamburguesa", "Empanadas", "Pizza", "Sandwich"],
+  Bebida: ["Agua", "Coca Cola", "Gatorade", "Jugo"],
+  Actividades: ["Excursión Catedral", "Alquiler de esquís", "Circuito chico", "Rafting"],
+  Otros: ["Farmacia", "Recuerdo", "Carga de celular", "Varios"],
+};
+
+const TEST_INCOME_NAMES = ["Ganancia en cartas", "Me prestaron plata", "Cambio de dólares", "Ganancia"];
+
+// Un registro diario de prueba, con la misma forma exacta de
+// defaultDailyEntry()/computeDailyDerived() ya existentes.
+function generateTestDailyEntry(otherIds) {
+  const entry = defaultDailyEntry();
+
+  if (Math.random() < 0.85) {
+    entry.sleep.bedtime = tdTimeStr(tdPick([22, 23, 0, 1, 2]), tdPick([0, 10, 20, 30, 40, 50]));
+    entry.sleep.wake = tdTimeStr(tdPick([7, 8, 9, 10, 11, 12, 13]), tdPick([0, 10, 20, 30, 40, 50]));
+  } else {
+    entry.sleep.didNotSleep = true;
+  }
+
+  if (Math.random() < 0.4) {
+    const start = tdTimeStr(tdPick([14, 15, 16, 17, 18]), tdPick([0, 20, 40]));
+    const endMinutes = Math.min(timeToMinutes(start) + tdPick([20, 30, 40, 60, 90, 120]), timeToMinutes("22:00"));
+    entry.nap = { start, end: tdTimeStr(Math.floor(endMinutes / 60), endMinutes % 60) };
+  }
+
+  entry.fifthMeal = Math.random() < 0.5 ? "yes" : "no";
+  entry.bathroom = tdRandInt(0, 5);
+
+  if (Math.random() < 0.6) {
+    // La llegada al boliche es fija a la 01:00, así que la salida
+    // siempre tiene que ser posterior.
+    const exitHour = tdPick([1, 2, 3, 4, 5, 6]);
+    const exitMin = exitHour === 1 ? tdPick([10, 20, 30, 40, 50]) : tdPick([0, 10, 20, 30, 40, 50]);
+    entry.boliche.time = tdTimeStr(exitHour, exitMin);
+  } else {
+    entry.boliche.didNotGo = true;
+  }
+
+  entry.destroyedVote = otherIds.length && Math.random() < 0.7 ? tdPick(otherIds) : null;
+  return entry;
+}
+
+// Inverso de isoToTripDayKey: para que un gasto/ganancia "cargado" el
+// día siguiente a dayKey quede atribuido exactamente a dayKey (misma
+// regla de corrimiento que ya usa el resto de la app).
+function tdTripDayKeyToIso(dayKey) {
+  const [y, m, d] = dayKey.split("-").map(Number);
+  const date = new Date(y, m - 1, d + 1, tdRandInt(8, 20), tdRandInt(0, 59));
+  return date.toISOString();
+}
+
+function testData() {
+  const now = getSimulatedToday();
+  const NUM_DAYS = 6;
+  const backup = { userData: {}, adminPlayers: {} };
+  const adminPlayers = getAdminPlayers();
+
+  PARTICIPANTS.forEach((participant) => {
+    const id = participant.id;
+
+    // Backup de lo que hubiera ANTES de pisar nada, para poder
+    // restaurarlo tal cual con clearTestData().
+    backup.userData[id] = localStorage.getItem(STORAGE_KEYS.userData(id));
+    backup.adminPlayers[id] = adminPlayers[id] || null;
+
+    const initialBalance = tdRandInt(200000, 400000);
+
+    // Días de prueba: los últimos NUM_DAYS días de calendario antes de
+    // "hoy" (respeta day() si está simulando otra fecha), siempre
+    // días cerrados según getStatsClosedDays().
+    const dayKeys = [];
+    for (let i = NUM_DAYS; i >= 1; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      dayKeys.push(`${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`);
+    }
+
+    const otherIds = PARTICIPANTS.filter((p) => p.id !== id).map((p) => p.id);
+    const dailyEntries = {};
+    dayKeys.forEach((key) => {
+      const entry = generateTestDailyEntry(otherIds);
+      entry.computed = computeDailyDerived(entry);
+      dailyEntries[key] = entry;
+    });
+
+    const movements = [];
+
+    // Ganancias (0 a 2), solo si corresponde ese día.
+    let incomeTotal = 0;
+    const incomeCount = tdRandInt(0, 2);
+    for (let i = 0; i < incomeCount; i++) {
+      const amount = tdRandInt(5000, 30000);
+      incomeTotal += amount;
+      movements.push({
+        id: genId(),
+        type: "income",
+        name: tdPick(TEST_INCOME_NAMES),
+        amount,
+        date: tdTripDayKeyToIso(tdPick(dayKeys)),
+      });
+    }
+
+    // Gastos: todas las categorías vigentes (nunca Transporte),
+    // dejando entre 0% y 20% del saldo inicial sin gastar, sin
+    // superar nunca el saldo disponible (inicial + ganancias).
+    const spendableFraction = 0.8 + Math.random() * 0.2; // 80%-100%
+    const targetSpend = initialBalance * spendableFraction;
+    const weights = EXPENSE_CATEGORIES.map(() => 0.5 + Math.random());
+    const weightSum = weights.reduce((a, b) => a + b, 0);
+
+    EXPENSE_CATEGORIES.forEach((category, idx) => {
+      const categoryBudget = targetSpend * (weights[idx] / weightSum);
+      const purchaseCount = tdRandInt(1, 4);
+      const purchaseWeights = Array.from({ length: purchaseCount }, () => 0.4 + Math.random());
+      const pWeightSum = purchaseWeights.reduce((a, b) => a + b, 0);
+      for (let i = 0; i < purchaseCount; i++) {
+        const rawAmount = categoryBudget * (purchaseWeights[i] / pWeightSum);
+        const amount = Math.max(500, Math.round(rawAmount / 100) * 100);
+        movements.push({
+          id: genId(),
+          type: "expense",
+          name: tdPick(TEST_EXPENSE_DESCRIPTIONS[category]),
+          category,
+          amount,
+          date: tdTripDayKeyToIso(tdPick(dayKeys)),
+        });
+      }
+    });
+
+    // Nunca superar el saldo disponible: si por redondeos el total de
+    // gastos se pasara del máximo permitido, se escala todo hacia abajo.
+    const maxAllowed = initialBalance + incomeTotal;
+    const expenseTotal = movements.filter((m) => m.type === "expense").reduce((sum, m) => sum + m.amount, 0);
+    if (expenseTotal > maxAllowed) {
+      const scale = (maxAllowed * 0.95) / expenseTotal;
+      movements.forEach((m) => {
+        if (m.type === "expense") m.amount = Math.max(500, Math.round((m.amount * scale) / 100) * 100);
+      });
+    }
+
+    // 1) userData:<id> — para que la vista del propio usuario (Dinero,
+    //    Registro diario, Envío de datos) funcione con datos de prueba.
+    const userData = {
+      id,
+      createdAt: new Date().toISOString(),
+      [TEST_DATA_MARKER]: true,
+      money: { initialBalance, movements: JSON.parse(JSON.stringify(movements)) },
+      dailyLog: { entries: JSON.parse(JSON.stringify(dailyEntries)) },
+    };
+    saveUserData(id, userData);
+
+    // 2) adminPlayers[id] — Estadísticas/Títulos/Rachas siempre leen de
+    //    acá (nunca de userData:<id> directamente).
+    adminPlayers[id] = {
+      id,
+      name: participant.name,
+      data: { initialBalance, movements, dailyEntries },
+      sourceVersion: EXPORT_CODE_VERSION,
+      importedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      [TEST_DATA_MARKER]: true,
+    };
+  });
+
+  saveAdminPlayers(adminPlayers);
+  localStorage.setItem(TEST_BACKUP_KEY, JSON.stringify(backup));
+  console.log(
+    `[testData] Datos ficticios generados para ${PARTICIPANTS.length} jugadores (${NUM_DAYS} días cada uno). Usá clearTestData() para revertir.`
+  );
+  refreshCurrentScreenForDaySim();
+}
+
+function clearTestData() {
+  const raw = localStorage.getItem(TEST_BACKUP_KEY);
+  if (!raw) {
+    console.log("[clearTestData] No hay datos de prueba activos (no se encontró ningún backup de testData()).");
+    return;
+  }
+  let backup;
+  try {
+    backup = JSON.parse(raw);
+  } catch (e) {
+    backup = null;
+  }
+  if (!backup) {
+    localStorage.removeItem(TEST_BACKUP_KEY);
+    return;
+  }
+
+  Object.keys(backup.userData).forEach((id) => {
+    const key = STORAGE_KEYS.userData(id);
+    const original = backup.userData[id];
+    if (original === null || original === undefined) {
+      localStorage.removeItem(key);
+    } else {
+      localStorage.setItem(key, original);
+    }
+  });
+
+  const players = getAdminPlayers();
+  Object.keys(backup.adminPlayers).forEach((id) => {
+    const original = backup.adminPlayers[id];
+    if (original) {
+      players[id] = original;
+    } else {
+      delete players[id];
+    }
+  });
+  saveAdminPlayers(players);
+
+  localStorage.removeItem(TEST_BACKUP_KEY);
+  console.log("[clearTestData] Datos de prueba eliminados. Datos reales (si había) restaurados tal cual estaban.");
+  refreshCurrentScreenForDaySim();
+}
+
+if (typeof window !== "undefined") {
+  window.testData = testData;
+  window.clearTestData = clearTestData;
 }
 
 /* -----------------------------------------------------------

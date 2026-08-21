@@ -136,6 +136,22 @@ herramienta de testing `day(dia, mes)` (ver "Reglas para IA" /
 `CURRENT_STATE.md`), en cuyo caso usa esa fecha simulada. Nunca hay
 una fecha hardcodeada en el HTML/JS de esta sección.
 
+## Modo prueba (testing, `testData()` / `clearTestData()`)
+
+Herramienta exclusiva de consola del navegador, aislada del
+funcionamiento normal de la app (sin UI, sin ruta, sin ejecución
+automática):
+
+- `testData()` genera datos ficticios para todos los participantes
+  (saldo inicial de referencia, gastos en las 7 categorías vigentes,
+  ganancias y varios días de Registro diario), usando exactamente las
+  mismas estructuras (`userData:<id>`, `adminPlayers`) que ya escribe
+  el resto de la app.
+- `clearTestData()` elimina únicamente lo generado por `testData()`,
+  restaurando los datos reales previos de cada jugador si existían.
+- Detalle completo de implementación y verificación en
+  `CURRENT_STATE.md` (v0.45.0) y `CHANGELOG.md`.
+
 ## Encuesta diaria: "¿Quién estuvo más destruido anoche?" (implementado)
 
 Dentro de Registro diario, además de los datos ya existentes

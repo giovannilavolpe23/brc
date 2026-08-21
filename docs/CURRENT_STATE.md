@@ -2,7 +2,64 @@
 
 ## Versión
 
-v0.44.0 — Títulos: pulido visual final de las 3 subsecciones
+v0.45.0 — Modo prueba: `testData()` / `clearTestData()`
+
+## v0.45.0 — Modo prueba: `testData()` / `clearTestData()`
+
+Nueva herramienta de testing manual, exclusiva de consola del
+navegador (`window.testData`, `window.clearTestData`), totalmente
+aislada del funcionamiento normal de la app — igual que `day()`
+(v0.16.0): no agrega ninguna pantalla, ruta ni botón visible.
+
+- **`testData()`**: genera, para **todos** los `PARTICIPANTS`, datos
+  ficticios reutilizando exactamente las estructuras ya existentes:
+  - Saldo inicial (`money.initialBalance`): aleatorio entre $200.000
+    y $400.000 — solo referencia interna para generar los gastos,
+    nunca mostrado en ningún lado (mismo criterio que ya regía para
+    el saldo inicial real, ver SPEC.md → "Saldo inicial — privado").
+  - Gastos (`money.movements`, `type: "expense"`) en las 7
+    categorías vigentes de `EXPENSE_CATEGORIES` (nunca Transporte),
+    con nombre, monto y cantidad de compras distintos por jugador,
+    dejando entre 0% y 20% del saldo inicial sin gastar y sin superar
+    nunca el saldo disponible (inicial + ganancias).
+  - Ganancias (`type: "income"`, 0 a 2 por jugador), ya que el
+    sistema de ingresos existe (ver SPEC.md → "Dinero").
+  - 6 días de Registro diario (`dailyLog.entries`) por jugador: hora
+    de dormir/despertar y horas dormidas, siesta opcional, quinta
+    comida, veces al baño (0–5), hora de salida del boliche (siempre
+    posterior a la 01:00 cuando el jugador "fue"), y voto de la
+    encuesta "¿Quién estuvo más destruido anoche?" — todo calculado
+    con `computeDailyDerived()` real, sin reinventar ningún cálculo.
+  - Los datos se escriben en `userData:<id>` (para que el propio
+    usuario vea sus datos en Dinero/Registro diario/Envío de datos)
+    **y** en `adminPlayers` (mismo formato exacto que
+    `confirmAdminImport`: `{ id, name, data, sourceVersion,
+    importedAt, updatedAt }`), porque Estadísticas/Títulos/Rachas
+    siempre leen de `adminPlayers`, nunca de `userData:<id>`
+    directamente.
+- **`clearTestData()`**: elimina únicamente lo generado por
+  `testData()`. Antes de sobreescribir nada, `testData()` guarda un
+  backup (`localStorage`, clave `__testDataBackup`) de lo que hubiera
+  antes en `userData:<id>` y `adminPlayers[id]` de cada jugador (o
+  `null` si no había nada real todavía); `clearTestData()` restaura
+  ese backup tal cual y borra el backup. Nunca toca `currentUser` ni
+  ninguna otra clave.
+- Los días generados usan `getSimulatedToday()` (respeta `day()` si
+  está activo) y siempre quedan como días cerrados válidos para
+  `getStatsClosedDays()`, así que sirven para probar Estadísticas
+  (DÍA/TOTAL), Títulos (por estadística/encuesta/racha), rankings por
+  categoría de gasto y el propio Registro diario/Dinero del usuario.
+- No se ejecuta automáticamente ninguna función de prueba: hace falta
+  llamarlas a mano desde la consola.
+- Verificado: `node --check script.js` sin errores; simulación
+  completa en Node (con `localStorage` simulado) ejecutando
+  `testData()` para los 11 participantes — las 7 categorías de gasto
+  presentes en cada jugador, ninguna con "Transporte", gasto total
+  siempre ≤ saldo disponible, salida del boliche siempre > 01:00
+  cuando fue, 6 días cerrados detectados por `getStatsClosedDays()` —
+  y `clearTestData()` restaurando exactamente los datos reales
+  previos de un usuario de prueba, dejando `adminPlayers` vacío (no
+  había ninguno antes de correr `testData()`).
 
 ## v0.44.0 — Títulos: pulido visual final de las 3 subsecciones
 
