@@ -384,10 +384,96 @@ tener el permiso.
 estadísticas reales en rankings de barras horizontales (DÍA sobre un
 único día, TOTAL acumulando todos los días cerrados).
 
+**Implementado**: sección Ajustes → Datos, con backup completo
+exportable (ver "Ajustes — Datos (backup completo, implementado)"
+más abajo).
+
 Futuras funciones:
 
-- títulos/premios
-- backups
+- títulos/premios (ya implementado como sección propia, ver
+  "Títulos" más arriba; queda pendiente eventual ampliación de
+  categorías)
+
+## Ajustes — Datos (backup completo, implementado)
+
+Última card del hub de `/admin` (debajo de Títulos): **Ajustes**,
+ruta `#/ajustes`, exclusiva de Gio (mismas reglas que el resto de
+`/admin`). Por ahora tiene una única sección, **"Datos"**, al final
+de la página, con un botón **"Exportar backup"**.
+
+Al tocarlo, genera un único código (mismo formato/codificación que el
+"Código de intercambio" de abajo: JSON → XOR → Base64 url-safe,
+prefijo `BRL<version>.`) con **todos** los datos persistidos de la
+app, no solo los de un jugador:
+
+- jugadores (`PARTICIPANTS`);
+- `userData:<id>` completo de cada uno: saldo inicial, gastos e
+  ingresos, y el registro diario completo de todos los días (sueño,
+  siesta, quinta comida, baño, boliche y la encuesta "¿Quién estuvo
+  más destruido anoche?");
+- `adminPlayers` (el consolidado real que usan Estadísticas/Títulos/
+  Rachas, nunca `userData:<id>` directamente);
+- `adminPrevias` y las previas locales de Jere (`localPrevias:<id>`).
+
+Títulos y rachas no se guardan como dato aparte: se recalculan
+siempre a partir de lo anterior, así que ya quedan cubiertos por el
+backup sin necesidad de nada extra.
+
+El payload lleva su propia versión de formato, `BACKUP_CODE_VERSION`
+(hoy `1`, independiente de la versión del código de intercambio de un
+jugador), para poder actualizarlo más adelante sin romper backups
+viejos. Generarlo **nunca modifica ningún dato**: es una lectura pura
+de `localStorage`.
+
+El código se copia automáticamente al portapapeles al generarse (con
+el mismo fallback de `document.execCommand("copy")` que ya usa Envío
+de datos si el navegador no soporta `navigator.clipboard`), mostrando
+una confirmación visual ("✓ Backup copiado"). Reutiliza tal cual la
+estética existente (`.daily-section`, `.export-hint`,
+`.export-code-box`, `.sheet-submit`, `.daily-save-msg`), sin agregar
+ningún estilo nuevo, manteniendo el diseño mobile-first del resto de
+la app.
+
+**Implementado**: importación de este backup completo, con botón
+"Importar backup" al lado de "Exportar backup" (ver "Importar backup
+(implementado)" más abajo).
+
+## Importar backup (implementado)
+
+Botón **"Importar backup"** en la misma sección "Datos" de /admin →
+Ajustes, debajo de "Exportar backup". Permite pegar un código
+generado por "Exportar backup" y restaurar todos los datos que
+contiene.
+
+Flujo (mismo patrón de sheet multi-paso que "Actualizar código" y la
+importación de previas):
+
+1. **Pegar** el código en un textarea.
+2. **Validar** que sea un backup válido de esta app: se decodifica
+   igual que cualquier otro código (`decodeExportCode`, valida
+   prefijo/versión del string) y además se valida que el contenido
+   sea justo un backup completo (`type === "backup"`, versión de
+   backup conocida, y las 5 piezas que junta "Exportar backup":
+   jugadores, `userData` de todos, `adminPlayers`, `adminPrevias` y
+   `localPrevias`). Si algo de esto falla, se corta ahí: mensaje de
+   error claro y **ningún dato se modifica**.
+3. **Confirmar antes de reemplazar**: si es válido, se muestra una
+   previsualización (fecha de generación del backup, cantidad de
+   jugadores/gastos/ganancias/registros diarios/previas) con un botón
+   explícito de "Reemplazar datos actuales" que aclara que la acción
+   no se puede deshacer. Recién ahí, si Gio confirma, se procede.
+4. **Restaurar**: se reemplazan `userData:<id>` de cada jugador,
+   `adminPlayers`, `adminPrevias` y `localPrevias:<id>` por lo que
+   traía el backup. La sesión activa (`currentUser`) nunca se toca.
+5. **Recargar**: la app se recarga (`location.reload()`) para que
+   todo el estado en memoria (Estadísticas, Títulos, Rachas, Registro
+   diario, Dinero, Previas) arranque limpio ya sobre los datos
+   restaurados.
+
+Si el código pegado es inválido, está corrupto, incompleto o no es
+un backup de esta app (por ejemplo, es un código de intercambio de un
+solo jugador), se muestra un mensaje de error claro y no se modifica
+ningún dato existente.
 
 ## Código de intercambio (implementado)
 

@@ -2,7 +2,124 @@
 
 ## Versión
 
-v0.45.0 — Modo prueba: `testData()` / `clearTestData()`
+v0.47.0 — Ajustes → Datos: "Importar backup"
+
+## v0.47.0 — Ajustes → Datos: "Importar backup"
+
+Continúa /admin → Ajustes → Datos (v0.46.0): nuevo botón **"Importar
+backup"** debajo de "Exportar backup", mismo `daily-section`.
+
+- **Flujo** (mismo patrón multi-paso que "Actualizar código" y la
+  importación de previas, reutilizando el sheet existente
+  `openSheet`/`sheetContent`/`closeSheet`):
+  1. **Pegar**: textarea (`.admin-import-textarea`) para pegar el
+     código generado por "Exportar backup".
+  2. **Validar**: `parseAndValidatePastedBackupCode()` →
+     `decodeExportCode()` (formato/prefijo/versión del código en sí)
+     + `validateBackupImportPayload()` (estructura: `type ===
+     "backup"`, `version === BACKUP_CODE_VERSION`, y las 5 piezas de
+     `buildFullBackupPayload`: `participants`, `userData`,
+     `adminPlayers`, `adminPrevias`, `localPrevias`). Cualquier fallo
+     lanza un `Error` con mensaje claro, mostrado en `.sheet-error`
+     sin modificar nada.
+  3. **Previsualizar**: si es válido, un `.admin-preview-card` con
+     fecha de generación, cantidad de jugadores, gastos, ganancias,
+     registros diarios y previas — y un botón
+     "Reemplazar datos actuales" (`.sheet-submit.danger`) que dice
+     explícitamente que la acción reemplaza todo y no se puede
+     deshacer.
+  4. **Confirmar y restaurar**: `confirmBackupImport()` recién ahí
+     escribe `userData:<id>` de cada participante (o lo borra si el
+     backup no traía datos de ese jugador), `adminPlayers`,
+     `adminPrevias` y `localPrevias:<id>` — exactamente las mismas
+     claves que lee `buildFullBackupPayload()`. Nunca toca
+     `currentUser`: la sesión de quien importa se mantiene.
+  5. **Recargar**: termina con `location.reload()`, así todo el
+     estado en memoria de la app (Estadísticas, Títulos, Rachas,
+     Registro diario, Dinero, Previas, caches de día/tab, etc.)
+     arranca de cero ya sobre los datos restaurados, sin necesidad de
+     resetear variables una por una.
+- **Si el código es inválido, corrupto o de otro tipo/versión**: no
+  se modifica ningún dato (la validación ocurre antes de cualquier
+  escritura) y se muestra un mensaje de error claro en el sheet
+  (reutilizando `.sheet-error`, igual que "Actualizar código").
+- **Cero CSS nuevo**: reutiliza tal cual `.admin-import-textarea`,
+  `.admin-preview-card`, `.sheet-submit`, `.sheet-submit.danger`,
+  `.sheet-cancel-link`, `.sheet-error` y el propio sheet con su
+  variante `sheet-frost` (se activa automáticamente porque Ajustes
+  tiene `.admin-frost`, igual que el resto de `/admin`). Mobile-first
+  intacto.
+- Verificado en Node (`localStorage` simulado):
+  - Un texto arbitrario y un código de intercambio de un solo
+    jugador (`type` ausente, no `"backup"`) se rechazan con mensajes
+    de error distintos y claros, sin tocar `localStorage`.
+  - Ciclo completo: `testData()` (v0.45.0) + una previa de admin y
+    una previa local de Jere agregadas a mano → `generateFullBackupCode()`
+    (v0.46.0) → se simula la pérdida de `userData:<id>` de los 11
+    jugadores, `adminPlayers`, `adminPrevias` y `localPrevias:jere` →
+    se importa el mismo backup → los 4 quedan byte a byte idénticos a
+    los originales antes de simular la pérdida.
+
+## v0.46.0 — Ajustes → Datos: "Exportar backup" completo
+
+Nueva sección **/admin → Ajustes**, última card del hub de Admin
+(debajo de Títulos), misma estética `admin-frost` que el resto de
+`/admin`. Por ahora contiene una única sección, **"Datos"**, al
+final de la página, con el botón **"Exportar backup"**.
+
+- **Qué junta el backup** (`buildFullBackupPayload()`, único lugar
+  que decide el contenido — se lee siempre en el momento, nunca un
+  valor cacheado):
+  - `participants`: la lista `PARTICIPANTS` completa (jugadores).
+  - `userData`: `getUserData(id)` de **todos** los participantes tal
+    cual está en `userData:<id>` — saldo inicial, gastos e ingresos
+    (`money.movements`), y `dailyLog.entries` con cada día completo:
+    sueño (hora de dormir/despertar, `didNotSleep`), siesta, quinta
+    comida, baño (0–5), boliche (hora de salida o `didNotGo`) y la
+    encuesta "¿Quién estuvo más destruido anoche?" (`destroyedVote`).
+  - `adminPlayers`: el consolidado real que siempre usan
+    Estadísticas/Títulos/Rachas (nunca `userData:<id>` directamente).
+  - `adminPrevias` y `localPrevias:<id>` (de cada participante con
+    `canRegisterLocalPrevia`, hoy solo Jere): previas de admin y
+    previas locales.
+  - Títulos/rachas no se persisten aparte (se calculan siempre a
+    partir de lo de arriba vía `TITULOS_CONFIG`/`ENCUESTAS_CONFIG`/
+    `RACHAS_CONFIG`), así que ya quedan cubiertos sin datos extra.
+- **Formato**: mismo pipeline de codificación que el código de
+  intercambio de un jugador (`xorBytes` + `bytesToBase64Url`, prefijo
+  `BRL<version>.`), pero con una versión propia,
+  `BACKUP_CODE_VERSION` (hoy `1`), dentro del payload (`{ version,
+  type: "backup", generatedAt, participants, userData, adminPlayers,
+  adminPrevias, localPrevias }`) para poder migrar el formato más
+  adelante. `decodeExportCode()` no necesitó ningún cambio: ya es
+  agnóstico a la forma del payload.
+- **Solo lectura**: generar el backup nunca modifica `localStorage`;
+  `buildFullBackupPayload()` solo lee.
+- **UI**: al tocar "Exportar backup" se genera el código, se muestra
+  en un `<textarea readonly>` (mismo estilo `.export-code-box` que
+  Envío de datos) y se copia automáticamente al portapapeles
+  (`navigator.clipboard.writeText`, con el mismo fallback
+  `document.execCommand("copy")` si no está disponible), mostrando
+  "✓ Backup copiado" con la misma clase `.daily-save-msg` que ya usa
+  Envío de datos. No se agregó ningún estilo nuevo en `styles.css`:
+  reutiliza `.daily-section`, `.export-hint`, `.export-code-box`,
+  `.sheet-submit` y `.daily-save-msg` tal cual, manteniendo la
+  estética mobile-first existente.
+- **Ruta** `#/ajustes`, exclusiva de admin (mismas reglas que
+  `/admin`, `/previas`, `/stats`, `/titulos`): agregada a `screens`,
+  `navigate()`, `routeFromHash()`, al bottom nav (activa el tab
+  "Admin", igual que Previas/Estadísticas/Títulos) y a las listas de
+  transición animada Home↔Admin↔Ajustes, sin tocar ninguna ruta
+  existente.
+- Verificado en Node (`localStorage` simulado): con datos de prueba
+  de `testData()` (v0.45.0) más una previa de admin y una previa
+  local de Jere agregadas a mano, `generateFullBackupCode()` +
+  `decodeExportCode()` devuelven los 11 jugadores, saldo inicial y
+  las 7 categorías de gasto de cada uno, la previa de admin, la
+  previa local de Jere, y cada `dailyEntry` con todos sus campos
+  (`sleep`, `nap`, `fifthMeal`, `bathroom`, `boliche`,
+  `destroyedVote`, `computed`) intactos; y que ni `userData:<id>` ni
+  `adminPlayers` cambiaron de valor antes/después de generarlo.
 
 ## v0.45.0 — Modo prueba: `testData()` / `clearTestData()`
 

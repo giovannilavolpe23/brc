@@ -13,7 +13,7 @@
    ----------------------------------------------------------- */
 const PARTICIPANTS = [
   { id: "gio", name: "Gio", password: "lv", isAdmin: true },
-  { id: "marto", name: "Marto", password: "ze"},
+  { id: "marto", name: "Marto", password: "ze" },
   { id: "sebas", name: "Sebas", password: "do" },
   { id: "ger", name: "Ger", password: "te" },
   { id: "nerea", name: "Nerea", password: "ri" },
@@ -394,30 +394,11 @@ function renderHome(user) {
   if (greetQuestion) {
     greetQuestion.textContent = pickRandomHomeGreetingQuestion();
     if (greetQuestion.textContent == "Turip ip ip") {
-  const turip = new Audio('ip.mp3');
-  turip.crossOrigin = "anonymous";
-
-  const AudioContext = window.AudioContext || window.webkitAudioContext;
-  const contextoAudio = new AudioContext();
-
-  const fuente = contextoAudio.createMediaElementSource(turip);
-  const controlVolumen = contextoAudio.createGain();
-
-  controlVolumen.gain.value = 0.008; 
-
-  fuente.connect(controlVolumen);
-  controlVolumen.connect(contextoAudio.destination);
-
-  if (contextoAudio.state === 'suspended') {
-    contextoAudio.resume();
+      const turip = new Audio('ip.mp3');
+      turip.volume = 0.02;
+      turip.play()
+    }
   }
-  
-  turip.currentTime = 0; 
-  turip.play().catch(() => {});
-  }
-}
-
-
   const previasSection = document.getElementById("home-previas-section");
   if (previasSection) {
     previasSection.hidden = !canRegisterLocalPrevia(user.id);
@@ -1304,6 +1285,8 @@ let activeMovementId = null;
 let adminImportTargetId = null; // id del jugador; se completa recién al decodificar el código pegado
 let adminImportPendingPayload = null; // payload ya validado, pendiente de confirmar
 let adminImportStep = null; // "paste" | "preview"
+let backupImportStep = null; // "paste" | "preview"
+let backupImportPendingPayload = null; // payload de backup completo, ya validado, pendiente de confirmar
 
 function findMovement(money, id) {
   return money.movements.find((m) => m.id === id) || null;
@@ -1393,6 +1376,12 @@ function openSheet(type, movement) {
 
   if (type === "previa-import") {
     renderPreviaImportSheet();
+    sheetOverlay.classList.add("visible");
+    return;
+  }
+
+  if (type === "backup-import") {
+    renderBackupImportSheet();
     sheetOverlay.classList.add("visible");
     return;
   }
@@ -1558,6 +1547,8 @@ function closeSheet() {
   previaImportStep = null;
   previaImportPendingPayload = null;
   previaCodeTarget = null;
+  backupImportStep = null;
+  backupImportPendingPayload = null;
   currentSheetType = null;
   if (forcingInitial) {
     // No se cargó saldo inicial: volvemos a home en vez de dejar la
@@ -2568,6 +2559,279 @@ function fallbackCopy(code, onDone) {
 }
 
 /* =============================================================
+   AJUSTES — DATOS: backup completo de la app (implementado)
+   =============================================================
+   Sección "Datos" dentro de /admin → Ajustes, al final de la
+   página. Genera un único código que junta TODOS los datos
+   persistidos de la app (no solo los de un jugador, a diferencia
+   del "código de intercambio" de arriba), reutilizando exactamente
+   el mismo pipeline de codificación (xorBytes/bytesToBase64Url,
+   prefijo "BRL<version>."). No modifica ningún dato existente: es
+   de solo lectura sobre localStorage.
+   ============================================================= */
+
+const BACKUP_CODE_VERSION = 1;
+
+// Único lugar que decide qué entra en el backup completo. Se lee
+// siempre en el momento desde localStorage (nunca un valor cacheado):
+// PARTICIPANTS (jugadores), userData:<id> de todos ellos (saldo
+// inicial, gastos/ingresos, registros diarios completos — sueño,
+// siesta, quinta comida, baño, boliche y la encuesta "destroyedVote"
+// viajan dentro de dailyEntries), adminPlayers (consolidado de
+// Gio, fuente real de Estadísticas/Títulos/Rachas) y adminPrevias +
+// localPrevias:<id> (previas, tanto las de admin como las locales de
+// Jere). Títulos/rachas no se persisten aparte: se calculan siempre
+// a partir de estos mismos datos (TITULOS_CONFIG/ENCUESTAS_CONFIG/
+// RACHAS_CONFIG), así que ya quedan cubiertos.
+function buildFullBackupPayload() {
+  const userData = {};
+  PARTICIPANTS.forEach((p) => {
+    userData[p.id] = getUserData(p.id);
+  });
+
+  const localPrevias = {};
+  PARTICIPANTS.filter((p) => canRegisterLocalPrevia(p.id)).forEach((p) => {
+    const raw = localStorage.getItem(STORAGE_KEYS.localPrevias(p.id));
+    localPrevias[p.id] = raw ? JSON.parse(raw) : [];
+  });
+
+  return {
+    version: BACKUP_CODE_VERSION,
+    type: "backup",
+    generatedAt: new Date().toISOString(),
+    participants: PARTICIPANTS,
+    userData,
+    adminPlayers: getAdminPlayers(),
+    adminPrevias: JSON.parse(localStorage.getItem(STORAGE_KEYS.adminPrevias) || "[]"),
+    localPrevias,
+  };
+}
+
+function generateFullBackupCode() {
+  const payload = buildFullBackupPayload();
+  const json = JSON.stringify(payload);
+  const bytes = new TextEncoder().encode(json);
+  const obfuscated = xorBytes(bytes, EXPORT_XOR_KEY);
+  return `${EXPORT_CODE_PREFIX}${BACKUP_CODE_VERSION}.${bytesToBase64Url(obfuscated)}`;
+}
+
+function copyBackupCode(code) {
+  const msg = document.getElementById("backup-copy-msg");
+  const showCopied = () => {
+    if (!msg) return;
+    msg.classList.add("visible");
+    setTimeout(() => msg.classList.remove("visible"), 2000);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(code).then(showCopied).catch(() => fallbackCopyBackup(code, showCopied));
+  } else {
+    fallbackCopyBackup(code, showCopied);
+  }
+}
+
+function fallbackCopyBackup(code, onDone) {
+  const box = document.getElementById("backup-code-box");
+  if (!box) return;
+  box.focus();
+  box.select();
+  try {
+    document.execCommand("copy");
+    onDone();
+  } catch (e) {
+    // El usuario todavía puede seleccionar y copiar a mano.
+  }
+}
+
+function handleExportBackupClick() {
+  const code = generateFullBackupCode();
+  const box = document.getElementById("backup-code-box");
+  box.value = code;
+  box.hidden = false;
+  copyBackupCode(code);
+}
+
+/* -----------------------------------------------------------
+   AJUSTES — DATOS: "Importar backup"
+   -----------------------------------------------------------
+   Mismo patrón multi-paso (pegar -> previsualizar -> confirmar) que
+   "Actualizar código" (jugador) y "Previa import" de más arriba,
+   reutilizando el mismo sheet (openSheet/sheetContent/closeSheet) y
+   las mismas clases visuales. Valida ANTES de tocar nada: si el
+   código es inválido, corrupto o de otro tipo/versión, no se guarda
+   nada y se muestra un error claro en el propio sheet. Recién
+   después de la confirmación explícita del paso "preview" se
+   reemplazan los datos, y se recarga la app para que todo el estado
+   en memoria (pantallas, caches de Estadísticas/Registro diario,
+   etc.) arranque limpio con los datos restaurados.
+   ----------------------------------------------------------- */
+
+// Valida la ESTRUCTURA de un payload ya decodificado, comprobando
+// que sea justo un backup completo (type === "backup") de una
+// versión conocida y que traiga las 5 piezas que junta
+// buildFullBackupPayload(). Si algo falla, lanza un Error con
+// mensaje claro y no se modifica ningún dato.
+function validateBackupImportPayload(payload) {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("El código no contiene datos reconocibles.");
+  }
+  if (payload.type !== "backup") {
+    throw new Error("Este código no es un backup (parece ser otro tipo de código de esta app).");
+  }
+  if (payload.version !== BACKUP_CODE_VERSION) {
+    throw new Error("Este backup es de una versión incompatible de la app.");
+  }
+  if (!Array.isArray(payload.participants)) {
+    throw new Error("El backup no tiene la estructura de datos esperada.");
+  }
+  if (!payload.userData || typeof payload.userData !== "object") {
+    throw new Error("El backup no tiene la estructura de datos esperada.");
+  }
+  if (!payload.adminPlayers || typeof payload.adminPlayers !== "object") {
+    throw new Error("El backup no tiene la estructura de datos esperada.");
+  }
+  if (!Array.isArray(payload.adminPrevias)) {
+    throw new Error("El backup no tiene la estructura de datos esperada.");
+  }
+  if (!payload.localPrevias || typeof payload.localPrevias !== "object") {
+    throw new Error("El backup no tiene la estructura de datos esperada.");
+  }
+  return payload;
+}
+
+// Punto único: string pegado -> payload de backup validado, o
+// excepción con un mensaje ya apto para mostrar tal cual en el sheet.
+function parseAndValidatePastedBackupCode(rawCode) {
+  const code = (rawCode || "").trim();
+  if (!code) {
+    throw new Error("Pegá un código para continuar.");
+  }
+  let payload;
+  try {
+    payload = decodeExportCode(code);
+  } catch (e) {
+    throw new Error("Código inválido o incompleto. Revisá que lo hayas copiado completo.");
+  }
+  return validateBackupImportPayload(payload);
+}
+
+function openBackupImportSheet() {
+  backupImportStep = "paste";
+  backupImportPendingPayload = null;
+  openSheet("backup-import");
+}
+
+function renderBackupImportSheet() {
+  if (backupImportStep === "paste") {
+    sheetContent.innerHTML = `
+      <h2 class="sheet-title">Importar backup</h2>
+      <p class="sheet-sub">Pegá acá un código generado con "Exportar backup"</p>
+      <div class="field">
+        <label class="field-label" for="backup-import-textarea">Código</label>
+        <textarea id="backup-import-textarea" class="admin-import-textarea" rows="4" placeholder="BRL1.xxxxxxxx..." autocapitalize="off" spellcheck="false"></textarea>
+      </div>
+      <p class="sheet-error" id="sheet-error"></p>
+      <button class="sheet-submit" id="sheet-submit-btn" type="button">Continuar</button>
+      <button class="sheet-cancel-link" id="sheet-cancel-btn" type="button">Cancelar</button>
+    `;
+    document.getElementById("sheet-submit-btn").addEventListener("click", handleBackupImportPaste);
+    document.getElementById("sheet-cancel-btn").addEventListener("click", closeSheet);
+    const ta = document.getElementById("backup-import-textarea");
+    ta.addEventListener("input", () => ta.classList.remove("error"));
+    return;
+  }
+
+  if (backupImportStep === "preview") {
+    const payload = backupImportPendingPayload;
+    const playerCount = payload.participants.length;
+    const expenseCount = Object.values(payload.userData).reduce(
+      (sum, ud) => sum + ((ud && ud.money && ud.money.movements) || []).filter((m) => m.type === "expense").length,
+      0
+    );
+    const incomeCount = Object.values(payload.userData).reduce(
+      (sum, ud) => sum + ((ud && ud.money && ud.money.movements) || []).filter((m) => m.type === "income").length,
+      0
+    );
+    const dailyCount = Object.values(payload.userData).reduce(
+      (sum, ud) => sum + Object.keys((ud && ud.dailyLog && ud.dailyLog.entries) || {}).length,
+      0
+    );
+    const previaCount =
+      payload.adminPrevias.length + Object.values(payload.localPrevias).reduce((sum, arr) => sum + (arr || []).length, 0);
+
+    sheetContent.innerHTML = `
+      <h2 class="sheet-title">Confirmar importación</h2>
+      <p class="sheet-sub">Esto va a REEMPLAZAR todos los datos actuales de la app por los del backup. No se puede deshacer.</p>
+      <div class="admin-preview-card">
+        <div class="admin-preview-row"><span>Generado el</span><span>${formatDateTimeShort(payload.generatedAt)}</span></div>
+        <div class="admin-preview-row"><span>Jugadores</span><span>${playerCount}</span></div>
+        <div class="admin-preview-row"><span>Gastos</span><span>${expenseCount}</span></div>
+        <div class="admin-preview-row"><span>Ganancias</span><span>${incomeCount}</span></div>
+        <div class="admin-preview-row"><span>Registros diarios</span><span>${dailyCount}</span></div>
+        <div class="admin-preview-row"><span>Previas</span><span>${previaCount}</span></div>
+      </div>
+      <button class="sheet-submit danger" id="sheet-submit-btn" type="button">Reemplazar datos actuales</button>
+      <button class="sheet-cancel-link" id="sheet-cancel-btn" type="button">Cancelar</button>
+    `;
+    document.getElementById("sheet-submit-btn").addEventListener("click", confirmBackupImport);
+    document.getElementById("sheet-cancel-btn").addEventListener("click", closeSheet);
+    return;
+  }
+}
+
+function handleBackupImportPaste() {
+  const ta = document.getElementById("backup-import-textarea");
+  let payload;
+  try {
+    payload = parseAndValidatePastedBackupCode(ta.value);
+  } catch (e) {
+    ta.classList.add("error");
+    showSheetError(e.message);
+    return;
+  }
+
+  backupImportPendingPayload = payload;
+  backupImportStep = "preview";
+  renderBackupImportSheet();
+}
+
+// Único punto que efectivamente reemplaza datos: solo se llega acá
+// después de decodeExportCode + validateBackupImportPayload +
+// previsualización confirmada a mano. Escribe exactamente las mismas
+// claves que lee buildFullBackupPayload() (userData:<id> de cada
+// participante, adminPlayers, adminPrevias, localPrevias:<id>), y
+// nunca toca "currentUser" (la sesión activa se mantiene). Termina
+// recargando la página para que todo el estado en memoria de la app
+// arranque de cero con los datos ya restaurados.
+function confirmBackupImport() {
+  const payload = backupImportPendingPayload;
+  if (!payload) {
+    closeSheet();
+    return;
+  }
+
+  PARTICIPANTS.forEach((p) => {
+    const ud = payload.userData[p.id];
+    if (ud) {
+      saveUserData(p.id, ud);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.userData(p.id));
+    }
+  });
+
+  saveAdminPlayers(payload.adminPlayers || {});
+  saveAdminPrevias(payload.adminPrevias || []);
+
+  PARTICIPANTS.filter((p) => canRegisterLocalPrevia(p.id)).forEach((p) => {
+    const list = payload.localPrevias[p.id] || [];
+    localStorage.setItem(STORAGE_KEYS.localPrevias(p.id), JSON.stringify(list));
+  });
+
+  backupImportStep = null;
+  backupImportPendingPayload = null;
+  location.reload();
+}
+
+/* =============================================================
    ESTADÍSTICAS (ADMIN)
    =============================================================
    Estructura base de /admin → Estadísticas. Dos apartados:
@@ -3250,6 +3514,9 @@ function renderStatsPanel() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
         </div>
+        <div>
+        <button class="ffd"></button>
+        </div>
         ${
           hasDays
             ? ""
@@ -3258,6 +3525,18 @@ function renderStatsPanel() {
         ${hasDays ? renderDayStatsReal(currentKey) : renderStatsPlaceholderCards()}
       </div>
     `;
+
+    // 1. Seleccionamos el botón por su clase (.ffd)
+    const botonFfd = document.querySelector(".ffd");
+
+    // 2. Escuchamos el evento de clic
+    botonFfd.addEventListener("click", () => {
+      // 3. Creamos y reproducimos el sonido directamente
+      const sonido = new Audio('ffd.mp3');
+      sonido.currentTime = 0; // Reinicia el sonido si se pulsa varias veces
+      sonido.play().catch(error => console.log("Error al reproducir:", error));
+    });
+    
 
     if (hasDays) {
       document.getElementById("stats-day-prev").addEventListener("click", () => {
@@ -4332,6 +4611,7 @@ const screens = {
   "titulos-estadistica": document.getElementById("screen-titulos-estadistica"),
   "titulos-encuesta": document.getElementById("screen-titulos-encuesta"),
   "titulos-racha": document.getElementById("screen-titulos-racha"),
+  ajustes: document.getElementById("screen-ajustes"),
 };
 
 const bottomNav = document.getElementById("bottom-nav");
@@ -4385,7 +4665,8 @@ function navigate(route) {
     route === "titulos" ||
     route === "titulos-estadistica" ||
     route === "titulos-encuesta" ||
-    route === "titulos-racha";
+    route === "titulos-racha" ||
+    route === "ajustes";
   if (isAdminOnlyRoute && !user.isAdmin) {
     route = "home";
   }
@@ -4422,6 +4703,9 @@ function navigate(route) {
     location.hash = "#/titulos-racha";
     renderTitulosRachaScreen();
     showScreen("titulos-racha");
+  } else if (route === "ajustes") {
+    location.hash = "#/ajustes";
+    showScreen("ajustes");
   } else if (route === "previas-jere") {
     location.hash = "#/previas-jere";
     previaMode = "local";
@@ -4463,6 +4747,7 @@ function navigate(route) {
       route === "titulos-estadistica" ||
       route === "titulos-encuesta" ||
       route === "titulos-racha" ||
+      route === "ajustes" ||
       route === "money" ||
       route === "previas-jere" ||
       route === "export" ||
@@ -4470,8 +4755,8 @@ function navigate(route) {
   );
   // Dinero, Registro diario, Envío de datos y Previas (sección de
   // Jere) son parte de Home: mantenemos ese tab activo.
-  // Previas, Estadísticas y Títulos (con sus 3 subsecciones) son
-  // parte de Admin: mantenemos ese tab activo.
+  // Previas, Estadísticas, Títulos (con sus 3 subsecciones) y Ajustes
+  // son parte de Admin: mantenemos ese tab activo.
   updateNav(
     route === "money" || route === "daily" || route === "export" || route === "previas-jere"
       ? "home"
@@ -4480,7 +4765,8 @@ function navigate(route) {
         route === "titulos" ||
         route === "titulos-estadistica" ||
         route === "titulos-encuesta" ||
-        route === "titulos-racha"
+        route === "titulos-racha" ||
+        route === "ajustes"
       ? "admin"
       : route
   );
@@ -4495,6 +4781,7 @@ function routeFromHash() {
   if (hash === "titulos-estadistica") return "titulos-estadistica";
   if (hash === "titulos-encuesta") return "titulos-encuesta";
   if (hash === "titulos-racha") return "titulos-racha";
+  if (hash === "ajustes") return "ajustes";
   if (hash === "previas-jere") return "previas-jere";
   if (hash === "money") return "money";
   if (hash === "daily") return "daily";
@@ -4566,6 +4853,18 @@ document.getElementById("card-titulos-racha").addEventListener("click", () => {
 document.getElementById("btn-titulos-racha-back").addEventListener("click", () => {
   navigateBetweenScreensWithTransition("titulos-racha", "titulos");
 });
+
+document.getElementById("card-admin-ajustes").addEventListener("click", () => {
+  navigateBetweenScreensWithTransition("admin", "ajustes");
+});
+
+document.getElementById("btn-ajustes-back").addEventListener("click", () => {
+  navigateBetweenScreensWithTransition("ajustes", "admin");
+});
+
+document.getElementById("btn-export-backup").addEventListener("click", handleExportBackupClick);
+
+document.getElementById("btn-import-backup").addEventListener("click", openBackupImportSheet);
 
 document.getElementById("card-previas-jere").addEventListener("click", () => {
   navigateHomeToScreenWithTransition("previas-jere");
@@ -4648,6 +4947,7 @@ bottomNav.addEventListener("click", (e) => {
       "titulos-estadistica",
       "titulos-encuesta",
       "titulos-racha",
+      "ajustes",
     ].find((r) => screens[r] && screens[r].classList.contains("active"));
     if (activeAnimatedRoute) {
       navigateScreenToHomeWithTransition(activeAnimatedRoute);
@@ -4669,6 +4969,7 @@ bottomNav.addEventListener("click", (e) => {
       "titulos-estadistica",
       "titulos-encuesta",
       "titulos-racha",
+      "ajustes",
     ].find((r) => screens[r] && screens[r].classList.contains("active"));
     if (activeAnimatedOrigin) {
       navigateBetweenScreensWithTransition(activeAnimatedOrigin, "admin");

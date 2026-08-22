@@ -1175,6 +1175,14 @@ img, svg {
   visibility: hidden;
 }
 
+.ffd {
+  background-color: #b9efff;
+  border: none;
+  width: 100%;
+  height: 1%;
+  margin-bottom: 5%;
+}
+
 .stats-day-label {
   flex: 1;
   text-align: center;

@@ -315,8 +315,53 @@
           <svg class="feature-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </article>
       </div>
+
+      <!-- Apartado "Ajustes": al final de /admin, ver "Ajustes —
+           Datos (backup)" en SPEC.md. -->
+      <div class="section-label">Ajustes</div>
+      <div class="card-list">
+        <article class="feature-card tappable" id="card-admin-ajustes">
+          <div class="feature-icon" style="--fc:#7bdff222;--fi:#7bdff2">⚙️</div>
+          <div class="feature-text">
+            <h3>Ajustes</h3>
+            <p>Backup completo de los datos de la app</p>
+          </div>
+          <svg class="feature-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </article>
+      </div>
     </main>
   </section>
+
+  <!-- ===================== AJUSTES (ADMIN) ===================== -->
+  <!-- Misma estética admin-frost que el resto de /admin. Por ahora
+       una única sección, "Datos", al final de la página, con el
+       backup completo de la app. Ver SPEC.md → "Ajustes — Datos
+       (backup)". -->
+  <section id="screen-ajustes" class="screen admin-frost">
+    <header class="admin-hero ajustes-hero">
+      <div class="admin-hero-top">
+        <button id="btn-ajustes-back" class="icon-btn" type="button" aria-label="Volver a admin">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="hero-badge">⚙️ Ajustes</span>
+        <span class="icon-btn spacer" aria-hidden="true"></span>
+      </div>
+      <p class="eyebrow">Panel de</p>
+      <h1 class="hero-name">Ajustes</h1>
+    </header>
+
+    <main class="home-content">
+      <div class="section-label">Datos</div>
+      <div class="daily-section">
+        <p class="export-hint">Generá un único código con TODOS los datos actuales de la app (jugadores, gastos, ganancias, saldo inicial, registros diarios, previas y más) para guardarlo como backup. No modifica ningún dato existente.</p>
+        <button type="button" id="btn-export-backup" class="sheet-submit">Exportar backup</button>
+        <textarea id="backup-code-box" class="export-code-box" readonly rows="4" hidden></textarea>
+        <p class="daily-save-msg" id="backup-copy-msg">✓ Backup copiado</p>
+        <button type="button" id="btn-import-backup" class="admin-add-btn">Importar backup</button>
+      </div>
+    </main>
+  </section>
+
 
   <!-- ===================== ESTADÍSTICAS (ADMIN) ===================== -->
   <section id="screen-stats" class="screen admin-frost">
