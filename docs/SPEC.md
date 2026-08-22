@@ -475,6 +475,14 @@ un backup de esta app (por ejemplo, es un código de intercambio de un
 solo jugador), se muestra un mensaje de error claro y no se modifica
 ningún dato existente.
 
+**Auditado (v0.47.1)**: todo el circuito Exportar → Importar fue
+probado de punta a punta (incluyendo casos de código inválido/
+corrupto/de otra versión, restauración de jugadores/gastos/ingresos/
+saldos/registros diarios/encuestas/previas, y que Estadísticas/
+Títulos/Rachas vuelvan a funcionar después de importar) sin
+encontrar errores. Detalle completo en `CURRENT_STATE.md` y
+`CHANGELOG.md`.
+
 ## Código de intercambio (implementado)
 
 Cada usuario puede generar, desde "Envío de datos" en /home, un

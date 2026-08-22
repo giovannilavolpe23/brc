@@ -2,7 +2,62 @@
 
 ## Versión
 
-v0.47.0 — Ajustes → Datos: "Importar backup"
+v0.47.1 — Auditoría completa del sistema de backup (sin cambios de código)
+
+## v0.47.1 — Auditoría completa del sistema de backup (sin cambios de código)
+
+Se revisó y probó **todo** el sistema de backup (Exportar de
+v0.46.0 + Importar de v0.47.0) ejecutando el código real de
+`script.js` en Node con `localStorage` simulado. **Conclusión: el
+sistema funciona correctamente, no se encontraron errores ni se
+modificó ninguna línea de código de backup.**
+
+Circuito principal probado: generar datos de prueba (`testData()`)
+más una previa de admin y una previa local de Jere agregadas a
+mano → **Exportar backup** → simular la pérdida/cambio de TODOS los
+datos (`userData:<id>` de los 11 jugadores, `adminPlayers`,
+`adminPrevias`, `localPrevias:jere`) → **Importar backup** →
+comprobar que absolutamente todo volvió, byte a byte, a como estaba
+antes de la pérdida simulada.
+
+Cobertura de la auditoría (22 verificaciones, todas correctas):
+
+1. `generateFullBackupCode()` produce un código con el prefijo
+   `BRL1.` esperado y `buildFullBackupPayload()` incluye a los 11
+   `PARTICIPANTS` con su `userData` completo.
+2. El código se copia bien tanto por `navigator.clipboard.writeText`
+   como por el fallback `document.execCommand("copy")`.
+3. `parseAndValidatePastedBackupCode()` rechaza, con un mensaje de
+   error distinto y claro en cada caso, sin tocar ningún dato:
+   código vacío, texto sin el formato `BRL<n>.xxx`, un código de
+   intercambio de un solo jugador (`type` distinto de `"backup"`),
+   un backup con un carácter corrupto, y un backup de una versión
+   (`BACKUP_CODE_VERSION`) incompatible.
+4. Tras pegar y validar un código correcto (paso "preview" del
+   sheet, con `backupImportPendingPayload` ya seteado), se confirmó
+   que **ningún dato cambia todavía** — la escritura real ocurre
+   únicamente dentro de `confirmBackupImport()`, que solo se dispara
+   al tocar "Reemplazar datos actuales".
+5. Tras `confirmBackupImport()`: `userData:<id>` de los 11
+   participantes (jugadores, saldo inicial, gastos e ingresos,
+   registros diarios completos con sueño/siesta/quinta
+   comida/baño/boliche/encuesta), `adminPlayers`, `adminPrevias` y
+   `localPrevias:jere` quedan **byte a byte idénticos** a los
+   originales previos a la pérdida simulada. `currentUser` (la
+   sesión activa) queda **intacto**, sin ser tocado por la
+   importación.
+6. Como Títulos/Rachas no se persisten aparte (se calculan siempre
+   desde `adminPlayers`/`adminPrevias`), se verificó indirectamente
+   comparando `buildTitulosByPlayer(...)` antes/después del circuito
+   completo: resultado idéntico.
+7. Estadísticas y las vistas DÍA/TOTAL vuelven a funcionar después
+   de importar: `getStatsClosedDays()`, `totalRankingHorasDormidas`,
+   `totalRankingDineroTotal`, `totalRankingPrevias` (TOTAL) y
+   `dayRankingDineroTotal` (DÍA) dan exactamente el mismo resultado
+   antes y después del circuito Exportar → perder datos → Importar.
+
+No se tocó ninguna otra funcionalidad de la app durante esta
+revisión.
 
 ## v0.47.0 — Ajustes → Datos: "Importar backup"
 

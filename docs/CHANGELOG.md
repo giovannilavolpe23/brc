@@ -1,5 +1,68 @@
 # CHANGELOG
 
+## v0.47.1 (Auditoría completa del sistema de backup — sin cambios de código)
+
+Revisión y prueba exhaustiva de todo el sistema de backup (v0.46.0
+Exportar + v0.47.0 Importar), ejecutando el código real de
+`script.js` en un entorno simulado (Node + `localStorage` simulado),
+sin modificar ninguna línea de la lógica de backup: **no se
+encontraron errores**.
+
+Circuito principal probado, tal como lo pide el flujo real de la
+app: **datos de prueba → Exportar → se simula la pérdida/cambio de
+TODOS los datos → Importar → se comprueba que todo volvió**
+exactamente igual, byte a byte.
+
+Puntos verificados uno por uno (22 aserciones, todas en verde):
+
+- **Exportar genera un backup válido**: el código tiene el prefijo
+  `BRL1.` esperado; `buildFullBackupPayload()` incluye los 11
+  `PARTICIPANTS` y el `userData` de cada uno.
+- **El código se copia correctamente**: se probó tanto
+  `navigator.clipboard.writeText` (recibe exactamente el string
+  generado) como el fallback `document.execCommand("copy")` cuando
+  no hay Clipboard API.
+- **Importar valida correctamente el código**, con mensajes de error
+  distintos y claros para cada caso: código vacío, texto sin formato,
+  un código de intercambio de un solo jugador (no un backup), un
+  backup con un carácter corrupto, y un backup de una versión
+  incompatible (`BACKUP_CODE_VERSION`).
+- **Un backup inválido no modifica datos**: se comprobó, después de
+  cada uno de los 5 casos anteriores, que `userData:<id>` de los 11
+  jugadores, `adminPlayers`, `adminPrevias` y `localPrevias:jere`
+  seguían byte a byte iguales a como estaban antes del intento.
+- **La importación pide confirmación antes de reemplazar**: se
+  verificó explícitamente que, tras pegar y validar un código válido
+  (pasando al paso "preview" con `backupImportPendingPayload` ya
+  seteado), ningún dato cambia todavía — solo `confirmBackupImport()`
+  escribe algo, y solo se llama al confirmar en el sheet.
+- **Todos los jugadores, gastos e ingresos, saldos iniciales y
+  registros diarios completos se restauran**: comparación byte a
+  byte de `userData:<id>` de los 11 participantes antes/después del
+  circuito completo.
+- **Sueño, siesta, quinta comida, baño y boliche se restauran**: se
+  comprobó que cada `dailyEntry` restaurado conserva las claves
+  `sleep`, `nap`, `fifthMeal`, `bathroom` y `boliche`.
+- **Encuestas y previas se restauran**: `destroyedVote` presente en
+  cada `dailyEntry`; `adminPrevias` y `localPrevias:jere` restaurados
+  byte a byte (incluyendo una previa de prueba agregada a mano antes
+  de exportar).
+- **Títulos y rachas vuelven a funcionar**: no se persisten aparte
+  (se calculan siempre desde `adminPlayers`/`adminPrevias`), así que
+  se verificó indirectamente comparando `buildTitulosByPlayer(...)`
+  antes y después del circuito completo — resultado idéntico.
+- **Estadísticas y vistas Día/Total funcionan después de importar**:
+  `getStatsClosedDays()` devuelve la misma cantidad de días cerrados;
+  `totalRankingHorasDormidas`, `totalRankingDineroTotal` y
+  `totalRankingPrevias` (vista TOTAL) y `dayRankingDineroTotal` (vista
+  DÍA) dan exactamente el mismo resultado antes y después de
+  exportar → perder datos → importar.
+- La sesión activa (`currentUser`) se comprobó explícitamente que
+  **no es tocada** por la importación.
+
+No se modificó ninguna otra funcionalidad de la app durante esta
+revisión.
+
 ## v0.47.0 (Ajustes → Datos: "Importar backup")
 
 Continúa la sección **"Datos"** de `/admin` → Ajustes (v0.46.0):
