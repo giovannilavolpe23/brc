@@ -826,6 +826,34 @@ function previaPerPersonValue(previa) {
   return computePreviaPerPerson(previa.total, previa.participantIds.length);
 }
 
+function previaApiPayload(previa) {
+  return {
+    id: previa.id,
+    participantIds: previa.participantIds,
+    products: previa.products.map((product) => ({
+      id: product.id,
+      name: product.name,
+      price: Math.round(product.price),
+      quantity: product.quantity,
+    })),
+    total: Math.round(previa.total),
+    amountPerPerson: Math.round(previa.amountPerPerson),
+    createdAt: previa.createdAt,
+  };
+}
+
+async function syncPreviaToApi(previa) {
+  try {
+    const response = await apiFetch("/previas", {
+      method: "POST",
+      body: JSON.stringify(previaApiPayload(previa)),
+    });
+    if (response.ok || response.status === 409) return;
+  } catch (e) {
+    // La previa local ya quedó guardada; un fallo de API no cambia el flujo actual.
+  }
+}
+
 function showPreviaError(msg) {
   const ids = previaIds();
   const el = document.getElementById(ids.error);
@@ -1073,6 +1101,7 @@ function confirmSavePrevia() {
     previas.unshift(newPrevia);
     saveAdminPrevias(previas);
   }
+  syncPreviaToApi(newPrevia);
 
   previaParticipantIds = [];
   previaProducts = [];
@@ -2629,15 +2658,17 @@ function confirmPreviaImport() {
   // recargar el sheet, o el mismo código llega dos veces): el id de
   // la previa es la clave de unicidad.
   if (!previas.some((p) => p.id === previa.id)) {
-    previas.unshift({
+    const importedPrevia = {
       id: previa.id,
       participantIds: [...previa.participantIds],
       products: previa.products.map((p) => ({ ...p })),
       total: previa.total,
       amountPerPerson: previa.amountPerPerson,
       createdAt: previa.createdAt,
-    });
+    };
+    previas.unshift(importedPrevia);
     saveAdminPrevias(previas);
+    syncPreviaToApi(importedPrevia);
   }
 
   sheetOverlay.classList.remove("visible");
