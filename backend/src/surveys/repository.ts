@@ -20,7 +20,7 @@ type SurveyVoteRow = {
 export type SurveysRepository = {
   listQuestions(): Promise<SurveyQuestion[]>;
   findQuestionByKey(surveyKey: string): Promise<SurveyQuestion | null>;
-  userExists(userId: string): Promise<boolean>;
+  findActiveUserId(identifier: string): Promise<string | null>;
   listMyVotes(userId: string, dateKey: string): Promise<SurveyVote[]>;
   upsertVote(surveyKey: string, dateKey: string, voterUserId: string, votedUserId: string): Promise<SurveyVote>;
 };
@@ -41,9 +41,12 @@ export const postgresSurveysRepository: SurveysRepository = {
     return result.rows[0] ? toSurveyQuestion(result.rows[0]) : null;
   },
 
-  async userExists(userId) {
-    const result = await pool.query("select 1 from users where id = $1 and is_active = true", [userId]);
-    return Boolean(result.rowCount);
+  async findActiveUserId(identifier) {
+    const result = await pool.query<{ id: string }>(
+      "select id from users where (id::text = $1 or legacy_id = $1) and is_active = true",
+      [identifier]
+    );
+    return result.rows[0]?.id ?? null;
   },
 
   async listMyVotes(userId, dateKey) {

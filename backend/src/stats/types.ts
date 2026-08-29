@@ -12,10 +12,12 @@ export type StatsResponse = {
   scope: "day" | "total";
   dateKey?: string;
   closedDays: string[];
+  users: StatsUser[];
   money: {
     totalSpentGlobal: number;
     totalSpentByUser: RankingRow[];
     rankingByCategory: CategoryRow[];
+    byCategoryAndUser: Record<string, RankingRow[]>;
     topCategory: CategoryRow | null;
   };
   dailyEntries: {
@@ -42,10 +44,17 @@ export type StatsResponse = {
 };
 
 export type StatsData = {
+  users: StatsUser[];
   expenses: ExpenseRow[];
   dailyEntries: DailyEntryStatsRow[];
   surveyVotes: SurveyVoteStatsRow[];
   previaParticipants: PreviaParticipantStatsRow[];
+};
+
+export type StatsUser = {
+  id: string;
+  legacyId: string;
+  displayName: string;
 };
 
 export type ExpenseRow = {

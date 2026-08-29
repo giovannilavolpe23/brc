@@ -24,6 +24,10 @@ const jere: AuthUser = {
 };
 
 const statsData: StatsData = {
+  users: [
+    { id: gio.id, legacyId: "gio", displayName: "Gio" },
+    { id: jere.id, legacyId: "jere", displayName: "Jere" },
+  ],
   expenses: [{ userId: gio.id, dateKey: "2026-08-28", category: "Comida", amount: 1000 }],
   dailyEntries: [
     {

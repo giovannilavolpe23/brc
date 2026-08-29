@@ -25,6 +25,10 @@ function entry(userId: string, dateKey: string, overrides: Partial<DailyEntrySta
 
 function baseData(): StatsData {
   return {
+    users: [
+      { id: gioId, legacyId: "gio", displayName: "Gio" },
+      { id: jereId, legacyId: "jere", displayName: "Jere" },
+    ],
     expenses: [
       { userId: gioId, dateKey: "2026-08-27", category: "Comida", amount: 1000 },
       { userId: gioId, dateKey: "2026-08-28", category: "Comida", amount: 2000 },
@@ -69,6 +73,7 @@ describe("stats calculations", () => {
     const stats = calculateStats("total", baseData());
 
     assert.equal(stats.money.totalSpentGlobal, 8000);
+    assert.deepEqual(stats.users[0], { id: gioId, legacyId: "gio", displayName: "Gio" });
     assert.deepEqual(stats.money.totalSpentByUser, [
       { userId: jereId, value: 5000 },
       { userId: gioId, value: 3000 },
@@ -78,6 +83,7 @@ describe("stats calculations", () => {
       { category: "Comida", value: 3000 },
     ]);
     assert.equal(stats.money.topCategory?.category, "Alcohol");
+    assert.deepEqual(stats.money.byCategoryAndUser.Comida, [{ userId: gioId, value: 3000 }]);
     assert.equal(JSON.stringify(stats).includes("initialBalance"), false);
   });
 

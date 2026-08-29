@@ -3031,6 +3031,60 @@ function confirmBackupImport() {
 let statsTab = "dia"; // "dia" | "total"
 let statsDayIndex = null; // índice dentro de getStatsClosedDays()
 let statsNavDir = 0; // -1 (día anterior) | 0 (sin dirección, fade) | 1 (día siguiente)
+let statsApiTotal = null;
+const statsApiDays = {};
+const statsApiPending = {};
+
+async function fetchStatsFromApi(scope, dateKey) {
+  const path = scope === "total" ? "/stats/total" : `/stats/day/${encodeURIComponent(dateKey)}`;
+  const response = await apiFetch(path);
+  if (!response.ok) throw new Error("stats_api_failed");
+  const stats = await response.json();
+  if (JSON.stringify(stats).includes("initialBalance")) throw new Error("stats_api_leaked_private_data");
+  return stats;
+}
+
+function requestStatsPanelRefresh(scope, dateKey) {
+  const requestKey = scope === "total" ? "total" : `day:${dateKey}`;
+  if (statsApiPending[requestKey]) return;
+
+  statsApiPending[requestKey] = true;
+  fetchStatsFromApi(scope, dateKey)
+    .then((stats) => {
+      if (scope === "total") statsApiTotal = stats;
+      else statsApiDays[dateKey] = stats;
+      renderStatsPanel();
+    })
+    .catch(() => {
+      // Si la API no está disponible, se conserva el render local actual.
+    })
+    .finally(() => {
+      statsApiPending[requestKey] = false;
+    });
+}
+
+function statsUserName(stats, userId) {
+  const user = (stats.users || []).find((u) => u.id === userId);
+  if (user) return user.displayName;
+  const participant = PARTICIPANTS.find((p) => p.id === userId);
+  return participant ? participant.name : userId;
+}
+
+function apiRankingRows(stats, rows, displayFn) {
+  return (rows || []).map((row) => ({
+    name: statsUserName(stats, row.userId),
+    value: row.value,
+    display: displayFn(row.value),
+  }));
+}
+
+function apiCategoryRows(rows) {
+  return (rows || []).map((row) => ({
+    name: row.category,
+    value: row.value,
+    display: formatMoney(row.value),
+  }));
+}
 
 function todayKey() {
   const d = getSimulatedToday();
@@ -3663,10 +3717,62 @@ function renderTotalStatsReal(closedDays) {
   `;
 }
 
+function renderApiCategoryRankingCards(stats) {
+  const byCategoryAndUser = (stats.money && stats.money.byCategoryAndUser) || {};
+  return EXPENSE_CATEGORIES.map((category) => {
+    const rows = apiRankingRows(stats, byCategoryAndUser[category] || [], formatMoney);
+    if (!rows.length) return "";
+    const meta = CATEGORY_RANKING_META[category];
+    return renderRankingCard(meta.icon, meta.accent, meta.title, `Gasto en ${category}`, rows);
+  }).join("");
+}
+
+function renderDayStatsFromApi(stats) {
+  return `
+    <div class="card-list stats-real-list">
+      ${renderStatsSectionHeading("-Datos de registro-", "left")}
+      ${renderRankingCard("😴", "#4cc9f0", "¿Quién durmió más?", "Horas dormidas", apiRankingRows(stats, stats.dailyEntries.sleepMinutes, formatDuration))}
+      ${renderRankingCard("🛋️", "#4cc9f0", "Fanático de la siesta", "Siesta hoy", apiRankingRows(stats, stats.dailyEntries.siestas, (value) => (value ? "Sí" : "No")))}
+      ${renderRankingCard("🍔", "#ffd166", "La quinta comida", "¿Comió una quinta?", apiRankingRows(stats, stats.dailyEntries.fifthMeals, (value) => (value ? "Sí" : "No")))}
+      ${renderRankingCard("🚽", "#ffd166", "Maratón de baño", "Veces que fue al baño", apiRankingRows(stats, stats.dailyEntries.bathroom, (value) => (value === 1 ? "1 vez" : `${value} veces`)))}
+      ${renderRankingCard("🕺", "#ff5470", "Resistencia en el boliche", "Tiempo adentro", apiRankingRows(stats, stats.dailyEntries.bolicheMinutes, formatDuration))}
+      ${renderRankingCard("💸", "#ff9f1c", "El más gastador", "Gasto total del día", apiRankingRows(stats, stats.money.totalSpentByUser, formatMoney))}
+      ${renderStatsSectionHeading("-Pulso del viaje-", "right")}
+      ${renderRankingCard("🧾", "#ff9f1c", "¿En qué se fue la plata?", "Gasto por categoría", apiCategoryRows(stats.money.rankingByCategory))}
+      ${renderStatsSectionHeading("-Gastos por categoría-", "left")}
+      ${renderApiCategoryRankingCards(stats)}
+      ${renderStatsSectionHeading("-PREVIAS-", "right")}
+      ${renderRankingCard("🍻", "#c77dff", "Rey/reina de las previas", "Previas del día", apiRankingRows(stats, stats.previas.byParticipant, (value) => `${value} previa${value === 1 ? "" : "s"}`))}
+    </div>
+  `;
+}
+
+function renderTotalStatsFromApi(stats) {
+  const msg = "Sin datos en todo el viaje.";
+  return `
+    <div class="card-list stats-real-list">
+      ${renderStatsSectionHeading("-Datos de registro-", "left")}
+      ${renderRankingCard("😴", "#4cc9f0", "¿Quién durmió más?", "Horas dormidas totales", apiRankingRows(stats, stats.dailyEntries.sleepMinutes, formatDuration), msg)}
+      ${renderRankingCard("🛋️", "#4cc9f0", "Fanático de la siesta", "Siestas de todo el viaje", apiRankingRows(stats, stats.dailyEntries.siestas, (value) => `${value} siesta${value === 1 ? "" : "s"}`), msg)}
+      ${renderRankingCard("🍔", "#ffd166", "La quinta comida", "Quintas comidas del viaje", apiRankingRows(stats, stats.dailyEntries.fifthMeals, (value) => `${value} vez${value === 1 ? "" : "es"}`), msg)}
+      ${renderRankingCard("🚽", "#ffd166", "Maratón de baño", "Veces al baño en total", apiRankingRows(stats, stats.dailyEntries.bathroom, (value) => (value === 1 ? "1 vez" : `${value} veces`)), msg)}
+      ${renderRankingCard("🕺", "#ff5470", "Resistencia en el boliche", "Tiempo adentro acumulado", apiRankingRows(stats, stats.dailyEntries.bolicheMinutes, formatDuration), msg)}
+      ${renderRankingCard("💸", "#ff9f1c", "El más gastador", "Gasto total del viaje", apiRankingRows(stats, stats.money.totalSpentByUser, formatMoney), msg)}
+      ${renderStatsSectionHeading("-Pulso del viaje-", "right")}
+      ${renderRankingCard("🧾", "#ff9f1c", "¿En qué se fue la plata?", "Gasto por categoría", apiCategoryRows(stats.money.rankingByCategory), msg)}
+      ${renderStatsSectionHeading("-Gastos por categoría-", "left")}
+      ${renderApiCategoryRankingCards(stats)}
+      ${renderStatsSectionHeading("-PREVIAS-", "right")}
+      ${renderRankingCard("🍻", "#c77dff", "Rey/reina de las previas", "Previas de todo el viaje", apiRankingRows(stats, stats.previas.byParticipant, (value) => `${value} previa${value === 1 ? "" : "s"}`), msg)}
+    </div>
+  `;
+}
+
 function renderStatsPanel() {
   const panel = document.getElementById("stats-panel");
   if (!panel) return;
-  const closedDays = getStatsClosedDays();
+  const localClosedDays = getStatsClosedDays();
+  const closedDays = statsApiTotal && Array.isArray(statsApiTotal.closedDays) ? statsApiTotal.closedDays : localClosedDays;
 
   // Dirección de la transición (solo se usa una vez y se resetea:
   // sirve para que ← anterior deslice desde la izquierda y →
@@ -3707,9 +3813,13 @@ function renderStatsPanel() {
             ? ""
             : `<div class="stats-empty-banner"><span class="stats-empty-banner-icon" aria-hidden="true">🗓️</span><p>Todavía no hay días cerrados del viaje. En cuanto se registre e importe el primer día completo, vas a poder navegarlo acá.</p></div>`
         }
-        ${hasDays ? renderDayStatsReal(currentKey) : renderStatsPlaceholderCards()}
+        ${hasDays ? (statsApiDays[currentKey] ? renderDayStatsFromApi(statsApiDays[currentKey]) : renderDayStatsReal(currentKey)) : renderStatsPlaceholderCards()}
       </div>
     `;
+
+    if (hasDays && !statsApiDays[currentKey]) {
+      requestStatsPanelRefresh("day", currentKey);
+    }
 
     // 1. Seleccionamos el botón por su clase (.ffd)
     const botonFfd = document.querySelector(".ffd");
@@ -3757,9 +3867,13 @@ function renderStatsPanel() {
             : `<div class="stats-empty-banner"><span class="stats-empty-banner-icon" aria-hidden="true">🗓️</span><p>Todavía no hay días cerrados del viaje. En cuanto se registre e importe el primer día completo, vas a poder ver el acumulado acá.</p></div>`
         }
         <div class="section-label">Estadísticas totales</div>
-        ${hasDays ? renderTotalStatsReal(closedDays) : renderStatsPlaceholderCards()}
+        ${hasDays ? (statsApiTotal ? renderTotalStatsFromApi(statsApiTotal) : renderTotalStatsReal(closedDays)) : renderStatsPlaceholderCards()}
       </div>
     `;
+
+    if (!statsApiTotal) {
+      requestStatsPanelRefresh("total");
+    }
   }
 
   animateRankingBars(panel);
@@ -3788,6 +3902,7 @@ function renderStatsScreen() {
     });
   });
 
+  requestStatsPanelRefresh("total");
   renderStatsPanel();
 }
 

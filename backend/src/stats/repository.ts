@@ -4,8 +4,15 @@ import type {
   ExpenseRow,
   PreviaParticipantStatsRow,
   StatsData,
+  StatsUser,
   SurveyVoteStatsRow,
 } from "./types";
+
+type UserDbRow = {
+  id: string;
+  legacy_id: string;
+  display_name: string;
+};
 
 type ExpenseDbRow = {
   user_id: string;
@@ -46,7 +53,10 @@ export type StatsRepository = {
 
 export const postgresStatsRepository: StatsRepository = {
   async loadStatsData(todayKey) {
-    const [expenses, dailyEntries, surveyVotes, previaParticipants] = await Promise.all([
+    const [users, expenses, dailyEntries, surveyVotes, previaParticipants] = await Promise.all([
+      pool.query<UserDbRow>(
+        "select id, legacy_id, display_name from users where is_active = true order by display_name"
+      ),
       pool.query<ExpenseDbRow>(
         `
           select user_id, category, amount_pesos, movement_date as date_key
@@ -90,6 +100,7 @@ export const postgresStatsRepository: StatsRepository = {
     ]);
 
     return {
+      users: users.rows.map(toStatsUser),
       expenses: expenses.rows.map(toExpenseRow),
       dailyEntries: dailyEntries.rows.map(toDailyEntryStatsRow),
       surveyVotes: surveyVotes.rows.map(toSurveyVoteStatsRow),
@@ -97,6 +108,14 @@ export const postgresStatsRepository: StatsRepository = {
     };
   },
 };
+
+function toStatsUser(row: UserDbRow): StatsUser {
+  return {
+    id: row.id,
+    legacyId: row.legacy_id,
+    displayName: row.display_name,
+  };
+}
 
 function toExpenseRow(row: ExpenseDbRow): ExpenseRow {
   return {

@@ -22,6 +22,7 @@ export function calculateStats(scope: "day" | "total", data: StatsData, dateKey?
     scope,
     ...(dateKey ? { dateKey } : {}),
     closedDays,
+    users: data.users,
     money: moneyStats(expenses),
     dailyEntries: dailyEntryStats(entries),
     surveys: {
@@ -39,11 +40,24 @@ function moneyStats(expenses: ExpenseRow[]): StatsResponse["money"] {
     value,
   }));
   const sortedCategories = sortCategoryRows(rankingByCategory);
+  const byCategoryAndUser = Object.fromEntries(
+    sortedCategories.map((category) => [
+      category.category,
+      sortRankingRows(
+        sumBy(
+          expenses.filter((expense) => expense.category === category.category),
+          "userId",
+          (expense) => expense.amount
+        )
+      ),
+    ])
+  );
 
   return {
     totalSpentGlobal: expenses.reduce((sum, expense) => sum + expense.amount, 0),
     totalSpentByUser: sortRankingRows(totalSpentByUser),
     rankingByCategory: sortedCategories,
+    byCategoryAndUser,
     topCategory: sortedCategories[0] ?? null,
   };
 }

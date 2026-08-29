@@ -53,7 +53,12 @@ function makeVote(voterUserId: string, votedUserId: string): SurveyVote {
 function makeRepository(): SurveysRepository & { calls: string[]; votes: SurveyVote[] } {
   const votes: SurveyVote[] = [];
   const calls: string[] = [];
-  const existingUsers = new Set([gio.id, jere.id]);
+  const existingUsers = new Map([
+    [gio.id, gio.id],
+    [gio.legacyId, gio.id],
+    [jere.id, jere.id],
+    [jere.legacyId, jere.id],
+  ]);
 
   return {
     calls,
@@ -66,9 +71,9 @@ function makeRepository(): SurveysRepository & { calls: string[]; votes: SurveyV
       calls.push(`question:${surveyKey}`);
       return surveyKey === destroyedVote.key ? destroyedVote : null;
     },
-    async userExists(userId) {
-      calls.push(`exists:${userId}`);
-      return existingUsers.has(userId);
+    async findActiveUserId(identifier) {
+      calls.push(`user:${identifier}`);
+      return existingUsers.get(identifier) ?? null;
     },
     async listMyVotes(userId, dateKey) {
       calls.push(`my:${userId}:${dateKey}`);
@@ -116,6 +121,18 @@ describe("survey routes", () => {
 
     assert.equal(response.status, 200);
     assert.equal(response.body.vote.voterUserId, jere.id);
+    assert.equal(response.body.vote.votedUserId, gio.id);
+  });
+
+  it("accepts voted users by legacy id and stores the database user id", async () => {
+    const repo = makeRepository();
+    const app = makeApp(jere, repo);
+
+    const response = await request(app).put("/surveys/destroyed_vote/2026-08-28/vote").send({
+      votedUserId: "gio",
+    });
+
+    assert.equal(response.status, 200);
     assert.equal(response.body.vote.votedUserId, gio.id);
   });
 

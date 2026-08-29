@@ -39,8 +39,8 @@ export function createSurveysRouter(
   router.put("/:surveyKey/:date/vote", async (req, res, next) => {
     try {
       const dateKey = validatePastDateKey(req.params.date, now());
-      const votedUserId = parseVotedUserId(req.body);
-      if (votedUserId === req.user.id) {
+      const votedUserIdentifier = parseVotedUserId(req.body);
+      if (votedUserIdentifier === req.user.id || votedUserIdentifier === req.user.legacyId) {
         res.status(400).json({ error: "self_vote_not_allowed" });
         return;
       }
@@ -51,7 +51,8 @@ export function createSurveysRouter(
         return;
       }
 
-      if (!(await repository.userExists(votedUserId))) {
+      const votedUserId = await repository.findActiveUserId(votedUserIdentifier);
+      if (!votedUserId) {
         res.status(400).json({ error: "voted_user_not_found" });
         return;
       }
