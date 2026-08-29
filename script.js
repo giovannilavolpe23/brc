@@ -94,6 +94,19 @@ const STORAGE_KEYS = {
   localPrevias: (id) => `localPrevias:${id}`,
 };
 
+const API_BASE_URL = (window.BARILOCHE_API_BASE_URL || "http://localhost:3000").replace(/\/$/, "");
+
+async function apiFetch(path, options = {}) {
+  return fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+  });
+}
+
 /* -----------------------------------------------------------
    Permisos simples y explícitos (sin sistema de roles complejo)
    -----------------------------------------------------------
@@ -143,6 +156,17 @@ function clearCurrentUser() {
   // Elimina ÚNICAMENTE la sesión. Nunca localStorage.clear().
   localStorage.removeItem(STORAGE_KEYS.currentUser);
   dailyDateKey = null; // fuerza recargar el registro diario del próximo usuario
+}
+
+async function loginApiInBackground(username, password) {
+  try {
+    await apiFetch("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    });
+  } catch (e) {
+    // La sesión local sigue siendo la fuente de continuidad del frontend actual.
+  }
 }
 
 function ensureUserData(id) {
@@ -327,6 +351,7 @@ function checkLoginPassword() {
   currentSheetType = null;
   sheetOverlay.classList.remove("visible");
   setCurrentUser(participant);
+  loginApiInBackground(participant.id, entered);
   navigateSelectToHomeWithTransition();
 }
 
@@ -1843,6 +1868,41 @@ let dailyDateKey = null;
 
 const dailyMain = document.getElementById("daily-main");
 
+function dailyEntryApiPayload(entry) {
+  return {
+    sleep: {
+      didNotSleep: !!entry.sleep.didNotSleep,
+      bedtime: entry.sleep.bedtime || null,
+      wake: entry.sleep.wake || null,
+    },
+    nap: entry.nap ? { start: entry.nap.start, end: entry.nap.end } : null,
+    fifthMeal: entry.fifthMeal ?? null,
+    bathroom: entry.bathroom ?? null,
+    boliche: {
+      didNotGo: !!entry.boliche.didNotGo,
+      time: entry.boliche.time || null,
+    },
+  };
+}
+
+async function syncDailyEntryToApi(dateKey, entry) {
+  try {
+    await apiFetch(`/daily-entries/${encodeURIComponent(dateKey)}`, {
+      method: "PUT",
+      body: JSON.stringify(dailyEntryApiPayload(entry)),
+    });
+
+    if (entry.destroyedVote) {
+      await apiFetch(`/surveys/destroyed_vote/${encodeURIComponent(dateKey)}/vote`, {
+        method: "PUT",
+        body: JSON.stringify({ votedUserId: entry.destroyedVote }),
+      });
+    }
+  } catch (e) {
+    // El guardado local ya ocurrió; un fallo de API no cambia el flujo actual.
+  }
+}
+
 function renderTimeScroll(containerId, rangeKey, selectedValue) {
   const options = buildTimeOptions(rangeKey);
   return `<div class="time-scroll" id="${containerId}" data-range="${rangeKey}">${options
@@ -2121,6 +2181,7 @@ function saveDailyEntry() {
   // crear un duplicado (misma clave = mismo día).
   data.dailyLog.entries[dailyDateKey] = entryToSave;
   saveUserData(user.id, data);
+  syncDailyEntryToApi(dailyDateKey, entryToSave);
 
   const msg = document.getElementById("daily-save-msg");
   if (msg) {
