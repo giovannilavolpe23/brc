@@ -1,13 +1,32 @@
 import type { ErrorRequestHandler } from "express";
+import cookieParser from "cookie-parser";
+import cors from "cors";
 import express from "express";
+import { requireAuth } from "./auth/middleware";
+import { authRouter } from "./auth/routes";
+import { toPublicUser } from "./auth/types";
+import { env } from "./config/env";
 import { checkDatabaseConnection } from "./db/pool";
 
 export const app = express();
 
+app.use(
+  cors({
+    origin: env.frontendOrigin,
+    credentials: true,
+  })
+);
 app.use(express.json());
+app.use(cookieParser());
+
+app.use("/auth", authRouter);
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
+});
+
+app.get("/me", requireAuth, (req, res) => {
+  res.json({ user: toPublicUser(req.user) });
 });
 
 app.get("/health/db", async (_req, res, next) => {
