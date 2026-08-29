@@ -76,3 +76,20 @@ Movimientos:
 - ingresos: `category` debe ser `null` u omitirse.
 
 No se persisten totales derivados.
+
+## Fase 4
+
+Registro diario historico y encuestas, siempre para el usuario autenticado:
+
+- `GET /daily-entries`: lista registros propios.
+- `GET /daily-entries/:date`: devuelve un registro propio por `date_key`.
+- `PUT /daily-entries/:date`: crea o reemplaza el registro propio de ese dia.
+- `GET /surveys`: lista encuestas activas.
+- `GET /surveys/:date/my-votes`: devuelve solo los votos propios de ese dia.
+- `PUT /surveys/:surveyKey/:date/vote`: crea o reemplaza el voto propio para encuesta y dia.
+
+`date_key` usa formato `YYYY-MM-DD` y se valida contra `America/Argentina/Buenos_Aires`. La API rechaza hoy y fechas futuras para conservar la regla conceptual de registrar el dia anterior o dias historicos ya cerrados.
+
+`daily_entries` guarda solo datos originales: sueno, horarios, siesta, quinta comida, bano y salida del boliche. No acepta ni persiste `computed`.
+
+`survey_questions` se inicia con `destroyed_vote`. En `survey_votes`, `voter_user_id` sale de la sesion, `voted_user_id` debe existir, no se permite autovoto y un segundo `PUT` para la misma encuesta/fecha reemplaza el voto anterior.

@@ -5,6 +5,7 @@ import path from "node:path";
 
 const migration = fs.readFileSync(path.resolve(__dirname, "../migrations/001_identity.sql"), "utf8");
 const moneyMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/002_money.sql"), "utf8");
+const dailyMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/003_daily_entries_and_surveys.sql"), "utf8");
 const seed = fs.readFileSync(path.resolve(__dirname, "../src/db/seed.ts"), "utf8");
 
 describe("identity schema", () => {
@@ -58,5 +59,42 @@ describe("identity seed", () => {
     for (const password of ["lv", "ze", "do", "te", "ri", "da", "ju", "ch", "ba", "so", "ma"]) {
       assert.doesNotMatch(seed, new RegExp(`password: "${password}"`));
     }
+  });
+});
+
+describe("daily entries and surveys schema", () => {
+  it("creates daily entries with one entry per user and date", () => {
+    assert.match(dailyMigration, /create table if not exists daily_entries/);
+    assert.match(dailyMigration, /user_id uuid not null references users\(id\) on delete cascade/);
+    assert.match(dailyMigration, /date_key date not null/);
+    assert.match(dailyMigration, /unique \(user_id, date_key\)/);
+  });
+
+  it("stores only original daily entry fields", () => {
+    for (const column of [
+      "sleep_did_not_sleep",
+      "sleep_bedtime",
+      "sleep_wake",
+      "nap_start",
+      "nap_end",
+      "fifth_meal",
+      "bathroom_count",
+      "boliche_did_not_go",
+      "boliche_exit_time",
+    ]) {
+      assert.match(dailyMigration, new RegExp(column));
+    }
+
+    assert.doesNotMatch(dailyMigration, /computed/i);
+    assert.doesNotMatch(dailyMigration, /sleep_minutes/i);
+    assert.doesNotMatch(dailyMigration, /total_sleep_minutes/i);
+  });
+
+  it("creates survey questions and historical votes", () => {
+    assert.match(dailyMigration, /create table if not exists survey_questions/);
+    assert.match(dailyMigration, /create table if not exists survey_votes/);
+    assert.match(dailyMigration, /unique \(survey_question_id, date_key, voter_user_id\)/);
+    assert.match(dailyMigration, /survey_votes_no_self_vote/);
+    assert.match(dailyMigration, /'destroyed_vote'/);
   });
 });
