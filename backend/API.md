@@ -54,3 +54,25 @@ Autorizacion preparada:
 - `requirePermission(permission)`
 
 Los administradores pasan los chequeos de permisos. Jere conserva el permiso explicito `create_previa`.
+
+## Fase 3
+
+Dinero privado por usuario autenticado:
+
+- `GET /money`: devuelve solo el saldo inicial y movimientos del usuario autenticado.
+- `PUT /money/initial-balance`: actualiza el saldo inicial propio con `amount` entero en pesos, mayor o igual a cero.
+- `POST /money/movements`: crea un gasto o ingreso propio.
+- `PATCH /money/movements/:id`: modifica un movimiento propio.
+- `DELETE /money/movements/:id`: elimina un movimiento propio.
+
+Los endpoints no aceptan `userId` del body como autoridad. El propietario siempre sale de la sesion autenticada.
+
+Movimientos:
+
+- `type`: `expense` o `income`.
+- `amount`: entero en pesos, mayor a cero.
+- `movementDate`: fecha calendario `YYYY-MM-DD`.
+- gastos: `category` debe ser una de `Chocolates`, `Alcohol`, `Boliche`, `Comida`, `Bebida`, `Actividades`, `Otros`.
+- ingresos: `category` debe ser `null` u omitirse.
+
+No se persisten totales derivados.

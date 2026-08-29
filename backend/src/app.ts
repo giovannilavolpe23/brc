@@ -7,6 +7,7 @@ import { authRouter } from "./auth/routes";
 import { toPublicUser } from "./auth/types";
 import { env } from "./config/env";
 import { checkDatabaseConnection } from "./db/pool";
+import { moneyRouter } from "./money/routes";
 
 export const app = express();
 
@@ -20,6 +21,7 @@ app.use(express.json());
 app.use(cookieParser());
 
 app.use("/auth", authRouter);
+app.use("/money", moneyRouter);
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
