@@ -93,3 +93,26 @@ Registro diario historico y encuestas, siempre para el usuario autenticado:
 `daily_entries` guarda solo datos originales: sueno, horarios, siesta, quinta comida, bano y salida del boliche. No acepta ni persiste `computed`.
 
 `survey_questions` se inicia con `destroyed_vote`. En `survey_votes`, `voter_user_id` sale de la sesion, `voted_user_id` debe existir, no se permite autovoto y un segundo `PUT` para la misma encuesta/fecha reemplaza el voto anterior.
+
+## Fase 5
+
+Previas persistidas en PostgreSQL:
+
+- `POST /previas`: crea una previa. Requiere rol admin o permiso `create_previa`.
+- `GET /previas`: lista previas visibles para el usuario autenticado.
+- `GET /previas/:id`: obtiene una previa visible por UUID o `legacyId`.
+- `PATCH /previas/:id`: modifica una previa. Puede hacerlo admin o el creador.
+- `DELETE /previas/:id`: elimina una previa. Puede hacerlo admin o el creador.
+
+`creator_user_id` siempre sale de la sesion. El body no puede elegir creador. Los participantes pueden enviarse como UUIDs actuales o `legacy_id` heredados, y se guardan como FKs a `users`.
+
+Formato de creacion compatible con el codigo actual:
+
+- `legacyId` o `id`: identificador unico de la previa.
+- `participantIds`: al menos un participante existente, sin duplicados.
+- `products`: al menos un producto con `name`, `unitPrice`/`price` entero en pesos y `quantity` entero mayor a cero.
+- `totalAmount` o `total`: debe coincidir con la suma de productos.
+- `amountPerParticipant` o `amountPerPerson`: debe coincidir con `total / participantes`.
+- `occurredAt` o `createdAt`: fecha ISO original.
+
+No se exponen hashes de contrasena ni tokens en las respuestas de lectura.

@@ -9,6 +9,7 @@ import { env } from "./config/env";
 import { dailyEntriesRouter } from "./daily-entries/routes";
 import { checkDatabaseConnection } from "./db/pool";
 import { moneyRouter } from "./money/routes";
+import { previasRouter } from "./previas/routes";
 import { surveysRouter } from "./surveys/routes";
 
 export const app = express();
@@ -24,6 +25,7 @@ app.use(cookieParser());
 
 app.use("/auth", authRouter);
 app.use("/money", moneyRouter);
+app.use("/previas", previasRouter);
 app.use("/daily-entries", dailyEntriesRouter);
 app.use("/surveys", surveysRouter);
 

@@ -6,6 +6,7 @@ import path from "node:path";
 const migration = fs.readFileSync(path.resolve(__dirname, "../migrations/001_identity.sql"), "utf8");
 const moneyMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/002_money.sql"), "utf8");
 const dailyMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/003_daily_entries_and_surveys.sql"), "utf8");
+const previasMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/004_previas.sql"), "utf8");
 const seed = fs.readFileSync(path.resolve(__dirname, "../src/db/seed.ts"), "utf8");
 
 describe("identity schema", () => {
@@ -96,5 +97,26 @@ describe("daily entries and surveys schema", () => {
     assert.match(dailyMigration, /unique \(survey_question_id, date_key, voter_user_id\)/);
     assert.match(dailyMigration, /survey_votes_no_self_vote/);
     assert.match(dailyMigration, /'destroyed_vote'/);
+  });
+});
+
+describe("previas schema", () => {
+  it("creates previas, products, and participants", () => {
+    assert.match(previasMigration, /create table if not exists previas/);
+    assert.match(previasMigration, /create table if not exists previa_products/);
+    assert.match(previasMigration, /create table if not exists previa_participants/);
+    assert.match(previasMigration, /legacy_id text not null unique/);
+    assert.match(previasMigration, /creator_user_id uuid not null references users\(id\) on delete restrict/);
+    assert.match(previasMigration, /primary key \(previa_id, user_id\)/);
+  });
+
+  it("enforces positive integer money and quantities", () => {
+    assert.match(previasMigration, /total_amount_pesos integer not null/);
+    assert.match(previasMigration, /amount_per_participant_pesos integer not null/);
+    assert.match(previasMigration, /unit_price_pesos integer not null/);
+    assert.match(previasMigration, /quantity integer not null/);
+    assert.match(previasMigration, /previas_total_amount_positive/);
+    assert.match(previasMigration, /previa_products_unit_price_positive/);
+    assert.match(previasMigration, /previa_products_quantity_positive/);
   });
 });
