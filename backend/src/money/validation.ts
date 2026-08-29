@@ -24,24 +24,26 @@ export function parseInitialBalance(body: unknown): number {
 
 export function parseMovementInput(body: unknown): MovementInput {
   const record = getRecord(body);
+  const legacyId = parseLegacyId(record.legacyId ?? record.id);
   const type = parseType(record.type);
   const amount = parsePositiveAmount(record.amount);
   const category = parseCategory(type, record.category);
   const description = parseDescription(record.description);
   const movementDate = parseMovementDate(record.movementDate);
 
-  return { type, amount, category, description, movementDate };
+  return { legacyId, type, amount, category, description, movementDate };
 }
 
 export function parseMovementPatch(body: unknown, existing: MovementInput): MovementInput {
   const record = getRecord(body);
+  const legacyId = "legacyId" in record || "id" in record ? parseLegacyId(record.legacyId ?? record.id) : existing.legacyId;
   const type = "type" in record ? parseType(record.type) : existing.type;
   const amount = "amount" in record ? parsePositiveAmount(record.amount) : existing.amount;
   const category = "category" in record ? parseCategory(type, record.category) : parseCategory(type, existing.category);
   const description = "description" in record ? parseDescription(record.description) : existing.description;
   const movementDate = "movementDate" in record ? parseMovementDate(record.movementDate) : existing.movementDate;
 
-  return { type, amount, category, description, movementDate };
+  return { legacyId, type, amount, category, description, movementDate };
 }
 
 function getRecord(value: unknown): Record<string, unknown> {
@@ -58,6 +60,15 @@ function parseType(value: unknown): MovementType {
   }
 
   return value;
+}
+
+function parseLegacyId(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new ValidationError("invalid_legacy_id");
+  }
+
+  return value.trim();
 }
 
 function parsePositiveAmount(value: unknown): number {

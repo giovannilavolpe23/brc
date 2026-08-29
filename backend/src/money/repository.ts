@@ -3,6 +3,7 @@ import type { MoneyMovement, MovementInput, UserMoney } from "./types";
 
 type MovementRow = {
   id: string;
+  legacy_id: string | null;
   user_id: string;
   type: "expense" | "income";
   amount_pesos: number;
@@ -30,7 +31,7 @@ export const postgresMoneyRepository: MoneyRepository = {
     );
     const movements = await pool.query<MovementRow>(
       `
-        select id, user_id, type, amount_pesos, category, description, movement_date, created_at, updated_at
+        select id, legacy_id, user_id, type, amount_pesos, category, description, movement_date, created_at, updated_at
         from money_movements
         where user_id = $1
         order by movement_date desc, created_at desc
@@ -63,11 +64,18 @@ export const postgresMoneyRepository: MoneyRepository = {
   async createMovement(userId, input) {
     const result = await pool.query<MovementRow>(
       `
-        insert into money_movements (user_id, type, amount_pesos, category, description, movement_date)
-        values ($1, $2, $3, $4, $5, $6)
-        returning id, user_id, type, amount_pesos, category, description, movement_date, created_at, updated_at
+        insert into money_movements (user_id, legacy_id, type, amount_pesos, category, description, movement_date)
+        values ($1, $2, $3, $4, $5, $6, $7)
+        on conflict (user_id, legacy_id) where legacy_id is not null do update
+        set type = excluded.type,
+            amount_pesos = excluded.amount_pesos,
+            category = excluded.category,
+            description = excluded.description,
+            movement_date = excluded.movement_date,
+            updated_at = now()
+        returning id, legacy_id, user_id, type, amount_pesos, category, description, movement_date, created_at, updated_at
       `,
-      [userId, input.type, input.amount, input.category, input.description, input.movementDate]
+      [userId, input.legacyId, input.type, input.amount, input.category, input.description, input.movementDate]
     );
 
     return toMoneyMovement(result.rows[0]);
@@ -76,9 +84,9 @@ export const postgresMoneyRepository: MoneyRepository = {
   async findMovementForUser(userId, movementId) {
     const result = await pool.query<MovementRow>(
       `
-        select id, user_id, type, amount_pesos, category, description, movement_date, created_at, updated_at
+        select id, legacy_id, user_id, type, amount_pesos, category, description, movement_date, created_at, updated_at
         from money_movements
-        where user_id = $1 and id = $2
+        where user_id = $1 and (id::text = $2 or legacy_id = $2)
       `,
       [userId, movementId]
     );
@@ -95,18 +103,19 @@ export const postgresMoneyRepository: MoneyRepository = {
             category = $5,
             description = $6,
             movement_date = $7,
+            legacy_id = $8,
             updated_at = now()
-        where user_id = $1 and id = $2
-        returning id, user_id, type, amount_pesos, category, description, movement_date, created_at, updated_at
+        where user_id = $1 and (id::text = $2 or legacy_id = $2)
+        returning id, legacy_id, user_id, type, amount_pesos, category, description, movement_date, created_at, updated_at
       `,
-      [userId, movementId, input.type, input.amount, input.category, input.description, input.movementDate]
+      [userId, movementId, input.type, input.amount, input.category, input.description, input.movementDate, input.legacyId]
     );
 
     return result.rows[0] ? toMoneyMovement(result.rows[0]) : null;
   },
 
   async deleteMovement(userId, movementId) {
-    const result = await pool.query("delete from money_movements where user_id = $1 and id = $2", [
+    const result = await pool.query("delete from money_movements where user_id = $1 and (id::text = $2 or legacy_id = $2)", [
       userId,
       movementId,
     ]);
@@ -117,6 +126,7 @@ export const postgresMoneyRepository: MoneyRepository = {
 function toMoneyMovement(row: MovementRow): MoneyMovement {
   return {
     id: row.id,
+    legacyId: row.legacy_id,
     userId: row.user_id,
     type: row.type,
     amount: row.amount_pesos,

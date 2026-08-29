@@ -43,6 +43,16 @@ describe("money schema", () => {
   });
 });
 
+describe("money movement legacy id schema", () => {
+  const legacyMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/005_money_movement_legacy_ids.sql"), "utf8");
+
+  it("adds an optional per-user legacy id for idempotent frontend sync", () => {
+    assert.match(legacyMigration, /add column if not exists legacy_id text/);
+    assert.match(legacyMigration, /money_movements_user_id_legacy_id_idx/);
+    assert.match(legacyMigration, /where legacy_id is not null/);
+  });
+});
+
 describe("identity seed", () => {
   it("contains the current users, roles, and create_previa permission", () => {
     for (const legacyId of ["gio", "marto", "sebas", "ger", "nerea", "simon", "agus", "nata", "barua", "jere", "tobi"]) {

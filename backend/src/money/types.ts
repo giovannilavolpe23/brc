@@ -13,6 +13,7 @@ export type MovementType = "expense" | "income";
 
 export type MoneyMovement = {
   id: string;
+  legacyId: string | null;
   userId: string;
   type: MovementType;
   amount: number;
@@ -29,6 +30,7 @@ export type UserMoney = {
 };
 
 export type MovementInput = {
+  legacyId: string | null;
   type: MovementType;
   amount: number;
   category: ExpenseCategory | null;

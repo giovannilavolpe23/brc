@@ -83,6 +83,7 @@ export const moneyRouter = createMoneyRouter();
 function toMovementInput(movement: MoneyMovement): MovementInput {
   return {
     type: movement.type,
+    legacyId: movement.legacyId,
     amount: movement.amount,
     category: movement.category,
     description: movement.description,

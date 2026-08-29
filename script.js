@@ -1164,6 +1164,80 @@ function formatDateShort(isoString) {
   return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
 }
 
+function moneyMovementDateKey(movement) {
+  return isoToTripDayKey(movement.date);
+}
+
+function moneyMovementApiPayload(movement) {
+  return {
+    legacyId: movement.id,
+    type: movement.type,
+    amount: Math.round(movement.amount),
+    category: movement.type === "expense" ? movement.category || "Otros" : null,
+    description: movement.name || null,
+    movementDate: moneyMovementDateKey(movement),
+  };
+}
+
+async function syncInitialBalanceToApi(amount) {
+  try {
+    await apiFetch("/money/initial-balance", {
+      method: "PUT",
+      body: JSON.stringify({ amount: Math.round(amount) }),
+    });
+  } catch (e) {
+    // El saldo local ya quedó guardado; un fallo de API no cambia el flujo actual.
+  }
+}
+
+async function syncCreatedMoneyMovementToApi(userId, movement) {
+  try {
+    if (movement.type === "expense" && !EXPENSE_CATEGORIES.includes(movement.category)) return;
+
+    const response = await apiFetch("/money/movements", {
+      method: "POST",
+      body: JSON.stringify(moneyMovementApiPayload(movement)),
+    });
+    if (!response.ok) return;
+
+    const payload = await response.json();
+    const data = ensureMoneyData(userId);
+    const localMovement = findMovement(data.money, movement.id);
+    if (!localMovement) return;
+
+    localMovement.apiSynced = true;
+    localMovement.apiId = payload.movement && payload.movement.id;
+    saveUserData(userId, data);
+  } catch (e) {
+    // El movimiento local ya quedó guardado; un fallo de API no cambia el flujo actual.
+  }
+}
+
+async function syncUpdatedMoneyMovementToApi(movement) {
+  if (!movement || !movement.apiSynced) return;
+  try {
+    if (movement.type === "expense" && !EXPENSE_CATEGORIES.includes(movement.category)) return;
+
+    await apiFetch(`/money/movements/${encodeURIComponent(movement.id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(moneyMovementApiPayload(movement)),
+    });
+  } catch (e) {
+    // La edición local ya quedó guardada; un fallo de API no cambia el flujo actual.
+  }
+}
+
+async function syncDeletedMoneyMovementToApi(movement) {
+  if (!movement || !movement.apiSynced) return;
+  try {
+    await apiFetch(`/money/movements/${encodeURIComponent(movement.id)}`, {
+      method: "DELETE",
+    });
+  } catch (e) {
+    // La eliminación local ya ocurrió; un fallo de API no cambia el flujo actual.
+  }
+}
+
 function computeMoneyTotals(money) {
   let totalExpense = 0;
   let totalIncome = 0;
@@ -1607,6 +1681,7 @@ function submitSheet() {
     }
     data.money.initialBalance = value;
     saveUserData(user.id, data);
+    syncInitialBalanceToApi(value);
     sheetOverlay.classList.remove("visible");
     currentSheetType = null;
     renderMoneyScreen();
@@ -1624,24 +1699,32 @@ function submitSheet() {
     }
     const name = nameInput.value.trim() || "Sin Descrip.";
     const category = selectedCategory || "Otros";
+    let movementToSync = null;
     if (editingMovementId) {
       const existing = findMovement(data.money, editingMovementId);
       if (existing) {
         existing.name = name;
         existing.category = category;
         existing.amount = amount;
+        movementToSync = existing;
       }
     } else {
-      data.money.movements.unshift({
+      movementToSync = {
         id: genId(),
         type: "expense",
         name,
         category,
         amount,
         date: new Date().toISOString(),
-      });
+      };
+      data.money.movements.unshift(movementToSync);
     }
     saveUserData(user.id, data);
+    if (editingMovementId) {
+      syncUpdatedMoneyMovementToApi(movementToSync);
+    } else {
+      syncCreatedMoneyMovementToApi(user.id, movementToSync);
+    }
     sheetOverlay.classList.remove("visible");
     currentSheetType = null;
     editingMovementId = null;
@@ -1660,22 +1743,30 @@ function submitSheet() {
       return;
     }
     const name = nameInput.value.trim() || "Ganancia";
+    let movementToSync = null;
     if (editingMovementId) {
       const existing = findMovement(data.money, editingMovementId);
       if (existing) {
         existing.name = name;
         existing.amount = amount;
+        movementToSync = existing;
       }
     } else {
-      data.money.movements.unshift({
+      movementToSync = {
         id: genId(),
         type: "income",
         name,
         amount,
         date: new Date().toISOString(),
-      });
+      };
+      data.money.movements.unshift(movementToSync);
     }
     saveUserData(user.id, data);
+    if (editingMovementId) {
+      syncUpdatedMoneyMovementToApi(movementToSync);
+    } else {
+      syncCreatedMoneyMovementToApi(user.id, movementToSync);
+    }
     sheetOverlay.classList.remove("visible");
     currentSheetType = null;
     editingMovementId = null;
@@ -1685,8 +1776,10 @@ function submitSheet() {
   }
 
   if (currentSheetType === "delete-confirm") {
+    const deletedMovement = findMovement(data.money, activeMovementId);
     data.money.movements = data.money.movements.filter((m) => m.id !== activeMovementId);
     saveUserData(user.id, data);
+    syncDeletedMoneyMovementToApi(deletedMovement);
     sheetOverlay.classList.remove("visible");
     currentSheetType = null;
     editingMovementId = null;
