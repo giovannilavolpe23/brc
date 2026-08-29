@@ -10,6 +10,7 @@ import { dailyEntriesRouter } from "./daily-entries/routes";
 import { checkDatabaseConnection } from "./db/pool";
 import { moneyRouter } from "./money/routes";
 import { previasRouter } from "./previas/routes";
+import { statsRouter } from "./stats/routes";
 import { surveysRouter } from "./surveys/routes";
 
 export const app = express();
@@ -28,6 +29,7 @@ app.use("/money", moneyRouter);
 app.use("/previas", previasRouter);
 app.use("/daily-entries", dailyEntriesRouter);
 app.use("/surveys", surveysRouter);
+app.use("/stats", statsRouter);
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true });

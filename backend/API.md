@@ -116,3 +116,22 @@ Formato de creacion compatible con el codigo actual:
 - `occurredAt` o `createdAt`: fecha ISO original.
 
 No se exponen hashes de contrasena ni tokens en las respuestas de lectura.
+
+## Fase 6
+
+Estadisticas globales calculadas desde PostgreSQL:
+
+- `GET /stats/total`: devuelve acumulados de todos los dias cerrados.
+- `GET /stats/day/:date`: devuelve estadisticas para un `date_key` historico.
+
+Todos los usuarios autenticados reciben los mismos resultados globales. La respuesta usa `userId` en rankings y no expone `initialBalance`, `password_hash`, cookies ni tokens.
+
+Incluye inicialmente:
+
+- dinero: total gastado global, total gastado por usuario, ranking por categoria y categoria con mayor gasto;
+- registro diario: sueno, siestas, quinta comida, bano y tiempo de boliche recalculado desde datos originales;
+- encuestas: resultados de `destroyed_vote`;
+- previas: cantidad total y ranking por participante;
+- rachas: boliche, quinta comida, bano, Chocolates y Alcohol, calculadas en runtime.
+
+Las categorias sin datos no aparecen. `GET /stats/day/:date` rechaza hoy y futuro usando `America/Argentina/Buenos_Aires`.
