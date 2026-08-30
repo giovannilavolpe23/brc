@@ -2817,6 +2817,12 @@ function formatDuration(totalMinutes) {
   return `${h}h ${m}min`;
 }
 
+function formatDurationWithMinutes(totalMinutes) {
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return `${h}h ${m}min`;
+}
+
 // Minutos entre hora de dormir y hora de despertarse. Contempla el
 // cruce de medianoche (si la hora de despertarse "cae antes" que la de
 // dormir dentro del mismo día, se asume que es al día siguiente).
@@ -4090,11 +4096,12 @@ function statsUserName(stats, userId) {
   return participant ? participant.name : userId;
 }
 
-function apiRankingRows(stats, rows, displayFn) {
+function apiRankingRows(stats, rows, displayFn, secondaryDisplayFn) {
   return (rows || []).map((row) => ({
     name: statsUserName(stats, row.userId),
     value: row.value,
     display: displayFn(row.value),
+    secondaryDisplay: secondaryDisplayFn ? secondaryDisplayFn(row.value) : undefined,
   }));
 }
 
@@ -4216,7 +4223,12 @@ function dayRankingHorasDormidas(dateKey) {
   getAdminPlayersArray().forEach((player) => {
     const entry = (player.data.dailyEntries || {})[dateKey];
     if (!entry || !entry.computed || entry.computed.sleepMinutes === null || entry.computed.sleepMinutes === undefined) return;
-    rows.push({ name: player.name, value: entry.computed.sleepMinutes, display: formatDuration(entry.computed.sleepMinutes) });
+    rows.push({
+      name: player.name,
+      value: entry.computed.sleepMinutes,
+      display: formatDuration(entry.computed.sleepMinutes),
+      secondaryDisplay: formatDurationWithMinutes(entry.computed.sleepMinutes),
+    });
   });
   return sortRankingDesc(rows);
 }
@@ -4361,7 +4373,12 @@ function totalRankingHorasDormidas(closedDays) {
       totals[player.name] = (totals[player.name] || 0) + entry.computed.sleepMinutes;
     });
   });
-  const rows = Object.keys(totals).map((name) => ({ name, value: totals[name], display: formatDuration(totals[name]) }));
+  const rows = Object.keys(totals).map((name) => ({
+    name,
+    value: totals[name],
+    display: formatDuration(totals[name]),
+    secondaryDisplay: formatDurationWithMinutes(totals[name]),
+  }));
   return sortRankingDesc(rows);
 }
 
@@ -4507,18 +4524,88 @@ function totalRankingPrevias(closedDays) {
   return sortRankingDesc(rows);
 }
 
-// Medalla para 2° y 3° puesto; del 4° en adelante se muestra el
-// número de puesto simple. `rankClass` es solo para poder pintar la
-// fila (plata/bronce) desde CSS sin tocar ningún cálculo.
-function medalForRank(rank) {
-  if (rank === 2) return "🥈";
-  if (rank === 3) return "🥉";
-  return String(rank);
+function randomItem(items) {
+  return items[Math.floor(Math.random() * items.length)];
 }
 
-function rankClassFor(rank) {
-  if (rank === 2) return " is-silver";
-  if (rank === 3) return " is-bronze";
+function shuffleTiedRows(rows) {
+  const shuffled = rows.slice();
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+function buildRankingPresentation(rows) {
+  const topValue = rows[0].value;
+  const topRows = rows.filter((row) => row.value === topValue);
+  const trophyWinner = randomItem(topRows);
+  const restRows = [];
+  let silverAssigned = false;
+  let bronzeAssigned = false;
+
+  rows.forEach((row, index) => {
+    if (row === trophyWinner) return;
+    if (row.value === topValue) {
+      restRows.push({ row, medal: "gold", originalRank: index + 1 });
+    }
+  });
+
+  const remainingRows = rows
+    .map((row, index) => ({ row, originalRank: index + 1 }))
+    .filter((item) => item.row.value !== topValue);
+
+  for (let i = 0; i < remainingRows.length; ) {
+    const value = remainingRows[i].row.value;
+    const group = [];
+    while (i < remainingRows.length && remainingRows[i].row.value === value) {
+      group.push(remainingRows[i]);
+      i += 1;
+    }
+
+    if (!silverAssigned && !bronzeAssigned && group.length >= 2) {
+      const [silver, bronze, ...others] = shuffleTiedRows(group);
+      restRows.push({ ...silver, medal: "silver" });
+      restRows.push({ ...bronze, medal: "bronze" });
+      restRows.push(...others);
+      silverAssigned = true;
+      bronzeAssigned = true;
+      continue;
+    }
+
+    if (!silverAssigned) {
+      const [silver] = group.length > 1 ? shuffleTiedRows(group) : group;
+      restRows.push({ ...silver, medal: "silver" });
+      restRows.push(...group.filter((item) => item !== silver));
+      silverAssigned = true;
+      continue;
+    }
+
+    if (!bronzeAssigned) {
+      const [bronze] = group.length > 1 ? shuffleTiedRows(group) : group;
+      restRows.push({ ...bronze, medal: "bronze" });
+      restRows.push(...group.filter((item) => item !== bronze));
+      bronzeAssigned = true;
+      continue;
+    }
+
+    restRows.push(...group);
+  }
+
+  return { trophyWinner, restRows };
+}
+
+function medalForRow(item) {
+  if (item.medal === "gold") return "🥇";
+  if (item.medal === "silver") return "🥈";
+  if (item.medal === "bronze") return "🥉";
+  return String(item.originalRank);
+}
+
+function rankClassForRow(item) {
+  if (item.medal === "silver") return " is-silver";
+  if (item.medal === "bronze") return " is-bronze";
   return "";
 }
 
@@ -4548,7 +4635,7 @@ function renderRankingBars(rows, emptyMessage) {
     `;
   }
   const max = Math.max(...rows.map((r) => r.value), 0) || 1;
-  const [winner, ...rest] = rows;
+  const { trophyWinner: winner, restRows } = buildRankingPresentation(rows);
   const winnerPct = Math.max((winner.value / max) * 100, winner.value > 0 ? 4 : 0);
 
   const podium = `
@@ -4569,21 +4656,21 @@ function renderRankingBars(rows, emptyMessage) {
     </div>
   `;
 
-  const restList = rest.length
+  const restList = restRows.length
     ? `
       <div class="ranking-list">
-        ${rest
-          .map((row, i) => {
+        ${restRows
+          .map((item, i) => {
+            const row = item.row;
             const pct = Math.max((row.value / max) * 100, row.value > 0 ? 4 : 0);
-            const rank = i + 2;
             return `
-              <div class="ranking-row${rankClassFor(rank)}" style="--row-delay:${i * 60}ms">
-                <span class="ranking-rank">${medalForRank(rank)}</span>
+              <div class="ranking-row${rankClassForRow(item)}" style="--row-delay:${i * 60}ms">
+                <span class="ranking-rank">${medalForRow(item)}</span>
                 <span class="ranking-name">${escapeHtml(row.name)}</span>
                 <div class="ranking-bar-track">
                   <div class="ranking-bar-fill" data-pct="${pct}"></div>
                 </div>
-                <span class="ranking-value">${row.display}</span>
+                <span class="ranking-value">${row.secondaryDisplay || row.display}</span>
               </div>
             `;
           })
@@ -4751,7 +4838,7 @@ function renderDayStatsFromApi(stats) {
   return `
     <div class="card-list stats-real-list">
       ${renderStatsSectionHeading("-Datos de registro-", "left")}
-      ${renderRankingCard("😴", "#4cc9f0", "¿Quién durmió más?", "Horas dormidas", apiRankingRows(stats, stats.dailyEntries.sleepMinutes, formatDuration))}
+      ${renderRankingCard("😴", "#4cc9f0", "¿Quién durmió más?", "Horas dormidas", apiRankingRows(stats, stats.dailyEntries.sleepMinutes, formatDuration, formatDurationWithMinutes))}
       ${renderRankingCard("🛋️", "#4cc9f0", "Fanático de la siesta", "Siesta hoy", apiRankingRows(stats, stats.dailyEntries.siestas, (value) => (value ? "Sí" : "No")))}
       ${renderRankingCard("🍔", "#ffd166", "La quinta comida", "¿Comió una quinta?", apiRankingRows(stats, stats.dailyEntries.fifthMeals, (value) => (value ? "Sí" : "No")))}
       ${renderRankingCard("🚽", "#ffd166", "Maratón de baño", "Veces que fue al baño", apiRankingRows(stats, stats.dailyEntries.bathroom, (value) => (value === 1 ? "1 vez" : `${value} veces`)))}
@@ -4772,7 +4859,7 @@ function renderTotalStatsFromApi(stats) {
   return `
     <div class="card-list stats-real-list">
       ${renderStatsSectionHeading("-Datos de registro-", "left")}
-      ${renderRankingCard("😴", "#4cc9f0", "¿Quién durmió más?", "Horas dormidas totales", apiRankingRows(stats, stats.dailyEntries.sleepMinutes, formatDuration), msg)}
+      ${renderRankingCard("😴", "#4cc9f0", "¿Quién durmió más?", "Horas dormidas totales", apiRankingRows(stats, stats.dailyEntries.sleepMinutes, formatDuration, formatDurationWithMinutes), msg)}
       ${renderRankingCard("🛋️", "#4cc9f0", "Fanático de la siesta", "Siestas de todo el viaje", apiRankingRows(stats, stats.dailyEntries.siestas, (value) => `${value} siesta${value === 1 ? "" : "s"}`), msg)}
       ${renderRankingCard("🍔", "#ffd166", "La quinta comida", "Quintas comidas del viaje", apiRankingRows(stats, stats.dailyEntries.fifthMeals, (value) => `${value} vez${value === 1 ? "" : "es"}`), msg)}
       ${renderRankingCard("🚽", "#ffd166", "Maratón de baño", "Veces al baño en total", apiRankingRows(stats, stats.dailyEntries.bathroom, (value) => (value === 1 ? "1 vez" : `${value} veces`)), msg)}
