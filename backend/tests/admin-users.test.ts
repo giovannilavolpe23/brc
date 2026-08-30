@@ -33,6 +33,10 @@ function authAs(authUser: AuthUser): RequestHandler {
 function makeRepository(): AdminUsersRepository & { credentials: Map<string, UserCredentials> } {
   const credentials = new Map<string, UserCredentials>();
   const displayNames = new Set<string>();
+  const activeUsers = new Map<string, { legacyId: string; original?: boolean }>([
+    [admin.id, { legacyId: admin.legacyId, original: true }],
+    [admin.legacyId, { legacyId: admin.legacyId, original: true }],
+  ]);
 
   return {
     credentials,
@@ -58,7 +62,17 @@ function makeRepository(): AdminUsersRepository & { credentials: Map<string, Use
         passwordHash: await hashPassword(input.password),
       };
       credentials.set(created.legacyId, created);
+      activeUsers.set(created.id, { legacyId: created.legacyId });
+      activeUsers.set(created.legacyId, { legacyId: created.legacyId });
       return created;
+    },
+    async deactivateUser(identifier) {
+      const found = activeUsers.get(identifier);
+      if (!found) return "not_found";
+      if (found.original) return "protected";
+      activeUsers.delete(identifier);
+      activeUsers.delete(found.legacyId);
+      return "deactivated";
     },
   };
 }
@@ -148,5 +162,26 @@ describe("admin user creation", () => {
     assert.equal(response.status, 200);
     assert.equal(response.body.user.legacyId, "api-nuevo");
     assert.equal(typeof response.body.accessToken, "string");
+  });
+
+  it("lets an admin deactivate a dynamic user without deleting original users", async () => {
+    const repository = makeRepository();
+    await request(makeAdminApp(admin, repository)).post("/admin/users").send({
+      name: "Borrable",
+      password: "secret-pass",
+    });
+
+    const dynamic = await request(makeAdminApp(admin, repository)).delete("/admin/users/borrable");
+    const original = await request(makeAdminApp(admin, repository)).delete(`/admin/users/${admin.legacyId}`);
+
+    assert.equal(dynamic.status, 204);
+    assert.equal(original.status, 400);
+    assert.deepEqual(original.body, { error: "protected_original_user" });
+  });
+
+  it("rejects regular users when deleting players", async () => {
+    const response = await request(makeAdminApp(user, makeRepository())).delete("/admin/users/someone");
+
+    assert.equal(response.status, 403);
   });
 });

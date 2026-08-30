@@ -19,13 +19,17 @@ export type CreateUserInput = {
 
 export type AdminUsersRepository = {
   createUser(input: CreateUserInput): Promise<AuthUser>;
+  deactivateUser(identifier: string): Promise<"deactivated" | "not_found" | "protected">;
 };
+
+const ORIGINAL_LEGACY_IDS = new Set(["gio", "marto", "sebas", "ger", "nerea", "simon", "agus", "nata", "barua", "jere", "tobi"]);
 
 export const postgresAdminUsersRepository: AdminUsersRepository = {
   async createUser(input) {
     const client = await pool.connect();
     try {
       await client.query("begin");
+      await client.query("select pg_advisory_xact_lock(hashtext(lower($1)))", [input.displayName]);
 
       const duplicateName = await client.query<{ id: string }>(
         "select id from users where lower(display_name) = lower($1) limit 1",
@@ -59,6 +63,19 @@ export const postgresAdminUsersRepository: AdminUsersRepository = {
       client.release();
     }
   },
+
+  async deactivateUser(identifier) {
+    const existing = await pool.query<{ id: string; legacy_id: string }>(
+      "select id, legacy_id from users where (id::text = $1 or legacy_id = $1) and is_active = true limit 1",
+      [identifier]
+    );
+    const user = existing.rows[0];
+    if (!user) return "not_found";
+    if (ORIGINAL_LEGACY_IDS.has(user.legacy_id)) return "protected";
+
+    await pool.query("update users set is_active = false, updated_at = now() where id = $1", [user.id]);
+    return "deactivated";
+  },
 };
 
 export function createAdminUsersRouter(
@@ -77,6 +94,24 @@ export function createAdminUsersRouter(
         res.status(400).json({ error: error.message });
         return;
       }
+      next(error);
+    }
+  });
+
+  router.delete("/users/:id", authMiddleware, requireRole("admin"), async (req, res, next) => {
+    try {
+      const result = await repository.deactivateUser(req.params.id);
+      if (result === "not_found") {
+        res.status(404).json({ error: "user_not_found" });
+        return;
+      }
+      if (result === "protected") {
+        res.status(400).json({ error: "protected_original_user" });
+        return;
+      }
+
+      res.status(204).send();
+    } catch (error) {
       next(error);
     }
   });

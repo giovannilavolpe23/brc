@@ -7,6 +7,7 @@ const migration = fs.readFileSync(path.resolve(__dirname, "../migrations/001_ide
 const moneyMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/002_money.sql"), "utf8");
 const dailyMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/003_daily_entries_and_surveys.sql"), "utf8");
 const previasMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/004_previas.sql"), "utf8");
+const userManagementMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/006_user_management.sql"), "utf8");
 const seed = fs.readFileSync(path.resolve(__dirname, "../src/db/seed.ts"), "utf8");
 
 describe("identity schema", () => {
@@ -21,6 +22,12 @@ describe("identity schema", () => {
     assert.match(migration, /legacy_id text not null unique/);
     assert.match(migration, /primary key \(user_id, permission_id\)/);
     assert.match(migration, /users_password_hash_bcrypt/);
+  });
+
+  it("indexes active display names for duplicate checks", () => {
+    assert.match(userManagementMigration, /index if not exists users_active_display_name_lookup_idx/);
+    assert.match(userManagementMigration, /lower\(display_name\)/);
+    assert.match(userManagementMigration, /where is_active = true/);
   });
 });
 

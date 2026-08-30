@@ -25,6 +25,7 @@ const DEFAULT_PARTICIPANTS = [
   { id: "tobi", name: "Tobi", password: "ma" },
 ];
 const PARTICIPANTS = DEFAULT_PARTICIPANTS.map((participant) => ({ ...participant }));
+const ORIGINAL_PARTICIPANT_IDS = new Set(DEFAULT_PARTICIPANTS.map((participant) => participant.id));
 
 const AVATAR_COLORS = ["#ff9f1c", "#4cc9f0", "#c77dff", "#ff5470", "#7bdff2", "#ffd166"];
 
@@ -105,6 +106,9 @@ const API_BASE_URL = (window.BARILOCHE_API_BASE_URL || DEFAULT_API_BASE_URL).rep
 let apiLoginPromise = null;
 let pendingApiSyncPromise = null;
 let pendingApiSyncTimer = null;
+let adminCreatePlayerOpen = false;
+let adminCreatePlayerSubmitting = false;
+let adminDeletePlayerTarget = null;
 
 async function apiFetch(path, options = {}) {
   if (path !== "/auth/login" && !localStorage.getItem(STORAGE_KEYS.apiAccessToken) && apiLoginPromise) {
@@ -701,6 +705,11 @@ function renderAdmin() {
   const list = document.getElementById("admin-participants");
   list.innerHTML = "";
   const players = getAdminPlayers();
+  const panel = document.getElementById("admin-create-player-panel");
+  const showCreateBtn = document.getElementById("btn-admin-show-create-player");
+
+  if (panel) panel.hidden = !adminCreatePlayerOpen;
+  if (showCreateBtn) showCreateBtn.hidden = adminCreatePlayerOpen;
 
   PARTICIPANTS.forEach((p) => {
     const row = document.createElement("div");
@@ -735,14 +744,43 @@ function renderAdmin() {
       row.appendChild(pill);
     }
 
+    if (!ORIGINAL_PARTICIPANT_IDS.has(p.id)) {
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "admin-player-delete-btn";
+      deleteBtn.setAttribute("aria-label", `Eliminar a ${p.name}`);
+      deleteBtn.dataset.playerId = p.id;
+      deleteBtn.textContent = "×";
+      deleteBtn.addEventListener("click", () => openAdminDeletePlayerConfirm(p));
+      row.appendChild(deleteBtn);
+    }
+
     list.appendChild(row);
   });
 }
 
+function setAdminCreatePlayerPanel(open) {
+  adminCreatePlayerOpen = open;
+  const panel = document.getElementById("admin-create-player-panel");
+  const showCreateBtn = document.getElementById("btn-admin-show-create-player");
+  const error = document.getElementById("admin-create-player-error");
+  if (panel) panel.hidden = !open;
+  if (showCreateBtn) showCreateBtn.hidden = open;
+  if (error) error.textContent = "";
+  if (!open) {
+    const nameInput = document.getElementById("admin-new-player-name");
+    const passwordInput = document.getElementById("admin-new-player-password");
+    if (nameInput) nameInput.value = "";
+    if (passwordInput) passwordInput.value = "";
+  }
+}
+
 async function handleAdminCreatePlayerClick() {
+  if (adminCreatePlayerSubmitting) return;
   const nameInput = document.getElementById("admin-new-player-name");
   const passwordInput = document.getElementById("admin-new-player-password");
-  const msg = document.getElementById("admin-create-player-msg");
+  const submitBtn = document.getElementById("btn-admin-create-player");
+  const msg = document.getElementById("admin-player-list-msg");
   const error = document.getElementById("admin-create-player-error");
   if (!nameInput || !passwordInput) return;
 
@@ -763,6 +801,12 @@ async function handleAdminCreatePlayerClick() {
     if (error) error.textContent = "Ingresá una contraseña.";
     passwordInput.focus();
     return;
+  }
+
+  adminCreatePlayerSubmitting = true;
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Agregando...";
   }
 
   try {
@@ -792,8 +836,7 @@ async function handleAdminCreatePlayerClick() {
         PARTICIPANTS.push(created);
       }
     }
-    nameInput.value = "";
-    passwordInput.value = "";
+    setAdminCreatePlayerPanel(false);
     renderParticipantGrid();
     renderAdmin();
     if (msg) {
@@ -804,6 +847,57 @@ async function handleAdminCreatePlayerClick() {
     refreshParticipantsFromApi();
   } catch (e) {
     if (error) error.textContent = "No se pudo crear el jugador. Si no hay señal, probá de nuevo después.";
+  } finally {
+    adminCreatePlayerSubmitting = false;
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Agregar";
+    }
+  }
+}
+
+async function handleAdminDeletePlayerConfirm() {
+  const participant = adminDeletePlayerTarget;
+  const submitBtn = document.getElementById("sheet-submit-btn");
+  if (!participant || ORIGINAL_PARTICIPANT_IDS.has(participant.id)) return;
+
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Eliminando...";
+  }
+
+  try {
+    const response = await apiFetch(`/admin/users/${encodeURIComponent(participant.id)}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      showSheetError(response.status === 400 ? "Este jugador no se puede eliminar." : "No se pudo eliminar el jugador.");
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Eliminar";
+      }
+      return;
+    }
+
+    const index = PARTICIPANTS.findIndex((p) => p.id === participant.id);
+    if (index >= 0) PARTICIPANTS.splice(index, 1);
+    adminDeletePlayerTarget = null;
+    closeSheet();
+    renderParticipantGrid();
+    renderAdmin();
+    const msg = document.getElementById("admin-player-list-msg");
+    if (msg) {
+      msg.textContent = "✓ Jugador eliminado";
+      msg.classList.add("visible");
+      setTimeout(() => msg.classList.remove("visible"), 2000);
+    }
+  } catch (e) {
+    showSheetError("No se pudo eliminar el jugador. Probá de nuevo después.");
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Eliminar";
+    }
   }
 }
 
@@ -1839,6 +1933,11 @@ function openMovementActions(id) {
   openSheet("movement-actions");
 }
 
+function openAdminDeletePlayerConfirm(participant) {
+  adminDeletePlayerTarget = participant;
+  openSheet("admin-delete-player-confirm");
+}
+
 function openSheet(type, movement) {
   currentSheetType = type;
   selectedCategory = movement && movement.category ? movement.category : null;
@@ -1853,6 +1952,25 @@ function openSheet(type, movement) {
 
   const user = getCurrentUser();
   const data = user ? ensureMoneyData(user.id) : null;
+
+  if (type === "admin-delete-player-confirm") {
+    const participant = adminDeletePlayerTarget;
+    if (!participant) {
+      closeSheet();
+      return;
+    }
+    sheetContent.innerHTML = `
+      <h2 class="sheet-title">¿Eliminar a ${escapeHtml(participant.name)}?</h2>
+      <p class="sheet-sub">Esta acción eliminará este jugador de la app. Sus datos históricos no se borran.</p>
+      <p class="sheet-error" id="sheet-error"></p>
+      <button class="sheet-submit danger" id="sheet-submit-btn" type="button">Eliminar</button>
+      <button class="sheet-cancel-link" id="sheet-cancel-btn" type="button">Cancelar</button>
+    `;
+    document.getElementById("sheet-submit-btn").addEventListener("click", handleAdminDeletePlayerConfirm);
+    document.getElementById("sheet-cancel-btn").addEventListener("click", closeSheet);
+    sheetOverlay.classList.add("visible");
+    return;
+  }
 
   if (type === "movement-actions") {
     const m = data ? findMovement(data.money, activeMovementId) : null;
@@ -2085,6 +2203,7 @@ function closeSheet() {
   previaCodeTarget = null;
   backupImportStep = null;
   backupImportPendingPayload = null;
+  adminDeletePlayerTarget = null;
   currentSheetType = null;
   if (forcingInitial) {
     // No se cargó saldo inicial: volvemos a home en vez de dejar la
@@ -5542,7 +5661,17 @@ document.getElementById("btn-admin-update-code").addEventListener("click", () =>
   openAdminImportUpdateCode();
 });
 
+document.getElementById("btn-admin-show-create-player").addEventListener("click", () => {
+  setAdminCreatePlayerPanel(true);
+  const input = document.getElementById("admin-new-player-name");
+  if (input) input.focus();
+});
+
 document.getElementById("btn-admin-create-player").addEventListener("click", handleAdminCreatePlayerClick);
+
+document.getElementById("btn-admin-cancel-create-player").addEventListener("click", () => {
+  setAdminCreatePlayerPanel(false);
+});
 
 document.getElementById("btn-admin-reset-data").addEventListener("click", handleAdminResetDataClick);
 
