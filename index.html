@@ -275,8 +275,9 @@
     <main class="home-content">
       <div class="section-label">Participantes</div>
       <div id="admin-participants" class="admin-participants"></div>
-      <button type="button" id="btn-admin-show-create-player" class="admin-add-btn">+ Agregar jugador</button>
       <p class="daily-save-msg" id="admin-player-list-msg"></p>
+      <button type="button" id="btn-admin-update-code" class="admin-add-btn">Actualizar código</button>
+      <button type="button" id="btn-admin-show-create-player" class="admin-add-btn">+ Agregar jugador</button>
       <div id="admin-create-player-panel" class="daily-section admin-create-player-panel" hidden>
         <div class="field">
           <label class="field-label" for="admin-new-player-name">Nombre</label>
@@ -290,7 +291,6 @@
         <button type="button" id="btn-admin-cancel-create-player" class="sheet-cancel-link">Cancelar</button>
         <p class="sheet-error" id="admin-create-player-error"></p>
       </div>
-      <button type="button" id="btn-admin-update-code" class="admin-add-btn">Actualizar código</button>
 
       <div class="section-label">Previas</div>
       <div class="card-list">
@@ -299,21 +299,6 @@
           <div class="feature-text">
             <h3>Previas</h3>
             <p>Registrá previas y su historial</p>
-          </div>
-          <svg class="feature-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-        </article>
-      </div>
-
-      <!-- Apartado "Títulos": misma estética
-           admin-frost. Ver "Títulos (implementado — estructura)" en
-           SPEC.md. -->
-      <div class="section-label">Títulos</div>
-      <div class="card-list">
-        <article class="feature-card tappable" id="card-admin-titulos">
-          <div class="feature-icon" style="--fc:#ffd16622;--fi:#ffd166">🏆</div>
-          <div class="feature-text">
-            <h3>Títulos</h3>
-            <p>Reconocimientos y logros del viaje</p>
           </div>
           <svg class="feature-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </article>
@@ -392,7 +377,7 @@
     </main>
   </section>
 
-  <!-- ===================== TÍTULOS (ADMIN) ===================== -->
+  <!-- ===================== LOGROS / TÍTULOS ===================== -->
   <!-- Hub de navegación con las 3 subsecciones. Misma estética
        admin-frost que Admin/Estadísticas/Previas; usa
        navigateBetweenScreensWithTransition (igual que Admin<->Estadísticas)
@@ -401,10 +386,10 @@
   <section id="screen-titulos" class="screen admin-frost">
     <header class="admin-hero titulos-hero">
       <div class="admin-hero-top">
-        <button id="btn-titulos-back" class="icon-btn" type="button" aria-label="Volver a admin">
+        <button id="btn-titulos-back" class="icon-btn" type="button" aria-label="Volver a home">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
-        <span class="hero-badge">🏆 Títulos</span>
+        <span class="hero-badge">🏆 Logros</span>
         <span class="icon-btn spacer" aria-hidden="true"></span>
       </div>
       <p class="eyebrow">Reconocimientos del</p>
@@ -561,6 +546,10 @@
     <button class="nav-btn" data-route="stats" type="button">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
       <span>Estadísticas</span>
+    </button>
+    <button class="nav-btn" data-route="titulos" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M5 5H3v2a4 4 0 0 0 4 4"/><path d="M19 5h2v2a4 4 0 0 1-4 4"/></svg>
+      <span>Logros</span>
     </button>
     <button id="nav-admin" class="nav-btn" data-route="admin" type="button">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>

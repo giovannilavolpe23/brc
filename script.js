@@ -932,7 +932,7 @@ async function handleAdminCreatePlayerClick() {
     renderParticipantGrid();
     renderAdmin();
     if (msg) {
-      msg.textContent = "✓ Jugador creado";
+      msg.textContent = "✓ Jugador agregado";
       msg.classList.add("visible");
       setTimeout(() => msg.classList.remove("visible"), 2000);
     }
@@ -4059,7 +4059,14 @@ function requestStatsPanelRefresh(scope, dateKey) {
     .finally(() => {
       statsApiPending[requestKey] = false;
       if (screens.stats && screens.stats.classList.contains("active")) renderStatsPanel();
+      refreshActiveTitulosPanel();
     });
+}
+
+function refreshActiveTitulosPanel() {
+  if (screens["titulos-estadistica"] && screens["titulos-estadistica"].classList.contains("active")) renderTitulosEstadisticaPanel();
+  if (screens["titulos-encuesta"] && screens["titulos-encuesta"].classList.contains("active")) renderTitulosEncuestaPanel();
+  if (screens["titulos-racha"] && screens["titulos-racha"].classList.contains("active")) renderTitulosRachaPanel();
 }
 
 function clearStatsApiCache() {
@@ -5112,11 +5119,69 @@ function renderTitulosProfiles(getRows) {
   return profiles.map(renderTituloProfileCard).join("");
 }
 
+function titulosApiParticipant(stats, userId) {
+  const user = (stats.users || []).find((item) => item.id === userId);
+  if (!user) return { id: userId, name: statsUserName(stats, userId) };
+  return { id: user.legacyId || user.id, apiId: user.id, name: user.displayName };
+}
+
+function titulosApiRows(stats, config) {
+  const daily = stats.dailyEntries || {};
+  const money = stats.money || {};
+  const previas = stats.previas || {};
+  const displayCount = (unit) => (value) => `${value} ${unit}${value === 1 ? "" : "s"}`;
+  const displayDayYesNo = (value) => (value ? "Sí" : "No");
+
+  const byKey = {
+    sleep: [daily.sleepMinutes, formatDuration],
+    nap: [daily.siestas, stats.scope === "day" ? displayDayYesNo : displayCount("siesta")],
+    fifthMeal: [daily.fifthMeals, stats.scope === "day" ? displayDayYesNo : (value) => `${value} vez${value === 1 ? "" : "es"}`],
+    bathroom: [daily.bathroom, (value) => (value === 1 ? "1 vez" : `${value} veces`)],
+    boliche: [daily.bolicheMinutes, formatDuration],
+    money: [money.totalSpentByUser, formatMoney],
+    previas: [previas.byParticipant, displayCount("previa")],
+    destroyedVote: [(stats.surveys || {}).destroyed_vote, displayCount("voto")],
+    streakBoliche: [(stats.streaks || {}).boliche, displayCount("día")],
+    streakFifthMeal: [(stats.streaks || {}).fifthMeal, displayCount("día")],
+    streakBathroom: [(stats.streaks || {}).bathroom, displayCount("día")],
+    streakChocolates: [(stats.streaks || {}).chocolates, displayCount("día")],
+    streakAlcohol: [(stats.streaks || {}).alcohol, displayCount("día")],
+  };
+
+  const [rows, displayFn] = byKey[config.key] || [[], String];
+  return (rows || []).map((row) => ({
+    userId: row.userId,
+    name: statsUserName(stats, row.userId),
+    value: row.value,
+    display: displayFn(row.value),
+  }));
+}
+
+function renderTitulosProfilesFromApi(stats, configs, allTied) {
+  const wonByUserId = new Map();
+
+  configs.forEach((config) => {
+    const rows = titulosApiRows(stats, config);
+    if (!rows.length) return;
+    const topValue = rows[0].value;
+    const winners = allTied ? rows.filter((row) => row.value === topValue) : [rows[0]];
+    winners.forEach((winner) => {
+      const key = winner.userId;
+      if (!wonByUserId.has(key)) wonByUserId.set(key, { participant: titulosApiParticipant(stats, key), titles: [] });
+      wonByUserId.get(key).titles.push({ config, winner });
+    });
+  });
+
+  return Array.from(wonByUserId.values()).map(renderTituloProfileCard).join("");
+}
+
 // DÍA: cada título se calcula únicamente con los datos disponibles
 // hasta ese día puntual (mismas funciones dayRanking* que usa
 // Estadísticas, que ya filtran por `dateKey`).
 function renderTitulosDayReal(dateKey) {
-  const profilesHtml = renderTitulosProfiles((config) => config.dayFn(dateKey));
+  const profilesHtml = statsApiDays[dateKey]
+    ? renderTitulosProfilesFromApi(statsApiDays[dateKey], TITULOS_CONFIG, false)
+    : renderTitulosProfiles((config) => config.dayFn(dateKey));
   if (!profilesHtml) {
     return `
       <div class="stats-empty-banner">
@@ -5131,7 +5196,9 @@ function renderTitulosDayReal(dateKey) {
 // TOTAL: cada título se calcula acumulando todos los días cerrados
 // disponibles (mismas funciones totalRanking* que usa Estadísticas).
 function renderTitulosTotalReal(closedDays) {
-  const profilesHtml = renderTitulosProfiles((config) => config.totalFn(closedDays));
+  const profilesHtml = statsApiTotal
+    ? renderTitulosProfilesFromApi(statsApiTotal, TITULOS_CONFIG, false)
+    : renderTitulosProfiles((config) => config.totalFn(closedDays));
   if (!profilesHtml) {
     return `
       <div class="stats-empty-banner">
@@ -5143,10 +5210,15 @@ function renderTitulosTotalReal(closedDays) {
   return `<div class="card-list titulos-profile-list">${profilesHtml}</div>`;
 }
 
+function getSharedStatsClosedDays() {
+  return statsApiTotal && Array.isArray(statsApiTotal.closedDays) ? statsApiTotal.closedDays : getStatsClosedDays();
+}
+
 function renderTitulosEstadisticaPanel() {
   const panel = document.getElementById("titulos-estadistica-panel");
   if (!panel) return;
-  const closedDays = getStatsClosedDays();
+  if (!statsApiTotal) requestStatsPanelRefresh("total");
+  const closedDays = getSharedStatsClosedDays();
 
   const navDir = titulosStatsNavDir;
   titulosStatsNavDir = 0;
@@ -5161,6 +5233,7 @@ function renderTitulosEstadisticaPanel() {
     const currentKey = hasDays ? closedDays[titulosEstadisticaDayIndex] : null;
     const atFirst = !hasDays || titulosEstadisticaDayIndex <= 0;
     const atLast = !hasDays || titulosEstadisticaDayIndex >= closedDays.length - 1;
+    if (hasDays && !statsApiDays[currentKey]) requestStatsPanelRefresh("day", currentKey);
 
     panel.innerHTML = `
       <div class="stats-panel-inner ${innerClass}">
@@ -5403,7 +5476,9 @@ function renderTitulosEncuestaProfiles(getRows) {
 // DÍA: cada título por encuesta se calcula únicamente con los votos
 // de ese día puntual.
 function renderTitulosEncuestaDayReal(dateKey) {
-  const profilesHtml = renderTitulosEncuestaProfiles((config) => config.dayFn(dateKey));
+  const profilesHtml = statsApiDays[dateKey]
+    ? renderTitulosProfilesFromApi(statsApiDays[dateKey], ENCUESTAS_CONFIG, true)
+    : renderTitulosEncuestaProfiles((config) => config.dayFn(dateKey));
   if (!profilesHtml) {
     return `
       <div class="stats-empty-banner">
@@ -5418,7 +5493,9 @@ function renderTitulosEncuestaDayReal(dateKey) {
 // TOTAL: cada título por encuesta se calcula sumando los votos de
 // todos los días cerrados disponibles.
 function renderTitulosEncuestaTotalReal(closedDays) {
-  const profilesHtml = renderTitulosEncuestaProfiles((config) => config.totalFn(closedDays));
+  const profilesHtml = statsApiTotal
+    ? renderTitulosProfilesFromApi(statsApiTotal, ENCUESTAS_CONFIG, true)
+    : renderTitulosEncuestaProfiles((config) => config.totalFn(closedDays));
   if (!profilesHtml) {
     return `
       <div class="stats-empty-banner">
@@ -5433,7 +5510,8 @@ function renderTitulosEncuestaTotalReal(closedDays) {
 function renderTitulosEncuestaPanel() {
   const panel = document.getElementById("titulos-encuesta-panel");
   if (!panel) return;
-  const closedDays = getStatsClosedDays();
+  if (!statsApiTotal) requestStatsPanelRefresh("total");
+  const closedDays = getSharedStatsClosedDays();
 
   const navDir = titulosEncuestaNavDir;
   titulosEncuestaNavDir = 0;
@@ -5448,6 +5526,7 @@ function renderTitulosEncuestaPanel() {
     const currentKey = hasDays ? closedDays[titulosEncuestaDayIndex] : null;
     const atFirst = !hasDays || titulosEncuestaDayIndex <= 0;
     const atLast = !hasDays || titulosEncuestaDayIndex >= closedDays.length - 1;
+    if (hasDays && !statsApiDays[currentKey]) requestStatsPanelRefresh("day", currentKey);
 
     panel.innerHTML = `
       <div class="stats-panel-inner ${innerClass}">
@@ -5760,7 +5839,9 @@ function renderTitulosRachaProfiles(getRows) {
 // puntual (`daysUpTo` ya recorta `closedDays` dentro de cada
 // `dayFn` de `RACHAS_CONFIG`).
 function renderTitulosRachaDayReal(closedDays, dateKey) {
-  const profilesHtml = renderTitulosRachaProfiles((config) => config.dayFn(closedDays, dateKey));
+  const profilesHtml = statsApiDays[dateKey]
+    ? renderTitulosProfilesFromApi(statsApiDays[dateKey], RACHAS_CONFIG, true)
+    : renderTitulosRachaProfiles((config) => config.dayFn(closedDays, dateKey));
   if (!profilesHtml) {
     return `
       <div class="stats-empty-banner">
@@ -5775,7 +5856,9 @@ function renderTitulosRachaDayReal(closedDays, dateKey) {
 // TOTAL: cada racha se calcula sobre todo el historial de días
 // cerrados del viaje.
 function renderTitulosRachaTotalReal(closedDays) {
-  const profilesHtml = renderTitulosRachaProfiles((config) => config.totalFn(closedDays));
+  const profilesHtml = statsApiTotal
+    ? renderTitulosProfilesFromApi(statsApiTotal, RACHAS_CONFIG, true)
+    : renderTitulosRachaProfiles((config) => config.totalFn(closedDays));
   if (!profilesHtml) {
     return `
       <div class="stats-empty-banner">
@@ -5790,7 +5873,8 @@ function renderTitulosRachaTotalReal(closedDays) {
 function renderTitulosRachaPanel() {
   const panel = document.getElementById("titulos-racha-panel");
   if (!panel) return;
-  const closedDays = getStatsClosedDays();
+  if (!statsApiTotal) requestStatsPanelRefresh("total");
+  const closedDays = getSharedStatsClosedDays();
 
   const navDir = titulosRachaNavDir;
   titulosRachaNavDir = 0;
@@ -5805,6 +5889,7 @@ function renderTitulosRachaPanel() {
     const currentKey = hasDays ? closedDays[titulosRachaDayIndex] : null;
     const atFirst = !hasDays || titulosRachaDayIndex <= 0;
     const atLast = !hasDays || titulosRachaDayIndex >= closedDays.length - 1;
+    if (hasDays && !statsApiDays[currentKey]) requestStatsPanelRefresh("day", currentKey);
 
     panel.innerHTML = `
       <div class="stats-panel-inner ${innerClass}">
@@ -5964,10 +6049,6 @@ function navigate(route) {
   const isAdminOnlyRoute =
     route === "admin" ||
     route === "previas" ||
-    route === "titulos" ||
-    route === "titulos-estadistica" ||
-    route === "titulos-encuesta" ||
-    route === "titulos-racha" ||
     route === "ajustes";
   if (isAdminOnlyRoute && !user.isAdmin) {
     route = "home";
@@ -5979,6 +6060,7 @@ function navigate(route) {
 
   if (route === "admin") {
     location.hash = "#/admin";
+    adminCreatePlayerOpen = false;
     renderAdmin();
     showScreen("admin");
   } else if (route === "previas") {
@@ -6057,18 +6139,15 @@ function navigate(route) {
   );
   // Dinero, Registro diario, Envío de datos y Previas (sección de
   // Jere) son parte de Home: mantenemos ese tab activo.
-  // Previas, Títulos (con sus 3 subsecciones) y Ajustes son parte de
-  // Admin: mantenemos ese tab activo. Estadísticas ya es sección propia.
+  // Previas y Ajustes son parte de Admin. Logros usa internamente las
+  // rutas históricas "titulos".
   updateNav(
     route === "money" || route === "daily" || route === "export" || route === "previas-jere"
       ? "home"
-      : route === "previas" ||
-        route === "titulos" ||
-        route === "titulos-estadistica" ||
-        route === "titulos-encuesta" ||
-        route === "titulos-racha" ||
-        route === "ajustes"
+      : route === "previas" || route === "ajustes"
       ? "admin"
+      : route === "titulos" || route === "titulos-estadistica" || route === "titulos-encuesta" || route === "titulos-racha"
+      ? "titulos"
       : route
   );
 }
@@ -6133,12 +6212,8 @@ document.getElementById("btn-stats-back").addEventListener("click", () => {
   navigateScreenToHomeWithTransition("stats");
 });
 
-document.getElementById("card-admin-titulos").addEventListener("click", () => {
-  navigateBetweenScreensWithTransition("admin", "titulos");
-});
-
 document.getElementById("btn-titulos-back").addEventListener("click", () => {
-  navigateBetweenScreensWithTransition("titulos", "admin");
+  navigateScreenToHomeWithTransition("titulos");
 });
 
 document.getElementById("card-titulos-estadistica").addEventListener("click", () => {
