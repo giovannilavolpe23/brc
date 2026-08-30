@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { NextFunction, Request, Response } from "express";
 import { createRequireAuth, hasPermission, requirePermission, requireRole } from "../src/auth/middleware";
-import { AUTH_COOKIE_NAME, signAuthToken } from "../src/auth/token";
+import { signAuthToken } from "../src/auth/token";
 import type { AuthUser } from "../src/auth/types";
 
 function makeUser(overrides: Partial<AuthUser> = {}): AuthUser {
@@ -33,7 +33,7 @@ function mockResponse(): Response & { statusCodeValue?: number; body?: unknown }
 describe("auth middleware", () => {
   it("loads a fresh user from the database layer for authenticated requests", async () => {
     const user = makeUser({ displayName: "Fresh Gio" });
-    const req = { cookies: { [AUTH_COOKIE_NAME]: signAuthToken(user) } } as Request;
+    const req = { header: () => `Bearer ${signAuthToken(user)}` } as Request;
     const res = mockResponse();
     let nextCalled = false;
     const next: NextFunction = () => {
@@ -51,8 +51,8 @@ describe("auth middleware", () => {
     assert.equal(req.user.displayName, "Fresh Gio");
   });
 
-  it("rejects missing auth cookies", async () => {
-    const req = { cookies: {} } as Request;
+  it("rejects missing bearer tokens", async () => {
+    const req = { header: () => undefined } as Request;
     const res = mockResponse();
 
     await createRequireAuth(async () => null)(req, res, (() => undefined) as NextFunction);

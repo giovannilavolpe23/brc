@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import jwt from "jsonwebtoken";
-import { AUTH_COOKIE_NAME, AUTH_TOKEN_TTL_SECONDS, signAuthToken, verifyAuthToken } from "../src/auth/token";
+import { AUTH_TOKEN_TTL_SECONDS, signAuthToken, verifyAuthToken } from "../src/auth/token";
 import type { AuthUser } from "../src/auth/types";
 
 const user: AuthUser = {
@@ -13,8 +13,7 @@ const user: AuthUser = {
 };
 
 describe("auth tokens", () => {
-  it("uses the access token cookie and a 24 hour lifetime", () => {
-    assert.equal(AUTH_COOKIE_NAME, "access_token");
+  it("uses a 24 hour lifetime", () => {
     assert.equal(AUTH_TOKEN_TTL_SECONDS, 24 * 60 * 60);
   });
 

@@ -1,6 +1,5 @@
 import { Router } from "express";
 import { verifyPassword } from "./password";
-import { clearAuthCookie, setAuthCookie } from "./cookies";
 import { createRequireAuth } from "./middleware";
 import { signAuthToken } from "./token";
 import { toPublicUser, type UserCredentials } from "./types";
@@ -28,15 +27,13 @@ export function createAuthRouter(findCredentials: FindCredentials = findUserCred
         return;
       }
 
-      setAuthCookie(res, signAuthToken(user));
-      res.json({ user: toPublicUser(user) });
+      res.json({ user: toPublicUser(user), accessToken: signAuthToken(user) });
     } catch (error) {
       next(error);
     }
   });
 
   router.post("/logout", (_req, res) => {
-    clearAuthCookie(res);
     res.status(204).send();
   });
 

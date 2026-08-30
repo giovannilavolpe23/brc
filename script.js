@@ -88,6 +88,7 @@ if (typeof window !== "undefined") {
 
 const STORAGE_KEYS = {
   currentUser: "currentUser",
+  apiAccessToken: "apiAccessToken",
   userData: (id) => `userData:${id}`,
   adminPlayers: "adminPlayers",
   adminPrevias: "adminPrevias",
@@ -101,11 +102,12 @@ const DEFAULT_API_BASE_URL =
 const API_BASE_URL = (window.BARILOCHE_API_BASE_URL || DEFAULT_API_BASE_URL).replace(/\/$/, "");
 
 async function apiFetch(path, options = {}) {
+  const accessToken = localStorage.getItem(STORAGE_KEYS.apiAccessToken);
   return fetch(`${API_BASE_URL}${path}`, {
     ...options,
-    credentials: "include",
     headers: {
       "Content-Type": "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...(options.headers || {}),
     },
   });
@@ -151,6 +153,7 @@ function getCurrentUser() {
 function setCurrentUser(participant) {
   // Guardamos solo lo necesario para identificar la sesión; nunca la
   // contraseña, ni siquiera la del participante (no solo la ingresada).
+  localStorage.removeItem(STORAGE_KEYS.apiAccessToken);
   const sessionData = { id: participant.id, name: participant.name, isAdmin: !!participant.isAdmin };
   localStorage.setItem(STORAGE_KEYS.currentUser, JSON.stringify(sessionData));
   ensureUserData(participant.id);
@@ -159,15 +162,22 @@ function setCurrentUser(participant) {
 function clearCurrentUser() {
   // Elimina ÚNICAMENTE la sesión. Nunca localStorage.clear().
   localStorage.removeItem(STORAGE_KEYS.currentUser);
+  localStorage.removeItem(STORAGE_KEYS.apiAccessToken);
   dailyDateKey = null; // fuerza recargar el registro diario del próximo usuario
 }
 
 async function loginApiInBackground(username, password) {
   try {
-    await apiFetch("/auth/login", {
+    const response = await apiFetch("/auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password }),
     });
+    if (!response.ok) return;
+
+    const data = await response.json();
+    if (typeof data.accessToken === "string" && data.accessToken) {
+      localStorage.setItem(STORAGE_KEYS.apiAccessToken, data.accessToken);
+    }
   } catch (e) {
     // La sesión local sigue siendo la fuente de continuidad del frontend actual.
   }
@@ -1891,6 +1901,7 @@ function getYesterdayKey() {
 }
 
 function formatDailyDate(dateKey) {
+  if (typeof dateKey !== "string") return "";
   const [y, m, d] = dateKey.split("-").map(Number);
   const date = new Date(y, m - 1, d);
   const label = date.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" });
@@ -3787,7 +3798,7 @@ function renderStatsPanel() {
   const innerClass = navDir === 1 ? "stats-slide-next" : navDir === -1 ? "stats-slide-prev" : "";
 
   if (statsTab === "dia") {
-    if (statsDayIndex === null || statsDayIndex >= closedDays.length) {
+    if (statsDayIndex === null || statsDayIndex < 0 || statsDayIndex >= closedDays.length) {
       statsDayIndex = closedDays.length - 1;
     }
 

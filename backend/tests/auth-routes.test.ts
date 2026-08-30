@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import express from "express";
-import cookieParser from "cookie-parser";
 import request from "supertest";
 import { createAuthRouter } from "../src/auth/routes";
 import { hashPassword } from "../src/auth/password";
@@ -20,7 +19,6 @@ async function makeApp() {
 
   const app = express();
   app.use(express.json());
-  app.use(cookieParser());
   app.use(
     "/auth",
     createAuthRouter(async (legacyId) => {
@@ -31,7 +29,7 @@ async function makeApp() {
 }
 
 describe("auth routes", () => {
-  it("logs in with valid credentials and does not expose tokens or password hashes in the body", async () => {
+  it("logs in with valid credentials and returns a bearer token without exposing password hashes", async () => {
     const app = await makeApp();
 
     const response = await request(app).post("/auth/login").send({
@@ -40,11 +38,11 @@ describe("auth routes", () => {
     });
 
     assert.equal(response.status, 200);
-    assert.match(response.headers["set-cookie"][0], /^access_token=/);
+    assert.equal(response.headers["set-cookie"], undefined);
+    assert.equal(typeof response.body.accessToken, "string");
     assert.equal(response.body.user.legacyId, "gio");
     assert.equal(response.body.user.role, "admin");
     assert.equal(response.body.user.passwordHash, undefined);
-    assert.equal(response.body.token, undefined);
   });
 
   it("rejects invalid credentials with a generic error", async () => {
@@ -60,12 +58,12 @@ describe("auth routes", () => {
     assert.equal(response.headers["set-cookie"], undefined);
   });
 
-  it("clears the auth cookie on logout", async () => {
+  it("keeps logout stateless and does not set cookies", async () => {
     const app = await makeApp();
 
     const response = await request(app).post("/auth/logout").send();
 
     assert.equal(response.status, 204);
-    assert.match(response.headers["set-cookie"][0], /^access_token=;/);
+    assert.equal(response.headers["set-cookie"], undefined);
   });
 });

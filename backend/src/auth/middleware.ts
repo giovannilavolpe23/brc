@@ -1,5 +1,5 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
-import { AUTH_COOKIE_NAME, verifyAuthToken } from "./token";
+import { verifyAuthToken } from "./token";
 import { findAuthUserById } from "./users.repository";
 import type { AuthUser } from "./types";
 
@@ -7,8 +7,8 @@ export type LoadAuthUser = (id: string) => Promise<AuthUser | null>;
 
 export function createRequireAuth(loadAuthUser: LoadAuthUser = findAuthUserById): RequestHandler {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const token = req.cookies?.[AUTH_COOKIE_NAME];
-    if (!token || typeof token !== "string") {
+    const token = bearerTokenFromRequest(req);
+    if (!token) {
       res.status(401).json({ error: "unauthorized" });
       return;
     }
@@ -30,6 +30,15 @@ export function createRequireAuth(loadAuthUser: LoadAuthUser = findAuthUserById)
 }
 
 export const requireAuth = createRequireAuth();
+
+function bearerTokenFromRequest(req: Request): string | null {
+  const authorization = req.header("authorization");
+  if (!authorization) return null;
+
+  const [scheme, token] = authorization.split(" ");
+  if (scheme !== "Bearer" || !token || authorization.split(" ").length !== 2) return null;
+  return token;
+}
 
 export function requireRole(role: string): RequestHandler {
   return (req, res, next) => {

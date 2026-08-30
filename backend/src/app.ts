@@ -1,5 +1,4 @@
 import type { ErrorRequestHandler } from "express";
-import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
 import { requireAuth } from "./auth/middleware";
@@ -18,11 +17,9 @@ export const app = express();
 app.use(
   cors({
     origin: env.frontendOrigin,
-    credentials: true,
   })
 );
 app.use(express.json());
-app.use(cookieParser());
 
 app.use("/auth", authRouter);
 app.use("/money", moneyRouter);
