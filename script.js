@@ -4887,7 +4887,6 @@ function renderStatsPanel() {
             : `<div class="stats-empty-banner"><span class="stats-empty-banner-icon" aria-hidden="true">🗓️</span><p>Todavía no hay días cerrados del viaje. En cuanto se registre e importe el primer día completo, vas a poder ver el acumulado acá.</p></div>`
         }
         ${statsApiPending.total ? renderApiLoadingBanner("Cargando estadísticas compartidas...") : ""}
-        <div class="section-label">Estadísticas totales</div>
         ${hasDays ? (statsApiTotal ? renderTotalStatsFromApi(statsApiTotal) : renderTotalStatsReal(closedDays)) : renderStatsPlaceholderCards()}
       </div>
     `;
