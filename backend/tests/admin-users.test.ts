@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import express, { type RequestHandler } from "express";
 import request from "supertest";
 import { AdminUserValidationError, createAdminUsersRouter, type AdminUsersRepository } from "../src/admin/users";
+import { createRequireAuth } from "../src/auth/middleware";
 import { createAuthRouter } from "../src/auth/routes";
 import { hashPassword, verifyPassword } from "../src/auth/password";
 import type { AuthUser, UserCredentials } from "../src/auth/types";
@@ -162,6 +163,34 @@ describe("admin user creation", () => {
     assert.equal(response.status, 200);
     assert.equal(response.body.user.legacyId, "api-nuevo");
     assert.equal(typeof response.body.accessToken, "string");
+  });
+
+  it("lets a newly created user call protected routes with the returned bearer token", async () => {
+    const repository = makeRepository();
+    await request(makeAdminApp(admin, repository)).post("/admin/users").send({
+      name: "Api Protegido",
+      password: "secret-pass",
+    });
+
+    const app = express();
+    app.use(express.json());
+    app.use("/auth", createAuthRouter(async (legacyId) => repository.credentials.get(legacyId) ?? null));
+    app.get(
+      "/protected/me",
+      createRequireAuth(async (id) => Array.from(repository.credentials.values()).find((credential) => credential.id === id) ?? null),
+      (req, res) => {
+        res.json({ userId: req.user.id, legacyId: req.user.legacyId });
+      }
+    );
+
+    const login = await request(app).post("/auth/login").send({
+      username: "api-protegido",
+      password: "secret-pass",
+    });
+    const response = await request(app).get("/protected/me").set("Authorization", `Bearer ${login.body.accessToken}`);
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.legacyId, "api-protegido");
   });
 
   it("lets an admin deactivate a dynamic user without deleting original users", async () => {

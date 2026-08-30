@@ -655,16 +655,17 @@ async function checkLoginPassword() {
   }
 
   let participant = loginParticipant;
+  let apiLoginData = null;
   if (typeof participant.password !== "string") {
-    const data = await loginApi(participant.id, enteredRaw);
-    if (!data || !data.user) {
+    apiLoginData = await loginApi(participant.id, enteredRaw);
+    if (!apiLoginData || !apiLoginData.user) {
       input.classList.add("error");
       input.value = "";
       input.focus();
       showSheetError("Contraseña incorrecta. Intentá de nuevo.");
       return;
     }
-    participant = participantFromApiUser(data.user);
+    participant = participantFromApiUser(apiLoginData.user);
     const index = PARTICIPANTS.findIndex((p) => p.id === participant.id);
     if (index >= 0) PARTICIPANTS[index] = participant;
     else PARTICIPANTS.push(participant);
@@ -678,6 +679,9 @@ async function checkLoginPassword() {
   if (typeof participant.password === "string") {
     loginApiInBackground(participant.id, entered);
   } else {
+    if (apiLoginData && typeof apiLoginData.accessToken === "string" && apiLoginData.accessToken) {
+      localStorage.setItem(STORAGE_KEYS.apiAccessToken, apiLoginData.accessToken);
+    }
     schedulePendingApiSync();
   }
   navigateSelectToHomeWithTransition();
