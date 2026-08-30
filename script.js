@@ -100,16 +100,25 @@ const DEFAULT_API_BASE_URL =
     ? "http://localhost:3000"
     : "https://bariloche-web.onrender.com";
 const API_BASE_URL = (window.BARILOCHE_API_BASE_URL || DEFAULT_API_BASE_URL).replace(/\/$/, "");
+let apiLoginPromise = null;
 
 async function apiFetch(path, options = {}) {
+  if (path !== "/auth/login" && !localStorage.getItem(STORAGE_KEYS.apiAccessToken) && apiLoginPromise) {
+    try {
+      await apiLoginPromise;
+    } catch (e) {
+      // Si el login API falla, la llamada protegida seguirá sin token y caerá en el fallback existente.
+    }
+  }
+
   const accessToken = localStorage.getItem(STORAGE_KEYS.apiAccessToken);
+  const headers = new Headers(options.headers || {});
+  if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  if (accessToken && !headers.has("Authorization")) headers.set("Authorization", `Bearer ${accessToken}`);
+
   return fetch(`${API_BASE_URL}${path}`, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      ...(options.headers || {}),
-    },
+    headers,
   });
 }
 
@@ -167,7 +176,7 @@ function clearCurrentUser() {
 }
 
 async function loginApiInBackground(username, password) {
-  try {
+  const loginPromise = (async () => {
     const response = await apiFetch("/auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password }),
@@ -178,8 +187,15 @@ async function loginApiInBackground(username, password) {
     if (typeof data.accessToken === "string" && data.accessToken) {
       localStorage.setItem(STORAGE_KEYS.apiAccessToken, data.accessToken);
     }
+  })();
+
+  apiLoginPromise = loginPromise;
+  try {
+    await loginPromise;
   } catch (e) {
     // La sesión local sigue siendo la fuente de continuidad del frontend actual.
+  } finally {
+    if (apiLoginPromise === loginPromise) apiLoginPromise = null;
   }
 }
 
