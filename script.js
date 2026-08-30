@@ -4609,6 +4609,15 @@ function rankClassForRow(item) {
   return "";
 }
 
+function rankingValueText(row) {
+  return String(row.secondaryDisplay || row.display || "");
+}
+
+function rankingValueColumnWidth(rows) {
+  const longest = rows.reduce((max, row) => Math.max(max, rankingValueText(row).length), 0);
+  return `${Math.max(2, Math.min(12, longest))}ch`;
+}
+
 // Ranking genérico de barras HORIZONTALES, ordenado de mayor a menor
 // (los `rows` ya vienen ordenados). El primer puesto se separa en un
 // "podio" propio (más grande, con glow y corona) para que sea
@@ -4656,9 +4665,10 @@ function renderRankingBars(rows, emptyMessage) {
     </div>
   `;
 
+  const valueColumnWidth = rankingValueColumnWidth(restRows.map((item) => item.row));
   const restList = restRows.length
     ? `
-      <div class="ranking-list">
+      <div class="ranking-list" style="--ranking-value-width:${valueColumnWidth}">
         ${restRows
           .map((item, i) => {
             const row = item.row;
@@ -4670,7 +4680,7 @@ function renderRankingBars(rows, emptyMessage) {
                 <div class="ranking-bar-track">
                   <div class="ranking-bar-fill" data-pct="${pct}"></div>
                 </div>
-                <span class="ranking-value">${row.secondaryDisplay || row.display}</span>
+                <span class="ranking-value">${rankingValueText(row)}</span>
               </div>
             `;
           })

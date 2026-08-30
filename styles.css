@@ -1906,7 +1906,7 @@ img, svg {
 
 .ranking-row {
   display: grid;
-  grid-template-columns: 22px minmax(0, 72px) minmax(88px, 1fr) 70px;
+  grid-template-columns: 22px minmax(0, 72px) minmax(88px, 1fr) minmax(2ch, var(--ranking-value-width, max-content));
   align-items: center;
   gap: 8px;
   min-width: 0;
@@ -2025,7 +2025,7 @@ img, svg {
 
 @media (max-width: 360px) {
   .ranking-row {
-    grid-template-columns: 18px minmax(0, 56px) minmax(72px, 1fr) 58px;
+    grid-template-columns: 18px minmax(0, 56px) minmax(72px, 1fr) minmax(2ch, var(--ranking-value-width, max-content));
     gap: 6px;
   }
   .ranking-name {
