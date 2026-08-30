@@ -3502,3 +3502,301 @@ img, svg {
 .screen.admin-frost .daily-save-msg {
   color: #2f8fd1;
 }
+
+/* ---------------------------------------------------------
+   Pulido UX general — ritmo, aire y microinteracciones
+   --------------------------------------------------------- */
+
+.home-content {
+  padding-bottom: calc(118px + var(--safe-bottom));
+  gap: 16px;
+}
+
+.section-label {
+  margin-top: 10px;
+  margin-bottom: 2px;
+}
+
+.card-list {
+  gap: 12px;
+}
+
+.feature-card {
+  padding: 16px;
+  gap: 14px;
+  transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease;
+}
+
+.feature-card#card-money:active,
+.feature-card.tappable:active,
+.history-row:active,
+.money-action:active,
+.admin-add-btn:active,
+.sheet-submit:active,
+.nav-btn:active,
+.chip:active,
+.toggle-chip:active,
+.time-option:active {
+  transform: scale(0.985);
+}
+
+#screen-home .home-content {
+  gap: 22px;
+}
+
+#screen-home .feature-card {
+  padding: 24px 20px;
+}
+
+.admin-participants,
+.money-history,
+.previa-history-list,
+.previa-products-list {
+  gap: 10px;
+}
+
+.admin-participant-row,
+.history-row {
+  padding: 12px 13px;
+}
+
+.admin-add-btn,
+.sheet-submit,
+.money-action {
+  min-height: 46px;
+}
+
+.admin-add-btn {
+  padding: 14px 13px;
+}
+
+.daily-date-banner,
+.daily-section,
+.donut-card,
+.money-prompt,
+.ranking-card,
+.titulo-profile-card {
+  border-radius: var(--radius-lg);
+}
+
+.daily-section {
+  padding: 18px;
+  gap: 14px;
+}
+
+.picker-block {
+  gap: 10px;
+}
+
+.chip-group {
+  gap: 9px;
+}
+
+.chip,
+.toggle-chip,
+.time-option {
+  min-height: 40px;
+}
+
+.time-scroll {
+  padding: 4px 2px 10px;
+}
+
+.field {
+  margin-top: 18px;
+}
+
+.field-label {
+  margin-bottom: 9px;
+}
+
+.field-input,
+.admin-import-textarea,
+.export-code-box {
+  padding: 14px;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.field-input:focus,
+.admin-import-textarea:focus,
+.export-code-box:focus {
+  box-shadow: 0 0 0 3px rgba(76, 201, 240, 0.14);
+}
+
+.sheet {
+  padding: 12px 20px calc(28px + var(--safe-bottom));
+  max-height: min(88dvh, 720px);
+}
+
+.sheet-title {
+  line-height: 1.12;
+}
+
+.sheet-sub,
+.export-hint,
+.admin-notice {
+  line-height: 1.5;
+}
+
+.sheet-cancel-link {
+  min-height: 42px;
+  padding: 10px;
+}
+
+.sheet-error,
+.daily-save-msg {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.sheet-error:not(:empty),
+.daily-save-msg.visible {
+  transform: translateY(0);
+}
+
+.sheet-error:empty,
+.daily-save-msg:not(.visible) {
+  transform: translateY(-3px);
+}
+
+.api-loading-banner,
+.stats-empty-banner,
+.admin-notice {
+  animation: uxFadeUp 0.18s ease both;
+}
+
+.stats-tabs {
+  margin-bottom: 18px;
+}
+
+.stats-day-nav {
+  padding: 13px 12px;
+  margin-bottom: 24px;
+}
+
+.stats-real-list {
+  gap: 22px;
+}
+
+.ranking-card {
+  padding: 18px 16px 16px;
+  gap: 18px;
+}
+
+.ranking-podium {
+  padding: 15px 14px;
+}
+
+.ranking-podium-name {
+  font-size: 17px;
+}
+
+.ranking-list {
+  gap: 11px;
+}
+
+.ranking-row {
+  grid-template-columns: 22px minmax(0, 78px) minmax(88px, 1fr) minmax(2ch, var(--ranking-value-width, max-content));
+  gap: 9px;
+}
+
+.ranking-bar-track {
+  height: 14px;
+}
+
+.bottom-nav {
+  padding: 11px 16px calc(13px + var(--safe-bottom));
+}
+
+.nav-btn {
+  min-height: 48px;
+  transition: color 0.14s ease, background 0.14s ease, transform 0.12s ease;
+}
+
+.nav-btn.active {
+  background: rgba(255, 159, 28, 0.08);
+}
+
+.bottom-nav.bottom-nav-frost .nav-btn.active {
+  background: rgba(76, 201, 240, 0.12);
+}
+
+.screen.admin-frost .feature-card,
+.screen.admin-frost .admin-participant-row,
+.screen.admin-frost .ranking-card,
+.screen.admin-frost .stats-empty-banner,
+.screen.admin-frost .daily-section,
+.screen.admin-frost .daily-date-banner,
+.screen.admin-frost .donut-card,
+.screen.admin-frost .money-prompt,
+.screen.admin-frost .history-row,
+.screen.admin-frost .titulo-profile-card {
+  box-shadow: 0 12px 28px -22px rgba(47, 143, 209, 0.42);
+}
+
+@keyframes uxFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 360px) {
+  .home-content {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+  .feature-card,
+  .daily-section,
+  .ranking-card {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .bottom-nav {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .nav-btn span {
+    font-size: 10.5px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feature-card,
+  .history-row,
+  .money-action,
+  .admin-add-btn,
+  .sheet-submit,
+  .nav-btn,
+  .chip,
+  .toggle-chip,
+  .time-option,
+  .field-input,
+  .admin-import-textarea,
+  .export-code-box,
+  .sheet-error,
+  .daily-save-msg {
+    transition: none !important;
+  }
+  .api-loading-banner,
+  .stats-empty-banner,
+  .admin-notice,
+  .api-loading-dot {
+    animation: none !important;
+  }
+  .feature-card#card-money:active,
+  .feature-card.tappable:active,
+  .history-row:active,
+  .money-action:active,
+  .admin-add-btn:active,
+  .sheet-submit:active,
+  .nav-btn:active,
+  .chip:active,
+  .toggle-chip:active,
+  .time-option:active {
+    transform: none !important;
+  }
+}
