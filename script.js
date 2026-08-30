@@ -4992,7 +4992,6 @@ function navigate(route) {
   const isAdminOnlyRoute =
     route === "admin" ||
     route === "previas" ||
-    route === "stats" ||
     route === "titulos" ||
     route === "titulos-estadistica" ||
     route === "titulos-encuesta" ||
@@ -5063,11 +5062,11 @@ function navigate(route) {
   navAdminBtn.hidden = !user.isAdmin;
   bottomNav.classList.add("visible");
   // Nav frost (celeste/blanco) en Home, Dinero, Registro diario, Envío
-  // de datos, Previas (de admin o de Jere) y en toda la sección /admin
-  // (Admin y Estadísticas comparten la estética "Bariloche" vía la
-  // clase `.admin-frost`). Desde v0.23.0 Registro diario también usa
-  // esta variante (antes era la única pantalla logueada que conservaba
-  // la barra oscura original).
+  // de datos, Previas (de admin o de Jere), Estadísticas y toda la
+  // sección /admin usan la estética "Bariloche" vía la clase
+  // `.admin-frost`. Desde v0.23.0 Registro diario también usa esta
+  // variante (antes era la única pantalla logueada que conservaba la
+  // barra oscura original).
   bottomNav.classList.toggle(
     "bottom-nav-frost",
     route === "home" ||
@@ -5086,13 +5085,12 @@ function navigate(route) {
   );
   // Dinero, Registro diario, Envío de datos y Previas (sección de
   // Jere) son parte de Home: mantenemos ese tab activo.
-  // Previas, Estadísticas, Títulos (con sus 3 subsecciones) y Ajustes
-  // son parte de Admin: mantenemos ese tab activo.
+  // Previas, Títulos (con sus 3 subsecciones) y Ajustes son parte de
+  // Admin: mantenemos ese tab activo. Estadísticas ya es sección propia.
   updateNav(
     route === "money" || route === "daily" || route === "export" || route === "previas-jere"
       ? "home"
       : route === "previas" ||
-        route === "stats" ||
         route === "titulos" ||
         route === "titulos-estadistica" ||
         route === "titulos-encuesta" ||
@@ -5145,12 +5143,8 @@ document.getElementById("btn-previas-back").addEventListener("click", () => {
   navigateBetweenScreensWithTransition("previas", "admin");
 });
 
-document.getElementById("card-admin-stats").addEventListener("click", () => {
-  navigateBetweenScreensWithTransition("admin", "stats");
-});
-
 document.getElementById("btn-stats-back").addEventListener("click", () => {
-  navigateBetweenScreensWithTransition("stats", "admin");
+  navigateScreenToHomeWithTransition("stats");
 });
 
 document.getElementById("card-admin-titulos").addEventListener("click", () => {
@@ -5304,6 +5298,14 @@ bottomNav.addEventListener("click", (e) => {
     ].find((r) => screens[r] && screens[r].classList.contains("active"));
     if (activeAnimatedOrigin) {
       navigateBetweenScreensWithTransition(activeAnimatedOrigin, "admin");
+      return;
+    }
+  }
+
+  if (route === "stats") {
+    const activeAnimatedOrigin = ["home", "admin"].find((r) => screens[r] && screens[r].classList.contains("active"));
+    if (activeAnimatedOrigin) {
+      navigateBetweenScreensWithTransition(activeAnimatedOrigin, "stats");
       return;
     }
   }
