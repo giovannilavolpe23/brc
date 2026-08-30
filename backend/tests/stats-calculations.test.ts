@@ -147,4 +147,21 @@ describe("stats calculations", () => {
     assert.deepEqual(stats.streaks.bathroom, [{ userId: gioId, value: 2 }]);
     assert.deepEqual(stats.streaks.alcohol, [{ userId: jereId, value: 1 }]);
   });
+
+  it("returns empty statistics after reset data while preserving users", () => {
+    const stats = calculateStats("total", {
+      users: baseData().users,
+      expenses: [],
+      dailyEntries: [],
+      surveyVotes: [],
+      previaParticipants: [],
+    });
+
+    assert.equal(stats.users.length, 2);
+    assert.equal(stats.money.totalSpentGlobal, 0);
+    assert.deepEqual(stats.money.totalSpentByUser, []);
+    assert.deepEqual(stats.dailyEntries.sleepMinutes, []);
+    assert.deepEqual(stats.surveys.destroyed_vote, []);
+    assert.deepEqual(stats.previas.byParticipant, []);
+  });
 });

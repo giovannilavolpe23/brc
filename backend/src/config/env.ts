@@ -23,6 +23,7 @@ function readNodeEnv(): NodeEnv {
 
 export const env = {
   databaseUrl: requireEnv("DATABASE_URL"),
+  devResetPassword: process.env.DEV_RESET_PASSWORD || "",
   frontendOrigin: requireEnv("FRONTEND_ORIGIN"),
   jwtSecret: requireEnv("JWT_SECRET"),
   nodeEnv: readNodeEnv(),

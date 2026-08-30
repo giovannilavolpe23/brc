@@ -8,6 +8,7 @@ describe("environment examples", () => {
     const envExample = fs.readFileSync(path.resolve(__dirname, "../.env.example"), "utf8");
 
     assert.match(envExample, /^DATABASE_URL=$/m);
+    assert.match(envExample, /^DEV_RESET_PASSWORD=$/m);
     assert.match(envExample, /^JWT_SECRET=$/m);
     assert.match(envExample, /^FRONTEND_ORIGIN=$/m);
     assert.match(envExample, /^NODE_ENV=$/m);

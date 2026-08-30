@@ -522,6 +522,41 @@ function renderAdmin() {
   });
 }
 
+async function handleAdminResetDataClick() {
+  const password = window.prompt("Contraseña para eliminar datos de prueba");
+  if (!password) return;
+
+  const confirmed = window.confirm(
+    "Esto va a eliminar movimientos, registros diarios, votos y previas de prueba. No elimina usuarios, roles, permisos, preguntas ni saldos iniciales. ¿Continuar?"
+  );
+  if (!confirmed) return;
+
+  try {
+    const response = await apiFetch("/admin/dev/reset-data", {
+      method: "DELETE",
+      body: JSON.stringify({ password }),
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      window.alert("Contraseña incorrecta o permiso insuficiente.");
+      return;
+    }
+
+    if (!response.ok) {
+      window.alert("No se pudieron eliminar los datos de prueba.");
+      return;
+    }
+
+    clearStatsApiCache();
+    window.alert("Datos de prueba eliminados correctamente.");
+    if (screens.stats && screens.stats.classList.contains("active")) {
+      renderStatsScreen();
+    }
+  } catch (e) {
+    window.alert("No se pudieron eliminar los datos de prueba.");
+  }
+}
+
 /* =============================================================
    ADMIN — JUGADORES IMPORTADOS (vía código de datos)
    =============================================================
@@ -3094,6 +3129,11 @@ function requestStatsPanelRefresh(scope, dateKey) {
     });
 }
 
+function clearStatsApiCache() {
+  statsApiTotal = null;
+  Object.keys(statsApiDays).forEach((key) => delete statsApiDays[key]);
+}
+
 function statsUserName(stats, userId) {
   const user = (stats.users || []).find((u) => u.id === userId);
   if (user) return user.displayName;
@@ -5134,6 +5174,8 @@ document.getElementById("btn-admin-back").addEventListener("click", () => {
 document.getElementById("btn-admin-update-code").addEventListener("click", () => {
   openAdminImportUpdateCode();
 });
+
+document.getElementById("btn-admin-reset-data").addEventListener("click", handleAdminResetDataClick);
 
 document.getElementById("card-admin-previas").addEventListener("click", () => {
   navigateBetweenScreensWithTransition("admin", "previas");
