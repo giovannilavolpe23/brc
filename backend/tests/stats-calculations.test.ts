@@ -129,6 +129,20 @@ describe("stats calculations", () => {
     ]);
   });
 
+  it("includes previas in closed days and day stats without requiring a daily entry", () => {
+    const stats = calculateStats("day", {
+      users: baseData().users,
+      expenses: [],
+      dailyEntries: [],
+      surveyVotes: [],
+      previaParticipants: [{ previaId: "previa-only", userId: gioId, dateKey: "2026-08-28" }],
+    }, "2026-08-28");
+
+    assert.deepEqual(stats.closedDays, ["2026-08-28"]);
+    assert.equal(stats.previas.totalCount, 1);
+    assert.deepEqual(stats.previas.byParticipant, [{ userId: gioId, value: 1 }]);
+  });
+
   it("changes when a new movement is added", () => {
     const data = baseData();
     const before = calculateStats("total", data);

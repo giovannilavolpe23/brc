@@ -11,7 +11,7 @@ import type {
 const BOLICHE_ARRIVAL_MINUTES = 60;
 
 export function calculateStats(scope: "day" | "total", data: StatsData, dateKey?: string): StatsResponse {
-  const closedDays = collectClosedDays(data.dailyEntries, dateKey);
+  const closedDays = collectClosedDays(data, dateKey);
   const daySet = new Set(scope === "day" && dateKey ? [dateKey] : closedDays);
   const expenses = data.expenses.filter((expense) => daySet.has(expense.dateKey));
   const entries = data.dailyEntries.filter((entry) => daySet.has(entry.dateKey));
@@ -114,11 +114,17 @@ function streakStats(days: string[], data: StatsData): StatsResponse["streaks"] 
   };
 }
 
-function collectClosedDays(entries: DailyEntryStatsRow[], upToDateKey?: string): string[] {
+function collectClosedDays(data: StatsData, upToDateKey?: string): string[] {
   const days = new Set<string>();
-  entries.forEach((entry) => {
-    if (!upToDateKey || entry.dateKey <= upToDateKey) days.add(entry.dateKey);
-  });
+  const addDay = (dateKey: string) => {
+    if (!upToDateKey || dateKey <= upToDateKey) days.add(dateKey);
+  };
+
+  data.expenses.forEach((expense) => addDay(expense.dateKey));
+  data.dailyEntries.forEach((entry) => addDay(entry.dateKey));
+  data.surveyVotes.forEach((vote) => addDay(vote.dateKey));
+  data.previaParticipants.forEach((participant) => addDay(participant.dateKey));
+
   return Array.from(days).sort();
 }
 

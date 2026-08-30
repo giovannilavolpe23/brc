@@ -1077,6 +1077,16 @@ img, svg {
   border-color: var(--accent);
 }
 
+.admin-add-btn.danger {
+  border-color: rgba(255, 84, 112, 0.45);
+  background: rgba(255, 84, 112, 0.1);
+  color: var(--danger);
+}
+
+.admin-add-btn.danger:active {
+  border-color: var(--danger);
+}
+
 /* ---------------- Estadísticas (DÍA / TOTAL) ----------------
    Pulido visual v0.15.0: la estructura (tabs DÍA/TOTAL, navegación
    de día, tarjetas de ranking con barras horizontales) es la misma
@@ -3131,8 +3141,18 @@ img, svg {
   color: #2f8fd1;
 }
 
+.screen.admin-frost .admin-add-btn.danger {
+  border-color: rgba(255, 84, 112, 0.5);
+  background: rgba(255, 84, 112, 0.12);
+  color: var(--danger);
+}
+
 .screen.admin-frost .admin-add-btn:active {
   border-color: #2f8fd1;
+}
+
+.screen.admin-frost .admin-add-btn.danger:active {
+  border-color: var(--danger);
 }
 
 .screen.admin-frost .chip.selected {
