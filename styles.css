@@ -1060,12 +1060,17 @@ img, svg {
   border: 1px solid rgba(255, 84, 112, 0.45);
   background: rgba(255, 84, 112, 0.1);
   color: var(--danger);
-  font-size: 22px;
-  line-height: 1;
-  font-weight: 800;
+  display: grid;
+  place-items: center;
+  flex: 0 0 34px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+.admin-player-delete-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
 .admin-player-delete-btn:active {
@@ -1112,6 +1117,10 @@ img, svg {
 
 .admin-add-btn.danger:active {
   border-color: var(--danger);
+}
+
+.admin-create-player-panel[hidden] {
+  display: none !important;
 }
 
 /* ---------------- Estadísticas (DÍA / TOTAL) ----------------
