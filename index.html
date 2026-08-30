@@ -337,9 +337,8 @@
 
   <!-- ===================== AJUSTES (ADMIN) ===================== -->
   <!-- Misma estética admin-frost que el resto de /admin. Por ahora
-       una única sección, "Datos", al final de la página, con el
-       backup completo de la app. Ver SPEC.md → "Ajustes — Datos
-       (backup)". -->
+       concentra el backup completo de la app y la zona destructiva
+       protegida para datos de prueba. -->
   <section id="screen-ajustes" class="screen admin-frost">
     <header class="admin-hero ajustes-hero">
       <div class="admin-hero-top">
@@ -361,13 +360,20 @@
         <textarea id="backup-code-box" class="export-code-box" readonly rows="4" hidden></textarea>
         <p class="daily-save-msg" id="backup-copy-msg">✓ Backup copiado</p>
         <button type="button" id="btn-import-backup" class="admin-add-btn">Importar backup</button>
+      </div>
+
+      <div class="section-label">Zona peligrosa</div>
+      <div class="daily-section danger-zone">
+        <p class="export-hint">Eliminá datos de prueba sincronizados sin tocar usuarios, roles, permisos, preguntas ni saldos iniciales.</p>
         <button type="button" id="btn-admin-reset-data" class="admin-add-btn danger">Eliminar datos de prueba</button>
+        <p class="daily-save-msg" id="admin-reset-data-msg"></p>
+        <p class="sheet-error" id="admin-reset-data-error"></p>
       </div>
     </main>
   </section>
 
 
-  <!-- ===================== ESTADÍSTICAS (ADMIN) ===================== -->
+  <!-- ===================== ESTADÍSTICAS ===================== -->
   <section id="screen-stats" class="screen admin-frost">
     <header class="admin-hero stats-hero">
       <div class="admin-hero-top">

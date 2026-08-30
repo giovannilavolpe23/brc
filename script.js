@@ -109,6 +109,9 @@ let pendingApiSyncTimer = null;
 let adminCreatePlayerOpen = false;
 let adminCreatePlayerSubmitting = false;
 let adminDeletePlayerTarget = null;
+const moneyApiLoadedUsers = new Set();
+const dailyApiLoadedKeys = new Set();
+const previasApiLoadedKeys = new Set();
 
 async function apiFetch(path, options = {}) {
   if (path !== "/auth/login" && !localStorage.getItem(STORAGE_KEYS.apiAccessToken) && apiLoginPromise) {
@@ -759,6 +762,14 @@ function renderAdmin() {
   });
 }
 
+function hasPendingApiOperation(operationId) {
+  return getPendingApiOperations().some((op) => op.id === operationId);
+}
+
+function hasPendingApiOperationPrefix(prefix) {
+  return getPendingApiOperations().some((op) => op.id.startsWith(prefix));
+}
+
 function setAdminCreatePlayerPanel(open) {
   adminCreatePlayerOpen = open;
   const panel = document.getElementById("admin-create-player-panel");
@@ -901,14 +912,34 @@ async function handleAdminDeletePlayerConfirm() {
   }
 }
 
-async function handleAdminResetDataClick() {
-  const password = window.prompt("Contraseña para eliminar datos de prueba");
-  if (!password) return;
+function handleAdminResetDataClick() {
+  const error = document.getElementById("admin-reset-data-error");
+  const msg = document.getElementById("admin-reset-data-msg");
+  if (error) error.textContent = "";
+  if (msg) {
+    msg.textContent = "";
+    msg.classList.remove("visible");
+  }
+  openSheet("admin-reset-data-confirm");
+}
 
-  const confirmed = window.confirm(
-    "Esto va a eliminar movimientos, registros diarios, votos y previas de prueba. No elimina usuarios, roles, permisos, preguntas ni saldos iniciales. ¿Continuar?"
-  );
-  if (!confirmed) return;
+async function handleAdminResetDataConfirm() {
+  if (adminResetSubmitting) return;
+  const input = document.getElementById("input-admin-reset-password");
+  const submitBtn = document.getElementById("sheet-submit-btn");
+  const password = input ? input.value : "";
+
+  if (!password) {
+    if (input) input.classList.add("error");
+    showSheetError("Ingresá la contraseña.");
+    return;
+  }
+
+  adminResetSubmitting = true;
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Eliminando...";
+  }
 
   try {
     const response = await apiFetch("/admin/dev/reset-data", {
@@ -917,22 +948,36 @@ async function handleAdminResetDataClick() {
     });
 
     if (response.status === 401 || response.status === 403) {
-      window.alert("Contraseña incorrecta o permiso insuficiente.");
+      showSheetError("Contraseña incorrecta o permiso insuficiente.");
       return;
     }
 
     if (!response.ok) {
-      window.alert("No se pudieron eliminar los datos de prueba.");
+      showSheetError("No se pudieron eliminar los datos de prueba.");
       return;
     }
 
     clearStatsApiCache();
-    window.alert("Datos de prueba eliminados correctamente.");
+    closeSheet();
+    const error = document.getElementById("admin-reset-data-error");
+    const msg = document.getElementById("admin-reset-data-msg");
+    if (error) error.textContent = "";
+    if (msg) {
+      msg.textContent = "✓ Datos de prueba eliminados";
+      msg.classList.add("visible");
+      setTimeout(() => msg.classList.remove("visible"), 2500);
+    }
     if (screens.stats && screens.stats.classList.contains("active")) {
       renderStatsScreen();
     }
   } catch (e) {
-    window.alert("No se pudieron eliminar los datos de prueba.");
+    showSheetError("No se pudieron eliminar los datos de prueba.");
+  } finally {
+    adminResetSubmitting = false;
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Eliminar datos";
+    }
   }
 }
 
@@ -1194,6 +1239,8 @@ function confirmAdminImport() {
 // hasta tocar "Guardar previa").
 let previaParticipantIds = [];
 let previaProducts = [];
+let previaSaveSubmitting = false;
+let previaSaveMessage = "";
 
 // "admin" -> pantalla #/previas dentro de /admin, guarda en
 // "adminPrevias" (solo Gio). "local" -> pantalla #/previas-jere
@@ -1286,6 +1333,77 @@ function previaApiPayload(previa) {
   };
 }
 
+function previaFromApi(previa) {
+  return {
+    id: previa.legacyId || previa.id,
+    apiId: previa.id,
+    participantIds: previa.participantIds || [],
+    products: (previa.products || []).map((product) => ({
+      id: product.legacyId || product.id,
+      apiId: product.id,
+      name: product.name,
+      price: product.unitPrice,
+      quantity: product.quantity,
+    })),
+    total: previa.totalAmount,
+    amountPerPerson: previa.amountPerParticipant,
+    createdAt: previa.occurredAt,
+    apiSynced: true,
+  };
+}
+
+function mergePreviasCache(storageKey, apiPrevias) {
+  const pendingIds = new Set(
+    getPendingApiOperations()
+      .filter((op) => op.type === "previa_create" && op.payload && op.payload.id)
+      .map((op) => op.payload.id)
+  );
+  let localPrevias = [];
+  try {
+    localPrevias = JSON.parse(localStorage.getItem(storageKey) || "[]");
+  } catch (e) {
+    localPrevias = [];
+  }
+  const localPending = Array.isArray(localPrevias)
+    ? localPrevias.filter((previa) => !previa.apiSynced || pendingIds.has(previa.id))
+    : [];
+  const mergedById = new Map();
+
+  (apiPrevias || []).map(previaFromApi).forEach((previa) => mergedById.set(previa.id, previa));
+  localPending.forEach((previa) => mergedById.set(previa.id, previa));
+
+  localStorage.setItem(
+    storageKey,
+    JSON.stringify(Array.from(mergedById.values()).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)))
+  );
+}
+
+async function loadPreviasFromApi() {
+  const user = getCurrentUser();
+  if (!user) return;
+  const cacheKey = previaMode === "local" ? STORAGE_KEYS.localPrevias(user.id) : STORAGE_KEYS.adminPrevias;
+  const loadedKey = `${user.id}:${previaMode}`;
+  if (previasApiLoadedKeys.has(loadedKey)) return;
+  if (hasPendingApiOperationPrefix("previa:create:")) return;
+
+  previasApiLoadedKeys.add(loadedKey);
+  try {
+    const response = await apiFetch("/previas");
+    if (!response.ok) {
+      previasApiLoadedKeys.delete(loadedKey);
+      return;
+    }
+
+    const payload = await response.json();
+    mergePreviasCache(cacheKey, payload.previas || []);
+    if ((screens.previas && screens.previas.classList.contains("active")) || (screens["previas-jere"] && screens["previas-jere"].classList.contains("active"))) {
+      renderPreviasScreen();
+    }
+  } catch (e) {
+    previasApiLoadedKeys.delete(loadedKey);
+  }
+}
+
 function previaCreateOperation(previa) {
   return {
     id: `previa:create:${previa.id}`,
@@ -1302,10 +1420,44 @@ async function syncPreviaToApi(previa) {
   const result = await tryApiOperation(operation, operation.successStatuses);
   if (result.status === "synced") {
     removePendingApiOperation(operation.id);
+    await markPreviaSynced(previa, result.response);
     schedulePendingApiSync(500);
   } else if (result.status === "retry") {
     enqueuePendingApiOperation(operation);
   }
+}
+
+async function markPreviaSynced(previa, response) {
+  let syncedPrevia = { ...previa, apiSynced: true };
+
+  if (response && response.status !== 409) {
+    try {
+      const payload = await response.clone().json();
+      if (payload && payload.previa) syncedPrevia = previaFromApi(payload.previa);
+    } catch (e) {
+      // La previa ya fue aceptada por la API; si no se puede leer el body,
+      // alcanza con marcar el registro local como sincronizado.
+    }
+  }
+
+  const storageKeys = [STORAGE_KEYS.adminPrevias];
+  const user = getCurrentUser();
+  if (user) storageKeys.push(STORAGE_KEYS.localPrevias(user.id));
+
+  storageKeys.forEach((storageKey) => {
+    let previas = [];
+    try {
+      previas = JSON.parse(localStorage.getItem(storageKey) || "[]");
+    } catch (e) {
+      previas = [];
+    }
+    if (!Array.isArray(previas)) return;
+
+    const index = previas.findIndex((item) => item.id === previa.id);
+    if (index === -1) return;
+    previas[index] = syncedPrevia;
+    localStorage.setItem(storageKey, JSON.stringify(previas));
+  });
 }
 
 function showPreviaError(msg) {
@@ -1318,6 +1470,7 @@ function renderPreviasScreen() {
   const ids = previaIds();
   const main = document.getElementById(ids.main);
   if (!main) return;
+  loadPreviasFromApi();
 
   const chips = PARTICIPANTS.map((p) => {
     const selected = previaParticipantIds.includes(p.id);
@@ -1353,6 +1506,7 @@ function renderPreviasScreen() {
     </div>
 
     <p class="sheet-error" id="${ids.error}"></p>
+    <p class="daily-save-msg${previaSaveMessage ? " visible" : ""}" id="${ids.error}-saved">${previaSaveMessage}</p>
     <button type="button" id="${ids.saveBtn}" class="sheet-submit">Guardar previa</button>
 
     <div class="section-label">Historial de previas</div>
@@ -1497,6 +1651,7 @@ function requestSavePrevia() {
     return;
   }
   showPreviaError("");
+  previaSaveMessage = "";
   openSheet("previa-confirm");
 }
 
@@ -1532,6 +1687,14 @@ function renderPreviaConfirmSheet() {
 // pasa a formar parte de la base administrativa hasta que Gio importe
 // el código generado (ver "PREVIAS — importación por código").
 function confirmSavePrevia() {
+  if (previaSaveSubmitting) return;
+  previaSaveSubmitting = true;
+  const submitBtn = document.getElementById("sheet-submit-btn");
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Guardando...";
+  }
+
   const total = computePreviaTotal(previaProducts);
   const count = previaParticipantIds.length;
   const perPerson = computePreviaPerPerson(total, count);
@@ -1555,6 +1718,7 @@ function confirmSavePrevia() {
     previas.unshift(newPrevia);
     saveAdminPrevias(previas);
   }
+  previaSaveMessage = "✓ Previa guardada";
   syncPreviaToApi(newPrevia);
 
   previaParticipantIds = [];
@@ -1563,12 +1727,21 @@ function confirmSavePrevia() {
   sheetOverlay.classList.remove("visible");
   currentSheetType = null;
   renderPreviasScreen();
+  if (previaSaveMessage) {
+    setTimeout(() => {
+      previaSaveMessage = "";
+      if ((screens.previas && screens.previas.classList.contains("active")) || (screens["previas-jere"] && screens["previas-jere"].classList.contains("active"))) {
+        renderPreviasScreen();
+      }
+    }, 2200);
+  }
 
   if (previaMode === "local") {
     // Mostramos de una el código para que Jere se lo pueda mandar a
     // Gio sin tener que buscarlo en el historial.
     openPreviaCodeSheet(newPrevia);
   }
+  previaSaveSubmitting = false;
 }
 
 /* =============================================================
@@ -1660,6 +1833,63 @@ function moneyMovementApiPayload(movement) {
     description: movement.name || null,
     movementDate: moneyMovementDateKey(movement),
   };
+}
+
+function localDateForTripDay(dateKey) {
+  return typeof dateKey === "string" ? tdTripDayKeyToIso(dateKey) : new Date().toISOString();
+}
+
+function moneyMovementFromApi(movement) {
+  return {
+    id: movement.legacyId || movement.id,
+    apiId: movement.id,
+    apiSynced: true,
+    type: movement.type,
+    name: movement.description || (movement.type === "income" ? "Ganancia" : "Sin Descrip."),
+    category: movement.type === "expense" ? movement.category || "Otros" : undefined,
+    amount: movement.amount,
+    date: localDateForTripDay(movement.movementDate),
+  };
+}
+
+function mergeMoneyFromApi(userId, apiMoney) {
+  const data = ensureMoneyData(userId);
+  const pendingIds = new Set(
+    getPendingApiOperations()
+      .filter((op) => op.type && op.type.startsWith("money_movement_") && op.payload && op.payload.legacyId)
+      .map((op) => op.payload.legacyId)
+  );
+  const localPending = data.money.movements.filter((movement) => !movement.apiSynced || pendingIds.has(movement.id));
+  const apiMovements = Array.isArray(apiMoney.movements) ? apiMoney.movements.map(moneyMovementFromApi) : [];
+  const mergedById = new Map();
+
+  apiMovements.forEach((movement) => mergedById.set(movement.id, movement));
+  localPending.forEach((movement) => mergedById.set(movement.id, movement));
+
+  data.money = {
+    initialBalance: apiMoney.initialBalance ?? data.money.initialBalance,
+    movements: Array.from(mergedById.values()).sort((a, b) => new Date(b.date) - new Date(a.date)),
+  };
+  saveUserData(userId, data);
+}
+
+async function loadMoneyFromApi(userId) {
+  if (moneyApiLoadedUsers.has(userId)) return;
+  if (hasPendingApiOperationPrefix("money:")) return;
+
+  moneyApiLoadedUsers.add(userId);
+  try {
+    const response = await apiFetch("/money");
+    if (!response.ok) {
+      moneyApiLoadedUsers.delete(userId);
+      return;
+    }
+    const apiMoney = await response.json();
+    mergeMoneyFromApi(userId, apiMoney);
+    if (screens.money && screens.money.classList.contains("active")) renderMoneyScreen();
+  } catch (e) {
+    moneyApiLoadedUsers.delete(userId);
+  }
 }
 
 function moneyMovementCreateOperation(userId, movement) {
@@ -1788,6 +2018,7 @@ function renderMoneyScreen() {
   if (!user) return;
   const data = ensureMoneyData(user.id);
   const money = data.money;
+  loadMoneyFromApi(user.id);
 
   if (money.initialBalance === null) {
     moneyMain.innerHTML = `
@@ -1917,6 +2148,7 @@ let adminImportPendingPayload = null; // payload ya validado, pendiente de confi
 let adminImportStep = null; // "paste" | "preview"
 let backupImportStep = null; // "paste" | "preview"
 let backupImportPendingPayload = null; // payload de backup completo, ya validado, pendiente de confirmar
+let adminResetSubmitting = false;
 
 function findMovement(money, id) {
   return money.movements.find((m) => m.id === id) || null;
@@ -1969,6 +2201,30 @@ function openSheet(type, movement) {
     document.getElementById("sheet-submit-btn").addEventListener("click", handleAdminDeletePlayerConfirm);
     document.getElementById("sheet-cancel-btn").addEventListener("click", closeSheet);
     sheetOverlay.classList.add("visible");
+    return;
+  }
+
+  if (type === "admin-reset-data-confirm") {
+    sheetContent.innerHTML = `
+      <h2 class="sheet-title">Eliminar datos de prueba</h2>
+      <p class="sheet-sub">Esto elimina movimientos, registros diarios, votos y previas sincronizadas. No elimina usuarios, roles, permisos, preguntas ni saldos iniciales.</p>
+      <div class="field">
+        <label class="field-label" for="input-admin-reset-password">Contraseña de reset</label>
+        <input id="input-admin-reset-password" class="field-input" type="password" autocomplete="off">
+      </div>
+      <p class="sheet-error" id="sheet-error"></p>
+      <button class="sheet-submit danger" id="sheet-submit-btn" type="button">Eliminar datos</button>
+      <button class="sheet-cancel-link" id="sheet-cancel-btn" type="button">Cancelar</button>
+    `;
+    document.getElementById("sheet-submit-btn").addEventListener("click", handleAdminResetDataConfirm);
+    document.getElementById("sheet-cancel-btn").addEventListener("click", closeSheet);
+    const input = document.getElementById("input-admin-reset-password");
+    input.addEventListener("input", () => input.classList.remove("error"));
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") handleAdminResetDataConfirm();
+    });
+    sheetOverlay.classList.add("visible");
+    input.focus();
     return;
   }
 
@@ -2577,6 +2833,68 @@ async function syncDailyEntryToApi(dateKey, entry) {
   }
 }
 
+function dailyEntryFromApi(entry, destroyedVote) {
+  const local = {
+    sleep: {
+      didNotSleep: !!entry.sleep.didNotSleep,
+      bedtime: entry.sleep.bedtime || null,
+      wake: entry.sleep.wake || null,
+    },
+    nap: entry.nap ? { start: entry.nap.start || null, end: entry.nap.end || null } : null,
+    fifthMeal: entry.fifthMeal ?? null,
+    bathroom: entry.bathroom ?? null,
+    boliche: {
+      didNotGo: !!entry.boliche.didNotGo,
+      time: entry.boliche.time || null,
+    },
+    destroyedVote: destroyedVote || null,
+  };
+  local.computed = computeDailyDerived(local);
+  return local;
+}
+
+function legacyIdForApiUserId(apiUserId) {
+  const participant = PARTICIPANTS.find((p) => p.apiId === apiUserId || p.id === apiUserId);
+  return participant ? participant.id : apiUserId;
+}
+
+async function loadDailyEntryFromApi(userId, dateKey) {
+  const key = `${userId}:${dateKey}`;
+  if (dailyApiLoadedKeys.has(key)) return;
+  if (hasPendingApiOperation(`daily-entry:put:${dateKey}`) || hasPendingApiOperation(`survey-vote:destroyed_vote:${dateKey}`)) return;
+
+  dailyApiLoadedKeys.add(key);
+  try {
+    const [entryResponse, votesResponse] = await Promise.all([
+      apiFetch(`/daily-entries/${encodeURIComponent(dateKey)}`),
+      apiFetch(`/surveys/${encodeURIComponent(dateKey)}/my-votes`),
+    ]);
+    if (entryResponse.status === 404) return;
+    if (!entryResponse.ok) {
+      dailyApiLoadedKeys.delete(key);
+      return;
+    }
+
+    const entryPayload = await entryResponse.json();
+    let destroyedVote = null;
+    if (votesResponse.ok) {
+      const votesPayload = await votesResponse.json();
+      const vote = votesPayload.votes && votesPayload.votes.find((item) => item.surveyKey === "destroyed_vote");
+      if (vote) destroyedVote = legacyIdForApiUserId(vote.votedUserId);
+    }
+
+    const data = ensureDailyLogData(userId);
+    data.dailyLog.entries[dateKey] = dailyEntryFromApi(entryPayload.entry, destroyedVote);
+    saveUserData(userId, data);
+    if (screens.daily && screens.daily.classList.contains("active") && dailyDateKey === dateKey) {
+      dailyState = JSON.parse(JSON.stringify(data.dailyLog.entries[dateKey]));
+      renderDailyScreen();
+    }
+  } catch (e) {
+    dailyApiLoadedKeys.delete(key);
+  }
+}
+
 function renderTimeScroll(containerId, rangeKey, selectedValue) {
   const options = buildTimeOptions(rangeKey);
   return `<div class="time-scroll" id="${containerId}" data-range="${rangeKey}">${options
@@ -2607,6 +2925,7 @@ function renderDailyScreen() {
     const existing = data.dailyLog.entries[dailyDateKey];
     dailyState = existing ? JSON.parse(JSON.stringify(existing)) : defaultDailyEntry();
   }
+  loadDailyEntryFromApi(user.id, dailyDateKey);
 
   const s = dailyState;
   const derived = computeDailyDerived(s);

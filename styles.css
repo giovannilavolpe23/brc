@@ -2616,6 +2616,11 @@ img, svg {
   margin-top: 0;
 }
 
+.danger-zone {
+  border-color: rgba(255, 84, 112, 0.26);
+  background: rgba(255, 84, 112, 0.06);
+}
+
 .picker-block {
   display: flex;
   flex-direction: column;
