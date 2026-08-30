@@ -13,13 +13,10 @@ export function parsePreviaInput(body: unknown): PreviaInput {
   const participantIds = parseParticipantIds(record.participantIds);
   const products = parseProducts(record.products);
   const totalAmount = parsePositiveInteger(record.totalAmount ?? record.total, "invalid_total_amount");
-  const amountPerParticipant = parsePositiveInteger(
-    record.amountPerParticipant ?? record.amountPerPerson,
-    "invalid_amount_per_participant"
-  );
   const occurredAt = parseIsoDate(record.occurredAt ?? record.createdAt, "invalid_occurred_at");
 
-  validateAmounts(products, participantIds.length, totalAmount, amountPerParticipant);
+  validateTotalAmount(products, totalAmount);
+  const amountPerParticipant = calculateAmountPerParticipant(totalAmount, participantIds.length);
 
   return { legacyId, participantIds, products, totalAmount, amountPerParticipant, occurredAt };
 }
@@ -58,20 +55,15 @@ function parseProducts(value: unknown): PreviaProductInput[] {
   });
 }
 
-function validateAmounts(
-  products: PreviaProductInput[],
-  participantCount: number,
-  totalAmount: number,
-  amountPerParticipant: number
-): void {
+function validateTotalAmount(products: PreviaProductInput[], totalAmount: number): void {
   const computedTotal = products.reduce((sum, product) => sum + product.unitPrice * product.quantity, 0);
   if (totalAmount !== computedTotal) {
     throw new PreviaValidationError("total_amount_mismatch");
   }
+}
 
-  if (computedTotal % participantCount !== 0 || amountPerParticipant !== computedTotal / participantCount) {
-    throw new PreviaValidationError("amount_per_participant_mismatch");
-  }
+function calculateAmountPerParticipant(totalAmount: number, participantCount: number): number {
+  return Math.round(totalAmount / participantCount);
 }
 
 function getRecord(value: unknown): Record<string, unknown> {

@@ -201,16 +201,31 @@ describe("previas routes", () => {
     assert.equal(badQuantity.status, 400);
   });
 
-  it("validates total and amount per participant", async () => {
+  it("validates total but calculates amount per participant in the backend", async () => {
     const badTotal = await request(makeApp(jere, makeRepository())).post("/previas").send(validBody({ total: 9999 }));
-    const badShare = await request(makeApp(jere, makeRepository()))
+    const ignoredShare = await request(makeApp(jere, makeRepository()))
       .post("/previas")
       .send(validBody({ amountPerPerson: 4999 }));
 
     assert.equal(badTotal.status, 400);
     assert.equal(badTotal.body.error, "total_amount_mismatch");
-    assert.equal(badShare.status, 400);
-    assert.equal(badShare.body.error, "amount_per_participant_mismatch");
+    assert.equal(ignoredShare.status, 201);
+    assert.equal(ignoredShare.body.previa.amountPerParticipant, 5000);
+  });
+
+  it("rounds inexact amount per participant divisions to integer pesos", async () => {
+    const response = await request(makeApp(jere, makeRepository())).post("/previas").send(
+      validBody({
+        participantIds: ["gio", "jere", "marto"],
+        products: [{ id: "prod-1", name: "Fernet", price: 10000, quantity: 1 }],
+        total: 10000,
+        amountPerPerson: 1,
+      })
+    );
+
+    assert.equal(response.status, 201);
+    assert.equal(response.body.previa.totalAmount, 10000);
+    assert.equal(response.body.previa.amountPerParticipant, 3333);
   });
 
   it("rejects duplicate previa codes", async () => {
