@@ -94,7 +94,11 @@ const STORAGE_KEYS = {
   localPrevias: (id) => `localPrevias:${id}`,
 };
 
-const API_BASE_URL = (window.BARILOCHE_API_BASE_URL || "http://localhost:3000").replace(/\/$/, "");
+const DEFAULT_API_BASE_URL =
+  window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.protocol === "file:"
+    ? "http://localhost:3000"
+    : "https://bariloche-web.onrender.com";
+const API_BASE_URL = (window.BARILOCHE_API_BASE_URL || DEFAULT_API_BASE_URL).replace(/\/$/, "");
 
 async function apiFetch(path, options = {}) {
   return fetch(`${API_BASE_URL}${path}`, {
