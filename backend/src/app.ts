@@ -5,6 +5,7 @@ import { requireAuth } from "./auth/middleware";
 import { authRouter } from "./auth/routes";
 import { toPublicUser } from "./auth/types";
 import { adminDevRouter } from "./admin/dev-reset";
+import { adminUsersRouter } from "./admin/users";
 import { env } from "./config/env";
 import { dailyEntriesRouter } from "./daily-entries/routes";
 import { checkDatabaseConnection } from "./db/pool";
@@ -24,6 +25,7 @@ app.use(express.json());
 
 app.use("/auth", authRouter);
 app.use("/admin/dev", adminDevRouter);
+app.use("/admin", adminUsersRouter);
 app.use("/money", moneyRouter);
 app.use("/previas", previasRouter);
 app.use("/daily-entries", dailyEntriesRouter);

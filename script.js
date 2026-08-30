@@ -11,7 +11,7 @@
    sus datos quedan guardados bajo ese id). "isAdmin: true"
    es exclusivo de Gio.
    ----------------------------------------------------------- */
-const PARTICIPANTS = [
+const DEFAULT_PARTICIPANTS = [
   { id: "gio", name: "Gio", password: "lv", isAdmin: true },
   { id: "marto", name: "Marto", password: "ze" },
   { id: "sebas", name: "Sebas", password: "do" },
@@ -24,6 +24,7 @@ const PARTICIPANTS = [
   { id: "jere", name: "Jere", password: "so", canRegisterPrevias: true },
   { id: "tobi", name: "Tobi", password: "ma" },
 ];
+const PARTICIPANTS = DEFAULT_PARTICIPANTS.map((participant) => ({ ...participant }));
 
 const AVATAR_COLORS = ["#ff9f1c", "#4cc9f0", "#c77dff", "#ff5470", "#7bdff2", "#ffd166"];
 
@@ -289,6 +290,47 @@ function canRegisterLocalPrevia(id) {
   return !!(p && p.canRegisterPrevias && !p.isAdmin);
 }
 
+function participantFromApiUser(user) {
+  return {
+    id: user.legacyId,
+    apiId: user.id,
+    name: user.displayName,
+    isAdmin: user.role === "admin",
+    canRegisterPrevias: Array.isArray(user.permissions) && user.permissions.includes("create_previa"),
+  };
+}
+
+function replaceParticipantsFromApi(users) {
+  const localById = new Map(PARTICIPANTS.map((participant) => [participant.id, participant]));
+  const apiParticipants = users.map((user) => {
+    const participant = participantFromApiUser(user);
+    const local = localById.get(participant.id);
+    return local && local.password ? { ...participant, password: local.password } : participant;
+  });
+  PARTICIPANTS.splice(0, PARTICIPANTS.length, ...apiParticipants);
+}
+
+async function refreshParticipantsFromApi() {
+  try {
+    const response = await apiFetch("/auth/users");
+    if (!response.ok) return false;
+
+    const payload = await response.json();
+    if (!payload || !Array.isArray(payload.users)) return false;
+
+    replaceParticipantsFromApi(payload.users);
+    renderParticipantGrid();
+    if (screens.admin && screens.admin.classList.contains("active")) renderAdmin();
+    if (screens.daily && screens.daily.classList.contains("active")) renderDailyScreen();
+    if ((screens.previas && screens.previas.classList.contains("active")) || (screens["previas-jere"] && screens["previas-jere"].classList.contains("active"))) {
+      renderPreviasScreen();
+    }
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 /* -----------------------------------------------------------
    Sesión
    ----------------------------------------------------------- */
@@ -298,9 +340,9 @@ function getCurrentUser() {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
-    // Nos aseguramos de que el participante todavía exista en la config.
+    // Preferimos la versión más fresca del participante si ya vino de API.
     const stillExists = PARTICIPANTS.find((p) => p.id === parsed.id);
-    return stillExists || null;
+    return stillExists || parsed;
   } catch (e) {
     return null;
   }
@@ -324,15 +366,8 @@ function clearCurrentUser() {
 
 async function loginApiInBackground(username, password) {
   const loginPromise = (async () => {
-    const response = await apiFetch("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ username, password }),
-    });
-    if (!response.ok) return;
-
-    const data = await response.json();
-    if (typeof data.accessToken === "string" && data.accessToken) {
-      localStorage.setItem(STORAGE_KEYS.apiAccessToken, data.accessToken);
+    const data = await loginApi(username, password);
+    if (data) {
       schedulePendingApiSync();
     }
   })();
@@ -345,6 +380,20 @@ async function loginApiInBackground(username, password) {
   } finally {
     if (apiLoginPromise === loginPromise) apiLoginPromise = null;
   }
+}
+
+async function loginApi(username, password) {
+  const response = await apiFetch("/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ username, password }),
+  });
+  if (!response.ok) return null;
+
+  const data = await response.json();
+  if (typeof data.accessToken === "string" && data.accessToken) {
+    localStorage.setItem(STORAGE_KEYS.apiAccessToken, data.accessToken);
+  }
+  return data;
 }
 
 function ensureUserData(id) {
@@ -502,19 +551,19 @@ function navigateSelectToHomeWithTransition() {
   navigateBetweenScreensWithTransition("select", "home");
 }
 
-function checkLoginPassword() {
+async function checkLoginPassword() {
   const input = document.getElementById("input-login-password");
   if (!input || !loginParticipant) return;
-  const entered = input.value.trim().toLowerCase();
-  const expected = loginParticipant.password.toLowerCase();
+  const enteredRaw = input.value.trim();
+  const entered = enteredRaw.toLowerCase();
 
-  if (entered.length === 0) {
+  if (enteredRaw.length === 0) {
     input.classList.add("error");
     showSheetError("Ingresá tu contraseña.");
     return;
   }
 
-  if (entered !== expected) {
+  if (typeof loginParticipant.password === "string" && entered !== loginParticipant.password.toLowerCase()) {
     input.classList.add("error");
     input.value = "";
     input.focus();
@@ -524,12 +573,32 @@ function checkLoginPassword() {
     return;
   }
 
-  const participant = loginParticipant;
+  let participant = loginParticipant;
+  if (typeof participant.password !== "string") {
+    const data = await loginApi(participant.id, enteredRaw);
+    if (!data || !data.user) {
+      input.classList.add("error");
+      input.value = "";
+      input.focus();
+      showSheetError("Contraseña incorrecta. Intentá de nuevo.");
+      return;
+    }
+    participant = participantFromApiUser(data.user);
+    const index = PARTICIPANTS.findIndex((p) => p.id === participant.id);
+    if (index >= 0) PARTICIPANTS[index] = participant;
+    else PARTICIPANTS.push(participant);
+    renderParticipantGrid();
+  }
+
   loginParticipant = null;
   currentSheetType = null;
   sheetOverlay.classList.remove("visible");
   setCurrentUser(participant);
-  loginApiInBackground(participant.id, entered);
+  if (typeof participant.password === "string") {
+    loginApiInBackground(participant.id, entered);
+  } else {
+    schedulePendingApiSync();
+  }
   navigateSelectToHomeWithTransition();
 }
 
@@ -668,6 +737,74 @@ function renderAdmin() {
 
     list.appendChild(row);
   });
+}
+
+async function handleAdminCreatePlayerClick() {
+  const nameInput = document.getElementById("admin-new-player-name");
+  const passwordInput = document.getElementById("admin-new-player-password");
+  const msg = document.getElementById("admin-create-player-msg");
+  const error = document.getElementById("admin-create-player-error");
+  if (!nameInput || !passwordInput) return;
+
+  const name = nameInput.value.trim();
+  const password = passwordInput.value;
+  if (msg) {
+    msg.textContent = "";
+    msg.classList.remove("visible");
+  }
+  if (error) error.textContent = "";
+
+  if (!name) {
+    if (error) error.textContent = "Ingresá un nombre.";
+    nameInput.focus();
+    return;
+  }
+  if (!password.trim()) {
+    if (error) error.textContent = "Ingresá una contraseña.";
+    passwordInput.focus();
+    return;
+  }
+
+  try {
+    const response = await apiFetch("/admin/users", {
+      method: "POST",
+      body: JSON.stringify({ name, password }),
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      if (error) error.textContent = "No tenés permiso para crear jugadores.";
+      return;
+    }
+    if (response.status === 400) {
+      const payload = await response.json().catch(() => null);
+      if (error) error.textContent = payload && payload.error === "user_already_exists" ? "Ese jugador ya existe." : "Revisá nombre y contraseña.";
+      return;
+    }
+    if (!response.ok) {
+      if (error) error.textContent = "No se pudo crear el jugador.";
+      return;
+    }
+
+    const payload = await response.json();
+    if (payload && payload.user) {
+      const created = participantFromApiUser(payload.user);
+      if (!PARTICIPANTS.some((participant) => participant.id === created.id)) {
+        PARTICIPANTS.push(created);
+      }
+    }
+    nameInput.value = "";
+    passwordInput.value = "";
+    renderParticipantGrid();
+    renderAdmin();
+    if (msg) {
+      msg.textContent = "✓ Jugador creado";
+      msg.classList.add("visible");
+      setTimeout(() => msg.classList.remove("visible"), 2000);
+    }
+    refreshParticipantsFromApi();
+  } catch (e) {
+    if (error) error.textContent = "No se pudo crear el jugador. Si no hay señal, probá de nuevo después.";
+  }
 }
 
 async function handleAdminResetDataClick() {
@@ -5405,6 +5542,8 @@ document.getElementById("btn-admin-update-code").addEventListener("click", () =>
   openAdminImportUpdateCode();
 });
 
+document.getElementById("btn-admin-create-player").addEventListener("click", handleAdminCreatePlayerClick);
+
 document.getElementById("btn-admin-reset-data").addEventListener("click", handleAdminResetDataClick);
 
 document.getElementById("card-admin-previas").addEventListener("click", () => {
@@ -5938,6 +6077,7 @@ function init() {
   renderParticipantGrid();
   initLoginParallax();
   schedulePendingApiSync(1000);
+  refreshParticipantsFromApi();
 
   const user = getCurrentUser();
   if (user) {

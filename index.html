@@ -275,6 +275,19 @@
     <main class="home-content">
       <div class="section-label">Participantes</div>
       <div id="admin-participants" class="admin-participants"></div>
+      <div class="daily-section">
+        <div class="field">
+          <label class="field-label" for="admin-new-player-name">Nombre</label>
+          <input id="admin-new-player-name" class="field-input" type="text" maxlength="40" placeholder="Nuevo jugador">
+        </div>
+        <div class="field">
+          <label class="field-label" for="admin-new-player-password">Contraseña</label>
+          <input id="admin-new-player-password" class="field-input" type="password" maxlength="80" placeholder="Contraseña">
+        </div>
+        <button type="button" id="btn-admin-create-player" class="admin-add-btn">Crear jugador</button>
+        <p class="daily-save-msg" id="admin-create-player-msg"></p>
+        <p class="sheet-error" id="admin-create-player-error"></p>
+      </div>
       <button type="button" id="btn-admin-update-code" class="admin-add-btn">Actualizar código</button>
 
       <div class="section-label">Previas</div>

@@ -3,13 +3,26 @@ import { verifyPassword } from "./password";
 import { createRequireAuth } from "./middleware";
 import { signAuthToken } from "./token";
 import { toPublicUser, type UserCredentials } from "./types";
-import { findUserCredentialsByLegacyId } from "./users.repository";
+import { findUserCredentialsByLegacyId, listActiveAuthUsers } from "./users.repository";
 
 type FindCredentials = (legacyId: string) => Promise<UserCredentials | null>;
+type ListUsers = () => Promise<Awaited<ReturnType<typeof listActiveAuthUsers>>>;
 
-export function createAuthRouter(findCredentials: FindCredentials = findUserCredentialsByLegacyId): Router {
+export function createAuthRouter(
+  findCredentials: FindCredentials = findUserCredentialsByLegacyId,
+  listUsers: ListUsers = listActiveAuthUsers
+): Router {
   const router = Router();
   const requireAuth = createRequireAuth();
+
+  router.get("/users", async (_req, res, next) => {
+    try {
+      const users = await listUsers();
+      res.json({ users: users.map(toPublicUser) });
+    } catch (error) {
+      next(error);
+    }
+  });
 
   router.post("/login", async (req, res, next) => {
     try {

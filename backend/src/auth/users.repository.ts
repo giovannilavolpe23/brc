@@ -73,3 +73,25 @@ export async function findAuthUserById(id: string): Promise<AuthUser | null> {
   const row = result.rows[0];
   return row ? mapAuthUser(row) : null;
 }
+
+export async function listActiveAuthUsers(): Promise<AuthUser[]> {
+  const result = await pool.query<UserRow>(
+    `
+      select
+        users.id,
+        users.legacy_id,
+        users.display_name,
+        roles.key as role_key,
+        coalesce(array_agg(permissions.key) filter (where permissions.key is not null), '{}') as permissions
+      from users
+      join roles on roles.id = users.role_id
+      left join user_permissions on user_permissions.user_id = users.id
+      left join permissions on permissions.id = user_permissions.permission_id
+      where users.is_active = true
+      group by users.id, roles.key
+      order by users.created_at asc, users.display_name asc
+    `
+  );
+
+  return result.rows.map(mapAuthUser);
+}

@@ -21,9 +21,12 @@ async function makeApp() {
   app.use(express.json());
   app.use(
     "/auth",
-    createAuthRouter(async (legacyId) => {
-      return legacyId === "gio" ? user : null;
-    })
+    createAuthRouter(
+      async (legacyId) => {
+        return legacyId === "gio" ? user : null;
+      },
+      async () => [user]
+    )
   );
   return app;
 }
@@ -65,5 +68,16 @@ describe("auth routes", () => {
 
     assert.equal(response.status, 204);
     assert.equal(response.headers["set-cookie"], undefined);
+  });
+
+  it("lists active users without exposing password hashes", async () => {
+    const app = await makeApp();
+
+    const response = await request(app).get("/auth/users");
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.users[0].legacyId, "gio");
+    assert.equal(response.body.users[0].displayName, "Gio");
+    assert.equal(response.body.users[0].passwordHash, undefined);
   });
 });
