@@ -89,6 +89,7 @@ if (typeof window !== "undefined") {
 const STORAGE_KEYS = {
   currentUser: "currentUser",
   apiAccessToken: "apiAccessToken",
+  pendingApiOperations: "pendingApiOperations",
   userData: (id) => `userData:${id}`,
   adminPlayers: "adminPlayers",
   adminPrevias: "adminPrevias",
@@ -101,6 +102,8 @@ const DEFAULT_API_BASE_URL =
     : "https://bariloche-web.onrender.com";
 const API_BASE_URL = (window.BARILOCHE_API_BASE_URL || DEFAULT_API_BASE_URL).replace(/\/$/, "");
 let apiLoginPromise = null;
+let pendingApiSyncPromise = null;
+let pendingApiSyncTimer = null;
 
 async function apiFetch(path, options = {}) {
   if (path !== "/auth/login" && !localStorage.getItem(STORAGE_KEYS.apiAccessToken) && apiLoginPromise) {
@@ -120,6 +123,150 @@ async function apiFetch(path, options = {}) {
     ...options,
     headers,
   });
+}
+
+function getPendingApiOperations() {
+  const raw = localStorage.getItem(STORAGE_KEYS.pendingApiOperations);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((op) => op && typeof op.id === "string") : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function savePendingApiOperations(operations) {
+  if (!operations.length) {
+    localStorage.removeItem(STORAGE_KEYS.pendingApiOperations);
+    return;
+  }
+  localStorage.setItem(STORAGE_KEYS.pendingApiOperations, JSON.stringify(operations));
+}
+
+function enqueuePendingApiOperation(operation) {
+  const operations = getPendingApiOperations();
+  const existingIndex = operations.findIndex((op) => op.id === operation.id);
+  const now = new Date().toISOString();
+  const nextOperation = {
+    ...operation,
+    createdAt: operation.createdAt || now,
+    attempts: operation.attempts || 0,
+  };
+
+  if (existingIndex >= 0) {
+    operations[existingIndex] = {
+      ...operations[existingIndex],
+      ...nextOperation,
+      createdAt: operations[existingIndex].createdAt || nextOperation.createdAt,
+      attempts: operations[existingIndex].attempts || 0,
+    };
+  } else {
+    operations.push(nextOperation);
+  }
+  savePendingApiOperations(operations);
+}
+
+function removePendingApiOperation(operationId) {
+  savePendingApiOperations(getPendingApiOperations().filter((op) => op.id !== operationId));
+}
+
+function markPendingApiAttempt(operationId) {
+  const operations = getPendingApiOperations();
+  const operation = operations.find((op) => op.id === operationId);
+  if (!operation) return;
+  operation.attempts = (operation.attempts || 0) + 1;
+  operation.lastAttemptAt = new Date().toISOString();
+  savePendingApiOperations(operations);
+}
+
+function isRetryableApiResponse(response) {
+  return response.status === 408 || response.status === 429 || response.status >= 500;
+}
+
+function isRetryableApiError(error) {
+  return error instanceof TypeError || (error && (error.name === "TypeError" || error.name === "AbortError"));
+}
+
+function isApiOperationSuccess(response, successStatuses) {
+  return response.ok || successStatuses.includes(response.status);
+}
+
+async function tryApiOperation(operation, successStatuses = []) {
+  try {
+    const response = await apiFetch(operation.path, {
+      method: operation.method,
+      body: operation.payload === undefined ? undefined : JSON.stringify(operation.payload),
+    });
+
+    if (isApiOperationSuccess(response, successStatuses)) {
+      return { status: "synced", response };
+    }
+    if (response.status === 401) return { status: "auth", response };
+    if (isRetryableApiResponse(response)) return { status: "retry", response };
+    return { status: "terminal", response };
+  } catch (error) {
+    if (isRetryableApiError(error)) return { status: "retry", error };
+    return { status: "terminal", error };
+  }
+}
+
+function schedulePendingApiSync(delayMs = 0) {
+  if (pendingApiSyncTimer) {
+    if (delayMs > 0) return;
+    clearTimeout(pendingApiSyncTimer);
+    pendingApiSyncTimer = null;
+  }
+  pendingApiSyncTimer = setTimeout(() => {
+    pendingApiSyncTimer = null;
+    processPendingApiOperations();
+  }, delayMs);
+}
+
+async function processPendingApiOperations() {
+  if (pendingApiSyncPromise) return pendingApiSyncPromise;
+  if (!localStorage.getItem(STORAGE_KEYS.apiAccessToken)) return;
+
+  pendingApiSyncPromise = (async () => {
+    const operations = getPendingApiOperations();
+    for (const operation of operations) {
+      if (!getPendingApiOperations().some((op) => op.id === operation.id)) continue;
+      markPendingApiAttempt(operation.id);
+      const result = await tryApiOperation(operation, operation.successStatuses || []);
+      if (result.status === "synced") {
+        await applySyncedApiOperation(operation, result.response);
+        removePendingApiOperation(operation.id);
+      } else if (result.status === "auth") {
+        break;
+      } else if (result.status === "terminal") {
+        removePendingApiOperation(operation.id);
+        console.warn("[apiQueue] Operación descartada por error funcional:", operation.type || operation.id);
+      }
+    }
+  })();
+
+  try {
+    await pendingApiSyncPromise;
+  } finally {
+    pendingApiSyncPromise = null;
+  }
+}
+
+async function applySyncedApiOperation(operation, response) {
+  if (operation.type !== "money_movement_create" || !operation.localUserId || !response) return;
+
+  try {
+    const payload = await response.clone().json();
+    const data = ensureMoneyData(operation.localUserId);
+    const localMovement = findMovement(data.money, operation.payload && operation.payload.legacyId);
+    if (!localMovement) return;
+
+    localMovement.apiSynced = true;
+    localMovement.apiId = payload.movement && payload.movement.id;
+    saveUserData(operation.localUserId, data);
+  } catch (e) {
+    // La operación ya fue aceptada por la API; si no se puede leer el JSON, no se reintenta.
+  }
 }
 
 /* -----------------------------------------------------------
@@ -186,6 +333,7 @@ async function loginApiInBackground(username, password) {
     const data = await response.json();
     if (typeof data.accessToken === "string" && data.accessToken) {
       localStorage.setItem(STORAGE_KEYS.apiAccessToken, data.accessToken);
+      schedulePendingApiSync();
     }
   })();
 
@@ -907,15 +1055,25 @@ function previaApiPayload(previa) {
   };
 }
 
+function previaCreateOperation(previa) {
+  return {
+    id: `previa:create:${previa.id}`,
+    type: "previa_create",
+    method: "POST",
+    path: "/previas",
+    payload: previaApiPayload(previa),
+    successStatuses: [409],
+  };
+}
+
 async function syncPreviaToApi(previa) {
-  try {
-    const response = await apiFetch("/previas", {
-      method: "POST",
-      body: JSON.stringify(previaApiPayload(previa)),
-    });
-    if (response.ok || response.status === 409) return;
-  } catch (e) {
-    // La previa local ya quedó guardada; un fallo de API no cambia el flujo actual.
+  const operation = previaCreateOperation(previa);
+  const result = await tryApiOperation(operation, operation.successStatuses);
+  if (result.status === "synced") {
+    removePendingApiOperation(operation.id);
+    schedulePendingApiSync(500);
+  } else if (result.status === "retry") {
+    enqueuePendingApiOperation(operation);
   }
 }
 
@@ -1273,6 +1431,36 @@ function moneyMovementApiPayload(movement) {
   };
 }
 
+function moneyMovementCreateOperation(userId, movement) {
+  return {
+    id: `money:create:${movement.id}`,
+    type: "money_movement_create",
+    localUserId: userId,
+    method: "POST",
+    path: "/money/movements",
+    payload: moneyMovementApiPayload(movement),
+  };
+}
+
+function moneyMovementPatchOperation(movement) {
+  return {
+    id: `money:patch:${movement.id}`,
+    type: "money_movement_patch",
+    method: "PATCH",
+    path: `/money/movements/${encodeURIComponent(movement.id)}`,
+    payload: moneyMovementApiPayload(movement),
+  };
+}
+
+function moneyMovementDeleteOperation(movement) {
+  return {
+    id: `money:delete:${movement.id}`,
+    type: "money_movement_delete",
+    method: "DELETE",
+    path: `/money/movements/${encodeURIComponent(movement.id)}`,
+  };
+}
+
 async function syncInitialBalanceToApi(amount) {
   try {
     await apiFetch("/money/initial-balance", {
@@ -1285,16 +1473,19 @@ async function syncInitialBalanceToApi(amount) {
 }
 
 async function syncCreatedMoneyMovementToApi(userId, movement) {
+  if (movement.type === "expense" && !EXPENSE_CATEGORIES.includes(movement.category)) return;
+
+  const operation = moneyMovementCreateOperation(userId, movement);
+  const result = await tryApiOperation(operation);
+  if (result.status === "retry") {
+    enqueuePendingApiOperation(operation);
+    return;
+  }
+  if (result.status !== "synced") return;
+
+  removePendingApiOperation(operation.id);
   try {
-    if (movement.type === "expense" && !EXPENSE_CATEGORIES.includes(movement.category)) return;
-
-    const response = await apiFetch("/money/movements", {
-      method: "POST",
-      body: JSON.stringify(moneyMovementApiPayload(movement)),
-    });
-    if (!response.ok) return;
-
-    const payload = await response.json();
+    const payload = await result.response.json();
     const data = ensureMoneyData(userId);
     const localMovement = findMovement(data.money, movement.id);
     if (!localMovement) return;
@@ -1302,33 +1493,48 @@ async function syncCreatedMoneyMovementToApi(userId, movement) {
     localMovement.apiSynced = true;
     localMovement.apiId = payload.movement && payload.movement.id;
     saveUserData(userId, data);
+    schedulePendingApiSync(500);
   } catch (e) {
-    // El movimiento local ya quedó guardado; un fallo de API no cambia el flujo actual.
+    // Si la respuesta no puede parsearse, el movimiento ya quedó sincronizado del lado de la API.
   }
 }
 
 async function syncUpdatedMoneyMovementToApi(movement) {
-  if (!movement || !movement.apiSynced) return;
-  try {
-    if (movement.type === "expense" && !EXPENSE_CATEGORIES.includes(movement.category)) return;
+  if (!movement) return;
+  if (movement.type === "expense" && !EXPENSE_CATEGORIES.includes(movement.category)) return;
 
-    await apiFetch(`/money/movements/${encodeURIComponent(movement.id)}`, {
-      method: "PATCH",
-      body: JSON.stringify(moneyMovementApiPayload(movement)),
-    });
-  } catch (e) {
-    // La edición local ya quedó guardada; un fallo de API no cambia el flujo actual.
+  if (!movement.apiSynced) {
+    const user = getCurrentUser();
+    const pendingCreateId = `money:create:${movement.id}`;
+    if (user && getPendingApiOperations().some((op) => op.id === pendingCreateId)) {
+      enqueuePendingApiOperation(moneyMovementCreateOperation(user.id, movement));
+    }
+    return;
+  }
+
+  const operation = moneyMovementPatchOperation(movement);
+  const result = await tryApiOperation(operation);
+  if (result.status === "synced") {
+    removePendingApiOperation(operation.id);
+    schedulePendingApiSync(500);
+  } else if (result.status === "retry") {
+    enqueuePendingApiOperation(operation);
   }
 }
 
 async function syncDeletedMoneyMovementToApi(movement) {
-  if (!movement || !movement.apiSynced) return;
-  try {
-    await apiFetch(`/money/movements/${encodeURIComponent(movement.id)}`, {
-      method: "DELETE",
-    });
-  } catch (e) {
-    // La eliminación local ya ocurrió; un fallo de API no cambia el flujo actual.
+  if (!movement) return;
+  removePendingApiOperation(`money:create:${movement.id}`);
+  removePendingApiOperation(`money:patch:${movement.id}`);
+  if (!movement.apiSynced) return;
+
+  const operation = moneyMovementDeleteOperation(movement);
+  const result = await tryApiOperation(operation);
+  if (result.status === "synced" || result.status === "terminal") {
+    removePendingApiOperation(operation.id);
+    if (result.status === "synced") schedulePendingApiSync(500);
+  } else if (result.status === "retry") {
+    enqueuePendingApiOperation(operation);
   }
 }
 
@@ -2073,21 +2279,45 @@ function dailyEntryApiPayload(entry) {
   };
 }
 
-async function syncDailyEntryToApi(dateKey, entry) {
-  try {
-    await apiFetch(`/daily-entries/${encodeURIComponent(dateKey)}`, {
-      method: "PUT",
-      body: JSON.stringify(dailyEntryApiPayload(entry)),
-    });
+function dailyEntryOperation(dateKey, entry) {
+  return {
+    id: `daily-entry:put:${dateKey}`,
+    type: "daily_entry_put",
+    method: "PUT",
+    path: `/daily-entries/${encodeURIComponent(dateKey)}`,
+    payload: dailyEntryApiPayload(entry),
+  };
+}
 
-    if (entry.destroyedVote) {
-      await apiFetch(`/surveys/destroyed_vote/${encodeURIComponent(dateKey)}/vote`, {
-        method: "PUT",
-        body: JSON.stringify({ votedUserId: entry.destroyedVote }),
-      });
+function destroyedVoteOperation(dateKey, votedUserId) {
+  return {
+    id: `survey-vote:destroyed_vote:${dateKey}`,
+    type: "destroyed_vote_put",
+    method: "PUT",
+    path: `/surveys/destroyed_vote/${encodeURIComponent(dateKey)}/vote`,
+    payload: { votedUserId },
+  };
+}
+
+async function syncDailyEntryToApi(dateKey, entry) {
+  const entryOperation = dailyEntryOperation(dateKey, entry);
+  const entryResult = await tryApiOperation(entryOperation);
+  if (entryResult.status === "synced") {
+    removePendingApiOperation(entryOperation.id);
+    schedulePendingApiSync(500);
+  } else if (entryResult.status === "retry") {
+    enqueuePendingApiOperation(entryOperation);
+  }
+
+  if (entry.destroyedVote) {
+    const voteOperation = destroyedVoteOperation(dateKey, entry.destroyedVote);
+    const voteResult = await tryApiOperation(voteOperation);
+    if (voteResult.status === "synced") {
+      removePendingApiOperation(voteOperation.id);
+      schedulePendingApiSync(500);
+    } else if (voteResult.status === "retry") {
+      enqueuePendingApiOperation(voteOperation);
     }
-  } catch (e) {
-    // El guardado local ya ocurrió; un fallo de API no cambia el flujo actual.
   }
 }
 
@@ -5707,6 +5937,7 @@ if (typeof window !== "undefined") {
 function init() {
   renderParticipantGrid();
   initLoginParallax();
+  schedulePendingApiSync(1000);
 
   const user = getCurrentUser();
   if (user) {
@@ -5715,5 +5946,9 @@ function init() {
     navigate("select");
   }
 }
+
+window.addEventListener("online", () => {
+  schedulePendingApiSync();
+});
 
 init();
