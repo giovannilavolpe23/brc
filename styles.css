@@ -2737,6 +2737,68 @@ img, svg {
   opacity: 1;
 }
 
+.api-loading-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 38px;
+  padding: 10px 12px;
+  border: 1px solid rgba(76, 201, 240, 0.28);
+  border-radius: var(--radius-md);
+  background: rgba(76, 201, 240, 0.08);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.api-loading-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #4cc9f0;
+  box-shadow: 0 0 0 0 rgba(76, 201, 240, 0.42);
+  animation: api-loading-pulse 1.2s ease-in-out infinite;
+}
+
+.session-message {
+  position: fixed;
+  left: max(14px, env(safe-area-inset-left));
+  right: max(14px, env(safe-area-inset-right));
+  top: max(14px, env(safe-area-inset-top));
+  z-index: 90;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 84, 112, 0.34);
+  border-radius: var(--radius-md);
+  background: rgba(255, 244, 247, 0.96);
+  color: var(--danger);
+  box-shadow: 0 14px 34px -22px rgba(255, 84, 112, 0.5);
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-8px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.session-message.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@keyframes api-loading-pulse {
+  0%,
+  100% {
+    transform: scale(0.86);
+    box-shadow: 0 0 0 0 rgba(76, 201, 240, 0.42);
+  }
+  50% {
+    transform: scale(1);
+    box-shadow: 0 0 0 8px rgba(76, 201, 240, 0);
+  }
+}
+
 /* ---------------------------------------------------------
    Bottom sheet (formularios)
    --------------------------------------------------------- */

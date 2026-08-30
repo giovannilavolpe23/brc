@@ -112,8 +112,67 @@ let adminDeletePlayerTarget = null;
 const moneyApiLoadedUsers = new Set();
 const dailyApiLoadedKeys = new Set();
 const previasApiLoadedKeys = new Set();
+const moneyApiLoadingUsers = new Set();
+const moneyApiFailedUsers = new Set();
+const dailyApiLoadingKeys = new Set();
+const dailyApiFailedKeys = new Set();
+const previasApiLoadingKeys = new Set();
+const previasApiFailedKeys = new Set();
+const statsApiFailed = {};
+let participantsApiLoading = false;
+let sessionExpiredHandled = false;
+let dailySaveSubmitting = false;
+
+function renderApiLoadingBanner(message) {
+  return `
+    <div class="api-loading-banner" role="status">
+      <span class="api-loading-dot" aria-hidden="true"></span>
+      <span>${message}</span>
+    </div>
+  `;
+}
+
+function showSessionExpiredMessage() {
+  let el = document.getElementById("session-expired-message");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "session-expired-message";
+    el.className = "session-message";
+    document.body.appendChild(el);
+  }
+  el.textContent = "Tu sesión venció. Volvé a iniciar sesión.";
+  el.classList.add("visible");
+}
+
+function hideSessionExpiredMessage() {
+  const el = document.getElementById("session-expired-message");
+  if (el) el.classList.remove("visible");
+}
+
+function resetApiReadFailures() {
+  moneyApiFailedUsers.clear();
+  dailyApiFailedKeys.clear();
+  previasApiFailedKeys.clear();
+  Object.keys(statsApiFailed).forEach((key) => delete statsApiFailed[key]);
+}
+
+function handleExpiredApiSession() {
+  if (sessionExpiredHandled) return;
+  if (!localStorage.getItem(STORAGE_KEYS.currentUser)) return;
+
+  sessionExpiredHandled = true;
+  localStorage.removeItem(STORAGE_KEYS.apiAccessToken);
+  localStorage.removeItem(STORAGE_KEYS.currentUser);
+  dailyDateKey = null;
+  resetApiReadFailures();
+  if (sheetOverlay) sheetOverlay.classList.remove("visible");
+  currentSheetType = null;
+  navigate("select");
+  showSessionExpiredMessage();
+}
 
 async function apiFetch(path, options = {}) {
+  const { skipSessionExpiredHandling = false, ...fetchOptions } = options;
   if (path !== "/auth/login" && !localStorage.getItem(STORAGE_KEYS.apiAccessToken) && apiLoginPromise) {
     try {
       await apiLoginPromise;
@@ -123,14 +182,18 @@ async function apiFetch(path, options = {}) {
   }
 
   const accessToken = localStorage.getItem(STORAGE_KEYS.apiAccessToken);
-  const headers = new Headers(options.headers || {});
+  const headers = new Headers(fetchOptions.headers || {});
   if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   if (accessToken && !headers.has("Authorization")) headers.set("Authorization", `Bearer ${accessToken}`);
 
-  return fetch(`${API_BASE_URL}${path}`, {
-    ...options,
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...fetchOptions,
     headers,
   });
+  if (!skipSessionExpiredHandling && path !== "/auth/login" && accessToken && response.status === 401) {
+    handleExpiredApiSession();
+  }
+  return response;
 }
 
 function getPendingApiOperations() {
@@ -318,6 +381,9 @@ function replaceParticipantsFromApi(users) {
 }
 
 async function refreshParticipantsFromApi() {
+  if (participantsApiLoading) return false;
+  participantsApiLoading = true;
+  if (screens.admin && screens.admin.classList.contains("active")) renderAdmin();
   try {
     const response = await apiFetch("/auth/users");
     if (!response.ok) return false;
@@ -335,6 +401,9 @@ async function refreshParticipantsFromApi() {
     return true;
   } catch (e) {
     return false;
+  } finally {
+    participantsApiLoading = false;
+    if (screens.admin && screens.admin.classList.contains("active")) renderAdmin();
   }
 }
 
@@ -356,6 +425,9 @@ function getCurrentUser() {
 }
 
 function setCurrentUser(participant) {
+  sessionExpiredHandled = false;
+  hideSessionExpiredMessage();
+  resetApiReadFailures();
   // Guardamos solo lo necesario para identificar la sesión; nunca la
   // contraseña, ni siquiera la del participante (no solo la ingresada).
   localStorage.removeItem(STORAGE_KEYS.apiAccessToken);
@@ -366,6 +438,8 @@ function setCurrentUser(participant) {
 
 function clearCurrentUser() {
   // Elimina ÚNICAMENTE la sesión. Nunca localStorage.clear().
+  sessionExpiredHandled = false;
+  hideSessionExpiredMessage();
   localStorage.removeItem(STORAGE_KEYS.currentUser);
   localStorage.removeItem(STORAGE_KEYS.apiAccessToken);
   dailyDateKey = null; // fuerza recargar el registro diario del próximo usuario
@@ -713,6 +787,9 @@ function renderAdmin() {
 
   if (panel) panel.hidden = !adminCreatePlayerOpen;
   if (showCreateBtn) showCreateBtn.hidden = adminCreatePlayerOpen;
+  if (participantsApiLoading) {
+    list.insertAdjacentHTML("beforeend", renderApiLoadingBanner("Actualizando jugadores..."));
+  }
 
   PARTICIPANTS.forEach((p) => {
     const row = document.createElement("div");
@@ -945,6 +1022,7 @@ async function handleAdminResetDataConfirm() {
     const response = await apiFetch("/admin/dev/reset-data", {
       method: "DELETE",
       body: JSON.stringify({ password }),
+      skipSessionExpiredHandling: true,
     });
 
     if (response.status === 401 || response.status === 403) {
@@ -1384,23 +1462,29 @@ async function loadPreviasFromApi() {
   const cacheKey = previaMode === "local" ? STORAGE_KEYS.localPrevias(user.id) : STORAGE_KEYS.adminPrevias;
   const loadedKey = `${user.id}:${previaMode}`;
   if (previasApiLoadedKeys.has(loadedKey)) return;
+  if (previasApiLoadingKeys.has(loadedKey) || previasApiFailedKeys.has(loadedKey)) return;
   if (hasPendingApiOperationPrefix("previa:create:")) return;
 
   previasApiLoadedKeys.add(loadedKey);
+  previasApiLoadingKeys.add(loadedKey);
   try {
     const response = await apiFetch("/previas");
     if (!response.ok) {
       previasApiLoadedKeys.delete(loadedKey);
+      previasApiFailedKeys.add(loadedKey);
       return;
     }
 
     const payload = await response.json();
     mergePreviasCache(cacheKey, payload.previas || []);
+  } catch (e) {
+    previasApiLoadedKeys.delete(loadedKey);
+    previasApiFailedKeys.add(loadedKey);
+  } finally {
+    previasApiLoadingKeys.delete(loadedKey);
     if ((screens.previas && screens.previas.classList.contains("active")) || (screens["previas-jere"] && screens["previas-jere"].classList.contains("active"))) {
       renderPreviasScreen();
     }
-  } catch (e) {
-    previasApiLoadedKeys.delete(loadedKey);
   }
 }
 
@@ -1471,6 +1555,9 @@ function renderPreviasScreen() {
   const main = document.getElementById(ids.main);
   if (!main) return;
   loadPreviasFromApi();
+  const user = getCurrentUser();
+  const previasLoadingKey = user ? `${user.id}:${previaMode}` : "";
+  const previasLoading = !!previasLoadingKey && previasApiLoadingKeys.has(previasLoadingKey);
 
   const chips = PARTICIPANTS.map((p) => {
     const selected = previaParticipantIds.includes(p.id);
@@ -1486,6 +1573,7 @@ function renderPreviasScreen() {
       : "";
 
   main.innerHTML = `
+    ${previasLoading ? renderApiLoadingBanner("Cargando previas compartidas...") : ""}
     <div class="section-label">Nueva previa</div>
 
     <div class="field">
@@ -1875,20 +1963,26 @@ function mergeMoneyFromApi(userId, apiMoney) {
 
 async function loadMoneyFromApi(userId) {
   if (moneyApiLoadedUsers.has(userId)) return;
+  if (moneyApiLoadingUsers.has(userId) || moneyApiFailedUsers.has(userId)) return;
   if (hasPendingApiOperationPrefix("money:")) return;
 
   moneyApiLoadedUsers.add(userId);
+  moneyApiLoadingUsers.add(userId);
   try {
     const response = await apiFetch("/money");
     if (!response.ok) {
       moneyApiLoadedUsers.delete(userId);
+      moneyApiFailedUsers.add(userId);
       return;
     }
     const apiMoney = await response.json();
     mergeMoneyFromApi(userId, apiMoney);
-    if (screens.money && screens.money.classList.contains("active")) renderMoneyScreen();
   } catch (e) {
     moneyApiLoadedUsers.delete(userId);
+    moneyApiFailedUsers.add(userId);
+  } finally {
+    moneyApiLoadingUsers.delete(userId);
+    if (screens.money && screens.money.classList.contains("active")) renderMoneyScreen();
   }
 }
 
@@ -2019,16 +2113,18 @@ function renderMoneyScreen() {
   const data = ensureMoneyData(user.id);
   const money = data.money;
   loadMoneyFromApi(user.id);
+  const moneyLoading = moneyApiLoadingUsers.has(user.id);
 
   if (money.initialBalance === null) {
     moneyMain.innerHTML = `
+      ${moneyLoading ? renderApiLoadingBanner("Cargando tu dinero...") : ""}
       <div class="money-prompt">
         <div class="prompt-icon">🧳</div>
         <h3>¿Cuánto llevás al viaje?</h3>
         <p>Contanos tu saldo inicial para poder llevar la cuenta de tus gastos y ganancias.</p>
       </div>
     `;
-    openSheet("initial");
+    if (!moneyLoading) openSheet("initial");
     return;
   }
 
@@ -2039,6 +2135,7 @@ function renderMoneyScreen() {
   const DONUT_CIRC = 2 * Math.PI * DONUT_R;
 
   moneyMain.innerHTML = `
+    ${moneyLoading ? renderApiLoadingBanner("Cargando tu dinero...") : ""}
     <div class="donut-card">
       <div class="donut-wrap">
         <svg class="donut-svg" viewBox="0 0 100 100" aria-hidden="true">
@@ -2861,9 +2958,11 @@ function legacyIdForApiUserId(apiUserId) {
 async function loadDailyEntryFromApi(userId, dateKey) {
   const key = `${userId}:${dateKey}`;
   if (dailyApiLoadedKeys.has(key)) return;
+  if (dailyApiLoadingKeys.has(key) || dailyApiFailedKeys.has(key)) return;
   if (hasPendingApiOperation(`daily-entry:put:${dateKey}`) || hasPendingApiOperation(`survey-vote:destroyed_vote:${dateKey}`)) return;
 
   dailyApiLoadedKeys.add(key);
+  dailyApiLoadingKeys.add(key);
   try {
     const [entryResponse, votesResponse] = await Promise.all([
       apiFetch(`/daily-entries/${encodeURIComponent(dateKey)}`),
@@ -2872,6 +2971,7 @@ async function loadDailyEntryFromApi(userId, dateKey) {
     if (entryResponse.status === 404) return;
     if (!entryResponse.ok) {
       dailyApiLoadedKeys.delete(key);
+      dailyApiFailedKeys.add(key);
       return;
     }
 
@@ -2886,12 +2986,13 @@ async function loadDailyEntryFromApi(userId, dateKey) {
     const data = ensureDailyLogData(userId);
     data.dailyLog.entries[dateKey] = dailyEntryFromApi(entryPayload.entry, destroyedVote);
     saveUserData(userId, data);
-    if (screens.daily && screens.daily.classList.contains("active") && dailyDateKey === dateKey) {
-      dailyState = JSON.parse(JSON.stringify(data.dailyLog.entries[dateKey]));
-      renderDailyScreen();
-    }
+    if (screens.daily && screens.daily.classList.contains("active") && dailyDateKey === dateKey) dailyState = JSON.parse(JSON.stringify(data.dailyLog.entries[dateKey]));
   } catch (e) {
     dailyApiLoadedKeys.delete(key);
+    dailyApiFailedKeys.add(key);
+  } finally {
+    dailyApiLoadingKeys.delete(key);
+    if (screens.daily && screens.daily.classList.contains("active") && dailyDateKey === dateKey) renderDailyScreen();
   }
 }
 
@@ -2926,6 +3027,7 @@ function renderDailyScreen() {
     dailyState = existing ? JSON.parse(JSON.stringify(existing)) : defaultDailyEntry();
   }
   loadDailyEntryFromApi(user.id, dailyDateKey);
+  const dailyLoading = dailyApiLoadingKeys.has(`${user.id}:${dailyDateKey}`);
 
   const s = dailyState;
   const derived = computeDailyDerived(s);
@@ -2935,6 +3037,7 @@ function renderDailyScreen() {
       <span class="daily-date-eyebrow">Registrando el día de ayer</span>
       <strong>${formatDailyDate(dailyDateKey)}</strong>
     </div>
+    ${dailyLoading ? renderApiLoadingBanner("Cargando tu registro guardado...") : ""}
 
     <div class="daily-section">
       <div class="section-label">😴 HORAS DORMIDAS</div>
@@ -3016,7 +3119,9 @@ function renderDailyScreen() {
       </div>
     </div>
 
-    <button type="button" id="btn-save-daily" class="sheet-submit daily-save-btn">Guardar registro</button>
+    <button type="button" id="btn-save-daily" class="sheet-submit daily-save-btn" ${dailySaveSubmitting ? "disabled" : ""}>${
+      dailySaveSubmitting ? "Guardando..." : "Guardar registro"
+    }</button>
     <p class="daily-save-msg" id="daily-save-msg"></p>
   `;
 
@@ -3147,9 +3252,16 @@ function attachDailyListeners() {
   }
 }
 
-function saveDailyEntry() {
+async function saveDailyEntry() {
+  if (dailySaveSubmitting) return;
   const user = getCurrentUser();
   if (!user) return;
+  dailySaveSubmitting = true;
+  const saveBtn = document.getElementById("btn-save-daily");
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Guardando...";
+  }
 
   // Si el usuario marcó "No dormí", limpiamos las horas para no dejar
   // datos inconsistentes guardados.
@@ -3174,13 +3286,21 @@ function saveDailyEntry() {
   // crear un duplicado (misma clave = mismo día).
   data.dailyLog.entries[dailyDateKey] = entryToSave;
   saveUserData(user.id, data);
-  syncDailyEntryToApi(dailyDateKey, entryToSave);
+  try {
+    await syncDailyEntryToApi(dailyDateKey, entryToSave);
 
-  const msg = document.getElementById("daily-save-msg");
-  if (msg) {
-    msg.textContent = "✓ Registro guardado";
-    msg.classList.add("visible");
-    setTimeout(() => msg.classList.remove("visible"), 2000);
+    const msg = document.getElementById("daily-save-msg");
+    if (msg) {
+      msg.textContent = "✓ Registro guardado";
+      msg.classList.add("visible");
+      setTimeout(() => msg.classList.remove("visible"), 2000);
+    }
+  } finally {
+    dailySaveSubmitting = false;
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Guardar registro";
+    }
   }
 }
 
@@ -3918,7 +4038,9 @@ async function fetchStatsFromApi(scope, dateKey) {
 function requestStatsPanelRefresh(scope, dateKey) {
   const requestKey = scope === "total" ? "total" : `day:${dateKey}`;
   if (statsApiPending[requestKey]) return;
+  if (statsApiFailed[requestKey]) return;
 
+  delete statsApiFailed[requestKey];
   statsApiPending[requestKey] = true;
   fetchStatsFromApi(scope, dateKey)
     .then((stats) => {
@@ -3927,16 +4049,19 @@ function requestStatsPanelRefresh(scope, dateKey) {
       renderStatsPanel();
     })
     .catch(() => {
+      statsApiFailed[requestKey] = true;
       // Si la API no está disponible, se conserva el render local actual.
     })
     .finally(() => {
       statsApiPending[requestKey] = false;
+      if (screens.stats && screens.stats.classList.contains("active")) renderStatsPanel();
     });
 }
 
 function clearStatsApiCache() {
   statsApiTotal = null;
   Object.keys(statsApiDays).forEach((key) => delete statsApiDays[key]);
+  Object.keys(statsApiFailed).forEach((key) => delete statsApiFailed[key]);
 }
 
 function statsUserName(stats, userId) {
@@ -4667,6 +4792,8 @@ function renderStatsPanel() {
     const currentKey = hasDays ? closedDays[statsDayIndex] : null;
     const atFirst = !hasDays || statsDayIndex <= 0;
     const atLast = !hasDays || statsDayIndex >= closedDays.length - 1;
+    const dayRequestKey = currentKey ? `day:${currentKey}` : "";
+    if (hasDays && !statsApiDays[currentKey]) requestStatsPanelRefresh("day", currentKey);
 
     panel.innerHTML = `
       <div class="stats-panel-inner ${innerClass}">
@@ -4689,13 +4816,10 @@ function renderStatsPanel() {
             ? ""
             : `<div class="stats-empty-banner"><span class="stats-empty-banner-icon" aria-hidden="true">🗓️</span><p>Todavía no hay días cerrados del viaje. En cuanto se registre e importe el primer día completo, vas a poder navegarlo acá.</p></div>`
         }
+        ${dayRequestKey && statsApiPending[dayRequestKey] ? renderApiLoadingBanner("Cargando estadísticas compartidas...") : ""}
         ${hasDays ? (statsApiDays[currentKey] ? renderDayStatsFromApi(statsApiDays[currentKey]) : renderDayStatsReal(currentKey)) : renderStatsPlaceholderCards()}
       </div>
     `;
-
-    if (hasDays && !statsApiDays[currentKey]) {
-      requestStatsPanelRefresh("day", currentKey);
-    }
 
     // 1. Seleccionamos el botón por su clase (.ffd)
     const botonFfd = document.querySelector(".ffd");
@@ -4727,6 +4851,7 @@ function renderStatsPanel() {
     }
   } else {
     const hasDays = closedDays.length > 0;
+    if (!statsApiTotal) requestStatsPanelRefresh("total");
     panel.innerHTML = `
       <div class="stats-panel-inner ${innerClass}">
         <div class="stats-day-nav stats-day-nav-total">
@@ -4742,14 +4867,11 @@ function renderStatsPanel() {
             ? ""
             : `<div class="stats-empty-banner"><span class="stats-empty-banner-icon" aria-hidden="true">🗓️</span><p>Todavía no hay días cerrados del viaje. En cuanto se registre e importe el primer día completo, vas a poder ver el acumulado acá.</p></div>`
         }
+        ${statsApiPending.total ? renderApiLoadingBanner("Cargando estadísticas compartidas...") : ""}
         <div class="section-label">Estadísticas totales</div>
         ${hasDays ? (statsApiTotal ? renderTotalStatsFromApi(statsApiTotal) : renderTotalStatsReal(closedDays)) : renderStatsPlaceholderCards()}
       </div>
     `;
-
-    if (!statsApiTotal) {
-      requestStatsPanelRefresh("total");
-    }
   }
 
   animateRankingBars(panel);
@@ -4758,6 +4880,7 @@ function renderStatsPanel() {
 
 function renderStatsScreen() {
   const main = document.getElementById("stats-main");
+  Object.keys(statsApiFailed).forEach((key) => delete statsApiFailed[key]);
   main.innerHTML = `
     <div class="stats-tabs" role="tablist">
       <button type="button" class="stats-tab${statsTab === "dia" ? " active" : ""}" data-tab="dia" role="tab" aria-selected="${statsTab === "dia"}">Día</button>
@@ -6536,7 +6659,9 @@ function init() {
 }
 
 window.addEventListener("online", () => {
+  resetApiReadFailures();
   schedulePendingApiSync();
+  if (getCurrentUser()) navigate(routeFromHash());
 });
 
 init();
