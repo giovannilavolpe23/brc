@@ -29,30 +29,9 @@ export const postgresAdminUsersRepository: AdminUsersRepository = {
     const client = await pool.connect();
     try {
       await client.query("begin");
-      await client.query("select pg_advisory_xact_lock(hashtext(lower($1)))", [input.displayName]);
-
-      const duplicateName = await client.query<{ id: string }>(
-        "select id from users where lower(display_name) = lower($1) limit 1",
-        [input.displayName]
-      );
-      if (duplicateName.rows[0]) throw new AdminUserValidationError("user_already_exists");
-
-      const role = await client.query<{ id: string }>("select id from roles where key = 'user' limit 1");
-      if (!role.rows[0]) throw new Error("default_user_role_not_found");
-
-      const legacyId = await nextLegacyId(client, slugifyLegacyId(input.displayName));
-      const passwordHash = await hashPassword(input.password);
-      const created = await client.query<CreatedUserRow>(
-        `
-          insert into users (legacy_id, display_name, password_hash, role_id, is_active)
-          values ($1, $2, $3, $4, true)
-          returning id, legacy_id, display_name, (select key from roles where roles.id = users.role_id) as role_key
-        `,
-        [legacyId, input.displayName, passwordHash, role.rows[0].id]
-      );
-
+      const user = await createUserWithClient(client, input);
       await client.query("commit");
-      return mapCreatedUser(created.rows[0]);
+      return user;
     } catch (error) {
       await client.query("rollback");
       if (isUniqueViolation(error)) {
@@ -126,6 +105,65 @@ export class AdminUserValidationError extends Error {
     super(message);
     this.name = "AdminUserValidationError";
   }
+}
+
+export async function createUserWithClient(
+  client: Pick<import("pg").PoolClient, "query">,
+  input: CreateUserInput,
+  passwordHasher: typeof hashPassword = hashPassword
+): Promise<AuthUser> {
+  await client.query("select pg_advisory_xact_lock(hashtext(lower($1)))", [input.displayName]);
+
+  const duplicateName = await client.query<{ id: string }>(
+    "select id from users where lower(display_name) = lower($1) and is_active = true limit 1",
+    [input.displayName]
+  );
+  if (duplicateName.rows[0]) throw new AdminUserValidationError("user_already_exists");
+
+  const role = await client.query<{ id: string }>("select id from roles where key = 'user' limit 1");
+  if (!role.rows[0]) throw new Error("default_user_role_not_found");
+
+  const baseLegacyId = slugifyLegacyId(input.displayName);
+  const passwordHash = await passwordHasher(input.password);
+  const reactivated = await client.query<CreatedUserRow>(
+    `
+      with inactive_user as (
+        select id
+        from users
+        where (lower(display_name) = lower($1) or legacy_id = $4)
+          and is_active = false
+          and not (legacy_id = any($5::text[]))
+        order by case when legacy_id = $4 then 0 else 1 end,
+                 created_at asc
+        limit 1
+      )
+      update users
+      set display_name = $1,
+          password_hash = $2,
+          role_id = $3,
+          is_active = true,
+          updated_at = now()
+      from inactive_user
+      where users.id = inactive_user.id
+      returning users.id,
+                users.legacy_id,
+                users.display_name,
+                (select key from roles where roles.id = users.role_id) as role_key
+    `,
+    [input.displayName, passwordHash, role.rows[0].id, baseLegacyId, Array.from(ORIGINAL_LEGACY_IDS)]
+  );
+  if (reactivated.rows[0]) return mapCreatedUser(reactivated.rows[0]);
+
+  const legacyId = await nextLegacyId(client, baseLegacyId);
+  const created = await client.query<CreatedUserRow>(
+    `
+      insert into users (legacy_id, display_name, password_hash, role_id, is_active)
+      values ($1, $2, $3, $4, true)
+      returning id, legacy_id, display_name, (select key from roles where roles.id = users.role_id) as role_key
+    `,
+    [legacyId, input.displayName, passwordHash, role.rows[0].id]
+  );
+  return mapCreatedUser(created.rows[0]);
 }
 
 function parseCreateUserInput(body: unknown): CreateUserInput {

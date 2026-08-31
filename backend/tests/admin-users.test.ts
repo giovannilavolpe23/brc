@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import { describe, it } from "node:test";
 import express, { type RequestHandler } from "express";
 import request from "supertest";
-import { AdminUserValidationError, createAdminUsersRouter, type AdminUsersRepository } from "../src/admin/users";
+import { AdminUserValidationError, createAdminUsersRouter, createUserWithClient, type AdminUsersRepository } from "../src/admin/users";
 import { createRequireAuth } from "../src/auth/middleware";
 import { createAuthRouter } from "../src/auth/routes";
 import { hashPassword, verifyPassword } from "../src/auth/password";
@@ -85,6 +87,90 @@ function makeAdminApp(authUser: AuthUser, repository: AdminUsersRepository) {
   return app;
 }
 
+type FakeDbUser = {
+  id: string;
+  legacyId: string;
+  displayName: string;
+  passwordHash: string;
+  roleId: string;
+  isActive: boolean;
+  createdAt: string;
+};
+
+function makePostgresLikeClient(initialUsers: FakeDbUser[] = []) {
+  const users = initialUsers.map((item) => ({ ...item }));
+  const queries: string[] = [];
+  const client = {
+    async query(sql: string, params: unknown[] = []) {
+      queries.push(sql);
+
+      if (sql.includes("pg_advisory_xact_lock")) return { rows: [] };
+
+      if (sql.includes("select id from users") && sql.includes("is_active = true")) {
+        const displayName = String(params[0]).toLowerCase();
+        return { rows: users.filter((user) => user.isActive && user.displayName.toLowerCase() === displayName).map((user) => ({ id: user.id })) };
+      }
+
+      if (sql.includes("select id from roles")) return { rows: [{ id: "role-user" }] };
+
+      if (sql.includes("with inactive_user")) {
+        const displayName = String(params[0]);
+        const passwordHash = String(params[1]);
+        const roleId = String(params[2]);
+        const baseLegacyId = String(params[3]);
+        const reserved = new Set(params[4] as string[]);
+        const inactive = users
+          .filter(
+            (user) =>
+              !user.isActive &&
+              (user.displayName.toLowerCase() === displayName.toLowerCase() || user.legacyId === baseLegacyId) &&
+              !reserved.has(user.legacyId)
+          )
+          .sort((a, b) => {
+            const legacyDelta = Number(a.legacyId !== baseLegacyId) - Number(b.legacyId !== baseLegacyId);
+            return legacyDelta || a.createdAt.localeCompare(b.createdAt);
+          })[0];
+        if (!inactive) return { rows: [] };
+
+        inactive.displayName = displayName;
+        inactive.passwordHash = passwordHash;
+        inactive.roleId = roleId;
+        inactive.isActive = true;
+        return { rows: [{ id: inactive.id, legacy_id: inactive.legacyId, display_name: inactive.displayName, role_key: "user" }] };
+      }
+
+      if (sql.includes("select legacy_id from users")) {
+        const base = String(params[0]);
+        return { rows: users.filter((user) => user.legacyId === base || user.legacyId.startsWith(`${base}-`)).map((user) => ({ legacy_id: user.legacyId })) };
+      }
+
+      if (sql.includes("insert into users")) {
+        const legacyId = String(params[0]);
+        if (users.some((user) => user.legacyId === legacyId)) {
+          const error = new Error("duplicate key");
+          (error as { code?: string }).code = "23505";
+          throw error;
+        }
+        const user = {
+          id: "44444444-4444-4444-8444-444444444444",
+          legacyId,
+          displayName: String(params[1]),
+          passwordHash: String(params[2]),
+          roleId: String(params[3]),
+          isActive: true,
+          createdAt: "2026-08-31T00:00:00.000Z",
+        };
+        users.push(user);
+        return { rows: [{ id: user.id, legacy_id: user.legacyId, display_name: user.displayName, role_key: "user" }] };
+      }
+
+      throw new Error(`Unexpected query: ${sql}`);
+    },
+  };
+
+  return { client: client as Pick<import("pg").PoolClient, "query">, queries, users };
+}
+
 describe("admin user creation", () => {
   it("lets an admin create a user with a generated UUID-shaped id, user role, and hashed password", async () => {
     const repository = makeRepository();
@@ -142,6 +228,64 @@ describe("admin user creation", () => {
     assert.equal(response.status, 400);
     assert.deepEqual(response.body, { error: "user_already_exists" });
     assert.equal(JSON.stringify(response.body).includes("other-pass"), false);
+  });
+
+  it("creates Lara even when her profile image already exists", async () => {
+    assert.equal(fs.existsSync(path.resolve(process.cwd(), "../images/Lara.jpeg")), true);
+    const db = makePostgresLikeClient();
+
+    const created = await createUserWithClient(db.client, { displayName: "Lara", password: "secret-pass" }, async () => "hashed-secret");
+
+    assert.equal(created.displayName, "Lara");
+    assert.equal(created.legacyId, "lara");
+    assert.equal(db.users.find((item) => item.legacyId === "lara")?.isActive, true);
+    assert.equal(db.queries.some((sql) => sql.includes("images") || sql.includes("PLAYER_PROFILE_IMAGES")), false);
+  });
+
+  it("reactivates an inactive Lara instead of reporting a duplicate", async () => {
+    const db = makePostgresLikeClient([
+      {
+        id: "55555555-5555-4555-8555-555555555555",
+        legacyId: "lara",
+        displayName: "Lara",
+        passwordHash: "old-hash",
+        roleId: "role-user",
+        isActive: false,
+        createdAt: "2026-08-01T00:00:00.000Z",
+      },
+    ]);
+
+    const created = await createUserWithClient(db.client, { displayName: "Lara", password: "secret-pass" }, async () => "new-hash");
+
+    assert.equal(created.id, "55555555-5555-4555-8555-555555555555");
+    assert.equal(created.legacyId, "lara");
+    assert.equal(created.displayName, "Lara");
+    assert.equal(db.users.length, 1);
+    assert.equal(db.users[0].isActive, true);
+    assert.equal(db.users[0].passwordHash, "new-hash");
+  });
+
+  it("reactivates an inactive Lara legacy identity even if the residual display name differs", async () => {
+    const db = makePostgresLikeClient([
+      {
+        id: "66666666-6666-4666-8666-666666666666",
+        legacyId: "lara",
+        displayName: "Lara Prueba",
+        passwordHash: "old-hash",
+        roleId: "role-user",
+        isActive: false,
+        createdAt: "2026-08-01T00:00:00.000Z",
+      },
+    ]);
+
+    const created = await createUserWithClient(db.client, { displayName: "Lara", password: "secret-pass" }, async () => "new-hash");
+
+    assert.equal(created.id, "66666666-6666-4666-8666-666666666666");
+    assert.equal(created.legacyId, "lara");
+    assert.equal(created.displayName, "Lara");
+    assert.equal(db.users.length, 1);
+    assert.equal(db.users[0].displayName, "Lara");
+    assert.equal(db.users[0].isActive, true);
   });
 
   it("allows a newly created user to log in through the auth router", async () => {
