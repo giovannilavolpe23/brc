@@ -6445,8 +6445,8 @@ bottomNav.addEventListener("click", (e) => {
     }
   }
 
-  // Ícono "admin" del bottom nav: si estamos parados en Home, Previas
-  // (de admin) o Estadísticas, usa la misma transición animada que el
+  // Ícono "admin" del bottom nav: si estamos parados en Home, Previas,
+  // Estadísticas o Logros, usa la misma transición animada que el
   // resto de las navegaciones hacia/dentro de Admin. Desde cualquier
   // otro origen (o si ya estamos en Admin) se mantiene el
   // `navigate()` instantáneo.
@@ -6468,9 +6468,17 @@ bottomNav.addEventListener("click", (e) => {
   }
 
   if (route === "stats") {
-    const activeAnimatedOrigin = ["home", "admin"].find((r) => screens[r] && screens[r].classList.contains("active"));
+    const activeAnimatedOrigin = ["home", "admin", "titulos"].find((r) => screens[r] && screens[r].classList.contains("active"));
     if (activeAnimatedOrigin) {
       navigateBetweenScreensWithTransition(activeAnimatedOrigin, "stats");
+      return;
+    }
+  }
+
+  if (route === "titulos") {
+    const activeAnimatedOrigin = ["home", "admin", "stats"].find((r) => screens[r] && screens[r].classList.contains("active"));
+    if (activeAnimatedOrigin) {
+      navigateBetweenScreensWithTransition(activeAnimatedOrigin, "titulos");
       return;
     }
   }
