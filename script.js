@@ -306,6 +306,15 @@ function markPendingApiAttempt(operationId) {
   savePendingApiOperations(operations);
 }
 
+function pendingOperationUserId(operation) {
+  return operation.userId || operation.localUserId || null;
+}
+
+function canProcessPendingApiOperation(operation, currentUser) {
+  const operationUserId = pendingOperationUserId(operation);
+  return !operationUserId || (currentUser && operationUserId === currentUser.id);
+}
+
 function isRetryableApiResponse(response) {
   return response.status === 408 || response.status === 429 || response.status >= 500;
 }
@@ -351,7 +360,8 @@ function schedulePendingApiSync(delayMs = 0) {
 
 async function processPendingApiOperations() {
   if (pendingApiSyncPromise) return pendingApiSyncPromise;
-  if (!localStorage.getItem(STORAGE_KEYS.apiAccessToken)) {
+  const currentUser = getCurrentUser();
+  if (!currentUser || !localStorage.getItem(STORAGE_KEYS.apiAccessToken)) {
     updateApiSyncIndicator();
     return;
   }
@@ -363,6 +373,7 @@ async function processPendingApiOperations() {
     const operations = getPendingApiOperations();
     for (const operation of operations) {
       if (!getPendingApiOperations().some((op) => op.id === operation.id)) continue;
+      if (!canProcessPendingApiOperation(operation, currentUser)) continue;
       markPendingApiAttempt(operation.id);
       const result = await tryApiOperation(operation, operation.successStatuses || []);
       if (result.status === "synced") {
@@ -1611,9 +1622,11 @@ async function loadPreviasFromApi() {
 }
 
 function previaCreateOperation(previa) {
+  const user = getCurrentUser();
   return {
     id: `previa:create:${previa.id}`,
     type: "previa_create",
+    userId: user && user.id,
     method: "POST",
     path: "/previas",
     payload: previaApiPayload(previa),
@@ -2120,9 +2133,11 @@ function moneyMovementCreateOperation(userId, movement) {
 }
 
 function moneyMovementPatchOperation(movement) {
+  const user = getCurrentUser();
   return {
     id: `money:patch:${movement.id}`,
     type: "money_movement_patch",
+    userId: user && user.id,
     method: "PATCH",
     path: `/money/movements/${encodeURIComponent(movement.id)}`,
     payload: moneyMovementApiPayload(movement),
@@ -2130,9 +2145,11 @@ function moneyMovementPatchOperation(movement) {
 }
 
 function moneyMovementDeleteOperation(movement) {
+  const user = getCurrentUser();
   return {
     id: `money:delete:${movement.id}`,
     type: "money_movement_delete",
+    userId: user && user.id,
     method: "DELETE",
     path: `/money/movements/${encodeURIComponent(movement.id)}`,
   };
@@ -3107,9 +3124,11 @@ function dailyEntryApiPayload(entry) {
 }
 
 function dailyEntryOperation(dateKey, entry) {
+  const user = getCurrentUser();
   return {
     id: `daily-entry:put:${dateKey}`,
     type: "daily_entry_put",
+    userId: user && user.id,
     method: "PUT",
     path: `/daily-entries/${encodeURIComponent(dateKey)}`,
     payload: dailyEntryApiPayload(entry),
@@ -3117,9 +3136,11 @@ function dailyEntryOperation(dateKey, entry) {
 }
 
 function destroyedVoteOperation(dateKey, votedUserId) {
+  const user = getCurrentUser();
   return {
     id: `survey-vote:destroyed_vote:${dateKey}`,
     type: "destroyed_vote_put",
+    userId: user && user.id,
     method: "PUT",
     path: `/surveys/destroyed_vote/${encodeURIComponent(dateKey)}/vote`,
     payload: { votedUserId },
