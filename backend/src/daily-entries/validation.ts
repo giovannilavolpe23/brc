@@ -18,6 +18,7 @@ export function parseDailyEntryInput(body: unknown): DailyEntryInput {
   const fifthMeal = parseFifthMeal(record.fifthMeal);
   const bathroom = parseBathroom(record.bathroom);
   const boliche = parseBoliche(record.boliche);
+  validateLogicalTimes(sleep, nap, boliche);
 
   return { sleep, nap, fifthMeal, bathroom, boliche };
 }
@@ -35,7 +36,7 @@ function parseNap(value: unknown): DailyEntryInput["nap"] {
   const nap = getRecord(value);
   const start = parseRequiredTime(nap.start, "invalid_nap_start");
   const end = parseRequiredTime(nap.end, "invalid_nap_end");
-  if (end < start) {
+  if (timeToMinutes(end) <= timeToMinutes(start)) {
     throw new DailyEntryValidationError("invalid_nap_range");
   }
 
@@ -91,4 +92,46 @@ function parseRequiredTime(value: unknown, error: string): string {
   }
 
   return value;
+}
+
+function validateLogicalTimes(
+  sleep: DailyEntryInput["sleep"],
+  nap: DailyEntryInput["nap"],
+  boliche: DailyEntryInput["boliche"]
+): void {
+  if (!sleep.didNotSleep && sleep.bedtime && sleep.wake && wakeAbsoluteMinutes(sleep.wake) <= bedtimeAbsoluteMinutes(sleep.bedtime)) {
+    throw new DailyEntryValidationError("invalid_sleep_range");
+  }
+
+  if (nap && sleep.wake && timeToMinutes(nap.start) < timeToMinutes(sleep.wake)) {
+    throw new DailyEntryValidationError("invalid_nap_start_before_wake");
+  }
+
+  if (!boliche.didNotGo && boliche.time) {
+    if (sleep.didNotSleep || !sleep.bedtime) {
+      throw new DailyEntryValidationError("invalid_boliche_sleep_required");
+    }
+
+    const exit = timeToMinutes(boliche.time);
+    const exitAbsolute = exit + 24 * 60;
+    const openAbsolute = 25 * 60;
+    const latestExit = bedtimeAbsoluteMinutes(sleep.bedtime) - 10;
+    if (exitAbsolute < openAbsolute || exitAbsolute > latestExit) {
+      throw new DailyEntryValidationError("invalid_boliche_time_range");
+    }
+  }
+}
+
+function timeToMinutes(value: string): number {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function bedtimeAbsoluteMinutes(value: string): number {
+  const minutes = timeToMinutes(value);
+  return minutes <= 9 * 60 ? minutes + 24 * 60 : minutes;
+}
+
+function wakeAbsoluteMinutes(value: string): number {
+  return timeToMinutes(value) + 24 * 60;
 }

@@ -2746,6 +2746,9 @@ function pad2(n) {
   return String(n).padStart(2, "0");
 }
 
+const DAY_MINUTES = 24 * 60;
+const BOLICHE_ARRIVAL_MINUTES = 60; // 01:00
+
 // Rangos de cada selector de hora, en minutos desde las 00:00 del día
 // en que arranca el rango (pueden superar 1440 para representar que
 // cruzan la medianoche, ej: hora de dormir hasta las 09:00 del día
@@ -2753,18 +2756,106 @@ function pad2(n) {
 const TIME_RANGES = {
   bedtime: { start: 22 * 60, end: (24 + 9) * 60 }, // 22:00 -> 09:00 (+1 día)
   wake: { start: 6 * 60, end: 16 * 60 }, // 06:00 -> 16:00
-  nap: { start: 14 * 60, end: 22 * 60 }, // 14:00 -> 22:00
+  nap: { start: 11 * 60, end: 22 * 60 }, // 11:00 -> 22:00
   boliche: { start: 1 * 60, end: 7 * 60 }, // 01:00 -> 07:00
 };
+
+function minutesToTimeLabel(minutes) {
+  const mod = ((minutes % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES;
+  return `${pad2(Math.floor(mod / 60))}:${pad2(mod % 60)}`;
+}
 
 function buildTimeOptions(rangeKey) {
   const { start, end } = TIME_RANGES[rangeKey];
   const options = [];
   for (let m = start; m <= end; m += 10) {
-    const mod = m % (24 * 60);
-    options.push(`${pad2(Math.floor(mod / 60))}:${pad2(mod % 60)}`);
+    options.push(minutesToTimeLabel(m));
   }
   return options;
+}
+
+function bedtimeAbsoluteMinutes(value) {
+  if (!value) return null;
+  const minutes = timeToMinutes(value);
+  const afterMidnightEnd = TIME_RANGES.bedtime.end - DAY_MINUTES;
+  return minutes <= afterMidnightEnd ? minutes + DAY_MINUTES : minutes;
+}
+
+function wakeAbsoluteMinutes(value) {
+  if (!value) return null;
+  return timeToMinutes(value) + DAY_MINUTES;
+}
+
+function isWakeAfterBedtime(wake, bedtime) {
+  const bed = bedtimeAbsoluteMinutes(bedtime);
+  const wakeMinutes = wakeAbsoluteMinutes(wake);
+  if (bed === null || wakeMinutes === null) return true;
+  return wakeMinutes > bed;
+}
+
+function isNapStartAfterWake(napStart, wake) {
+  if (!napStart || !wake) return true;
+  return timeToMinutes(napStart) >= timeToMinutes(wake);
+}
+
+function isNapEndAfterStart(napStart, napEnd) {
+  if (!napStart || !napEnd) return true;
+  return timeToMinutes(napEnd) > timeToMinutes(napStart);
+}
+
+function bolicheTimeOptionsForBedtime(bedtime) {
+  const bed = bedtimeAbsoluteMinutes(bedtime);
+  if (bed === null) return [];
+  const start = DAY_MINUTES + BOLICHE_ARRIVAL_MINUTES;
+  const end = Math.min(DAY_MINUTES + TIME_RANGES.boliche.end, bed - 10);
+  const options = [];
+  for (let m = start; m <= end; m += 10) {
+    options.push(minutesToTimeLabel(m));
+  }
+  return options;
+}
+
+function dailyTimeOptions(rangeKey, state) {
+  if (rangeKey === "nap-start") {
+    const options = buildTimeOptions("nap");
+    return state.sleep.wake ? options.filter((opt) => isNapStartAfterWake(opt, state.sleep.wake)) : options;
+  }
+  if (rangeKey === "nap-end") {
+    const options = buildTimeOptions("nap");
+    return state.nap && state.nap.start ? options.filter((opt) => isNapEndAfterStart(state.nap.start, opt)) : options;
+  }
+  if (rangeKey === "wake" && state.sleep.bedtime) {
+    return buildTimeOptions("wake").filter((opt) => isWakeAfterBedtime(opt, state.sleep.bedtime));
+  }
+  if (rangeKey === "boliche") {
+    return bolicheTimeOptionsForBedtime(state.sleep.bedtime);
+  }
+  return buildTimeOptions(rangeKey);
+}
+
+function sanitizeDailyStateTimes(state) {
+  if (state.sleep.didNotSleep) {
+    state.sleep.bedtime = null;
+    state.sleep.wake = null;
+  } else if (state.sleep.wake && !dailyTimeOptions("wake", state).includes(state.sleep.wake)) {
+    state.sleep.wake = null;
+  }
+
+  if (state.nap) {
+    if (state.nap.start && !dailyTimeOptions("nap-start", state).includes(state.nap.start)) {
+      state.nap.start = null;
+      state.nap.end = null;
+    }
+    if (state.nap.end && !dailyTimeOptions("nap-end", state).includes(state.nap.end)) {
+      state.nap.end = null;
+    }
+  }
+
+  if (state.boliche.didNotGo) {
+    state.boliche.time = null;
+  } else if (state.boliche.time && !dailyTimeOptions("boliche", state).includes(state.boliche.time)) {
+    state.boliche.time = null;
+  }
 }
 
 // Día que se está registrando: por ahora siempre "ayer" (fecha real del
@@ -2844,7 +2935,6 @@ function napDurationMinutes(nap) {
 
 // El boliche arranca siempre a la 01:00; la duración es el tiempo
 // entre esa llegada fija y la hora de salida registrada.
-const BOLICHE_ARRIVAL_MINUTES = 60; // 01:00
 function bolicheDurationMinutes(exitTime) {
   if (!exitTime) return null;
   return Math.max(0, timeToMinutes(exitTime) - BOLICHE_ARRIVAL_MINUTES);
@@ -3014,8 +3104,7 @@ async function loadDailyEntryFromApi(userId, dateKey) {
   }
 }
 
-function renderTimeScroll(containerId, rangeKey, selectedValue) {
-  const options = buildTimeOptions(rangeKey);
+function renderTimeScroll(containerId, rangeKey, selectedValue, options = buildTimeOptions(rangeKey)) {
   return `<div class="time-scroll" id="${containerId}" data-range="${rangeKey}">${options
     .map(
       (opt) =>
@@ -3048,7 +3137,13 @@ function renderDailyScreen() {
   const dailyLoading = dailyApiLoadingKeys.has(`${user.id}:${dailyDateKey}`);
 
   const s = dailyState;
+  sanitizeDailyStateTimes(s);
   const derived = computeDailyDerived(s);
+  const wakeOptions = dailyTimeOptions("wake", s);
+  const napStartOptions = s.nap ? dailyTimeOptions("nap-start", s) : [];
+  const napEndOptions = s.nap ? dailyTimeOptions("nap-end", s) : [];
+  const bolicheOptions = dailyTimeOptions("boliche", s);
+  const showBolichePicker = !s.boliche.didNotGo && bolicheOptions.length > 0;
 
   dailyMain.innerHTML = `
     <div class="daily-date-banner">
@@ -3067,7 +3162,7 @@ function renderDailyScreen() {
         </div>
         <div class="picker-block">
           <label class="field-label">Te despertaste a las..</label>
-          ${renderTimeScroll("picker-wake", "wake", s.sleep.wake)}
+          ${renderTimeScroll("picker-wake", "wake", s.sleep.wake, wakeOptions)}
         </div>
         ${derived.sleepMinutes !== null ? `<p class="daily-computed">${formatDuration(derived.sleepMinutes)} de sueño</p>` : ""}
       </div>
@@ -3079,11 +3174,11 @@ function renderDailyScreen() {
         s.nap
           ? `<div class="picker-block">
                <label class="field-label">Inicio</label>
-               ${renderTimeScroll("picker-nap-start", "nap", s.nap.start)}
+               ${renderTimeScroll("picker-nap-start", "nap-start", s.nap.start, napStartOptions)}
              </div>
              <div class="picker-block">
                <label class="field-label">Fin</label>
-               ${renderTimeScroll("picker-nap-end", "nap", s.nap.end)}
+               ${renderTimeScroll("picker-nap-end", "nap-end", s.nap.end, napEndOptions)}
              </div>
              ${derived.napMinutes !== null ? `<p class="daily-computed">${formatDuration(derived.napMinutes)} de siesta</p>` : ""}
              <button type="button" id="btn-remove-nap" class="sheet-cancel-link">Quitar siesta</button>`
@@ -3118,9 +3213,13 @@ function renderDailyScreen() {
       <div class="section-label">🍾 ¿A qué hora abandonaste el boliche?</div>
       <button type="button" id="btn-no-boliche" class="toggle-chip${s.boliche.didNotGo ? " selected" : ""}">No fui al boliche</button>
       <div id="boliche-fields"${s.boliche.didNotGo ? " hidden" : ""}>
-        <div class="picker-block">
-          ${renderTimeScroll("picker-boliche", "boliche", s.boliche.time)}
-        </div>
+        ${
+          showBolichePicker
+            ? `<div class="picker-block">
+                ${renderTimeScroll("picker-boliche", "boliche", s.boliche.time, bolicheOptions)}
+              </div>`
+            : `<p class="daily-computed">Elegí una hora de dormir posterior a la 01:00 para cargar salida.</p>`
+        }
         ${derived.bolicheMinutes !== null ? `<p class="daily-computed">${formatDuration(derived.bolicheMinutes)} en el boliche (desde la 01:00)</p>` : ""}
       </div>
     </div>
@@ -3281,15 +3380,9 @@ async function saveDailyEntry() {
     saveBtn.textContent = "Guardando...";
   }
 
-  // Si el usuario marcó "No dormí", limpiamos las horas para no dejar
-  // datos inconsistentes guardados.
-  if (dailyState.sleep.didNotSleep) {
-    dailyState.sleep.bedtime = null;
-    dailyState.sleep.wake = null;
-  }
-  if (dailyState.boliche.didNotGo) {
-    dailyState.boliche.time = null;
-  }
+  // La UI filtra opciones incompatibles; antes de persistir volvemos a
+  // limpiar dependencias para que un estado manipulado no se guarde.
+  sanitizeDailyStateTimes(dailyState);
   // Defensa extra: la UI ya excluye al propio usuario de las opciones,
   // pero si por algún motivo quedó un voto a sí mismo en el estado, se
   // descarta antes de guardar (nunca se persiste un autovoto).

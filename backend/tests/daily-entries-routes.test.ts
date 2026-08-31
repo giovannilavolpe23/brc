@@ -26,7 +26,7 @@ const jere: AuthUser = {
 };
 
 const validInput: DailyEntryInput = {
-  sleep: { didNotSleep: false, bedtime: "02:00", wake: "10:00" },
+  sleep: { didNotSleep: false, bedtime: "06:00", wake: "10:00" },
   nap: { start: "16:00", end: "17:00" },
   fifthMeal: "yes",
   bathroom: 2,
@@ -136,6 +136,55 @@ describe("daily entries routes", () => {
     assert.equal(rejected.body.error, "computed_fields_are_not_accepted");
     assert.equal(accepted.status, 200);
     assert.equal(accepted.body.entry.computed, undefined);
+  });
+
+  it("rejects wake times that are not after bedtime", async () => {
+    const repo = makeRepository();
+    const app = makeApp(jere, repo);
+
+    const response = await request(app)
+      .put("/daily-entries/2026-08-28")
+      .send({ ...validInput, sleep: { didNotSleep: false, bedtime: "07:00", wake: "06:00" } });
+
+    assert.equal(response.status, 400);
+    assert.equal(response.body.error, "invalid_sleep_range");
+    assert.deepEqual(repo.calls, []);
+  });
+
+  it("rejects nap times before wake time or not after start time", async () => {
+    const repo = makeRepository();
+    const app = makeApp(jere, repo);
+
+    const beforeWake = await request(app)
+      .put("/daily-entries/2026-08-28")
+      .send({ ...validInput, sleep: { didNotSleep: false, bedtime: "07:00", wake: "15:40" }, nap: { start: "14:00", end: "16:00" } });
+    const sameEnd = await request(app)
+      .put("/daily-entries/2026-08-28")
+      .send({ ...validInput, nap: { start: "19:00", end: "19:00" } });
+
+    assert.equal(beforeWake.status, 400);
+    assert.equal(beforeWake.body.error, "invalid_nap_start_before_wake");
+    assert.equal(sameEnd.status, 400);
+    assert.equal(sameEnd.body.error, "invalid_nap_range");
+    assert.deepEqual(repo.calls, []);
+  });
+
+  it("rejects boliche exits that are not before bedtime", async () => {
+    const repo = makeRepository();
+    const app = makeApp(jere, repo);
+
+    const afterBedtime = await request(app)
+      .put("/daily-entries/2026-08-28")
+      .send({ ...validInput, sleep: { didNotSleep: false, bedtime: "05:00", wake: "10:00" }, boliche: { didNotGo: false, time: "05:00" } });
+    const beforeOpening = await request(app)
+      .put("/daily-entries/2026-08-28")
+      .send({ ...validInput, sleep: { didNotSleep: false, bedtime: "00:50", wake: "10:00" }, boliche: { didNotGo: false, time: "01:00" } });
+
+    assert.equal(afterBedtime.status, 400);
+    assert.equal(afterBedtime.body.error, "invalid_boliche_time_range");
+    assert.equal(beforeOpening.status, 400);
+    assert.equal(beforeOpening.body.error, "invalid_boliche_time_range");
+    assert.deepEqual(repo.calls, []);
   });
 
   it("cannot read or modify another user's entries, even as admin", async () => {
