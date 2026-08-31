@@ -2813,6 +2813,59 @@ img, svg {
   transform: translateY(0);
 }
 
+.api-sync-indicator {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  left: 50%;
+  z-index: 85;
+  max-width: min(84vw, 320px);
+  padding: 7px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(76, 201, 240, 0.22);
+  background: rgba(255, 255, 255, 0.92);
+  color: #4d6b82;
+  font-size: 11.5px;
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -8px);
+  transition: opacity 0.18s ease, transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+
+.api-sync-indicator.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.api-sync-indicator[data-state="offline"] {
+  border-color: rgba(255, 159, 28, 0.3);
+  background: rgba(255, 248, 235, 0.94);
+  color: #9b6415;
+}
+
+.api-sync-indicator[data-state="pending"] {
+  border-color: rgba(77, 107, 130, 0.22);
+  background: rgba(246, 251, 255, 0.94);
+  color: #4d6b82;
+}
+
+.api-sync-indicator[data-state="syncing"] {
+  border-color: rgba(76, 201, 240, 0.34);
+  background: rgba(234, 246, 255, 0.94);
+  color: #2f8fd1;
+}
+
+.api-sync-indicator[data-state="synced"] {
+  border-color: rgba(55, 161, 105, 0.28);
+  background: rgba(237, 250, 243, 0.94);
+  color: #2f7a50;
+}
+
 @keyframes api-loading-pulse {
   0%,
   100% {
@@ -3790,6 +3843,7 @@ img, svg {
   .field-input,
   .admin-import-textarea,
   .export-code-box,
+  .api-sync-indicator,
   .sheet-error,
   .daily-save-msg {
     transition: none !important;
@@ -3811,5 +3865,218 @@ img, svg {
   .toggle-chip:active,
   .time-option:active {
     transform: none !important;
+  }
+}
+
+/* ---------------------------------------------------------
+   Segunda pasada de pulido UX — detalles finos
+   --------------------------------------------------------- */
+
+.screen.admin-frost .home-content {
+  gap: 20px;
+  padding-top: 24px;
+}
+
+.screen.admin-frost .section-label {
+  margin-top: 14px;
+  margin-bottom: 3px;
+}
+
+.screen.admin-frost .home-content > .section-label:first-child {
+  margin-top: 0;
+}
+
+.stats-panel-inner,
+.stats-panel-inner.stats-slide-next,
+.stats-panel-inner.stats-slide-prev {
+  animation-duration: 220ms;
+}
+
+.stats-real-list {
+  gap: 24px;
+}
+
+.stats-section-heading {
+  margin: 8px 0 -2px;
+}
+
+.ranking-card {
+  gap: 17px;
+  padding-top: 19px;
+  animation-duration: 240ms;
+}
+
+.stats-real-list .ranking-card:nth-of-type(1) { animation-delay: 0.01s; }
+.stats-real-list .ranking-card:nth-of-type(2) { animation-delay: 0.035s; }
+.stats-real-list .ranking-card:nth-of-type(3) { animation-delay: 0.06s; }
+.stats-real-list .ranking-card:nth-of-type(4) { animation-delay: 0.085s; }
+.stats-real-list .ranking-card:nth-of-type(5) { animation-delay: 0.11s; }
+.stats-real-list .ranking-card:nth-of-type(6) { animation-delay: 0.135s; }
+.stats-real-list .ranking-card:nth-of-type(7) { animation-delay: 0.16s; }
+.stats-real-list .ranking-card:nth-of-type(8) { animation-delay: 0.185s; }
+
+.ranking-card-header {
+  gap: 13px;
+  padding-bottom: 15px;
+}
+
+.ranking-card-heading h3 {
+  line-height: 1.22;
+}
+
+.ranking-card-caption {
+  line-height: 1.25;
+}
+
+.ranking-podium {
+  gap: 13px;
+}
+
+.ranking-podium-top {
+  align-items: flex-start;
+}
+
+.ranking-list {
+  gap: 12px;
+}
+
+.ranking-row {
+  grid-template-columns: 22px minmax(0, 82px) minmax(90px, 1fr) minmax(2ch, var(--ranking-value-width, max-content));
+}
+
+.ranking-value,
+.history-amount,
+.admin-preview-row span:last-child {
+  font-variant-numeric: tabular-nums;
+}
+
+.daily-date-banner {
+  gap: 5px;
+}
+
+.daily-section {
+  gap: 16px;
+}
+
+.daily-section + .daily-section,
+.daily-total-sleep + .daily-section {
+  margin-top: 2px;
+}
+
+.time-scroll {
+  margin-inline: -2px;
+  padding-bottom: 12px;
+}
+
+.time-option,
+.chip,
+.toggle-chip {
+  transition-duration: 140ms;
+}
+
+.chip {
+  padding-inline: 15px;
+}
+
+.money-actions {
+  gap: 12px;
+}
+
+.donut-card {
+  gap: 18px;
+}
+
+.money-history,
+.previa-history-list {
+  gap: 12px;
+}
+
+.previa-products-list {
+  gap: 11px;
+}
+
+.admin-participants {
+  gap: 11px;
+}
+
+.admin-participant-row {
+  min-height: 60px;
+}
+
+.admin-create-player-panel {
+  gap: 14px;
+}
+
+.admin-create-player-panel .field {
+  margin-top: 0;
+}
+
+.danger-zone {
+  gap: 14px;
+}
+
+.api-loading-banner {
+  margin-bottom: 2px;
+}
+
+.sheet {
+  display: flex;
+  flex-direction: column;
+}
+
+.sheet-handle {
+  margin-bottom: 8px;
+}
+
+#sheet-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.bottom-nav {
+  gap: 6px;
+}
+
+.nav-btn {
+  min-width: 0;
+}
+
+.nav-btn span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 380px) {
+  .ranking-row {
+    grid-template-columns: 20px minmax(0, 64px) minmax(76px, 1fr) minmax(2ch, var(--ranking-value-width, max-content));
+    gap: 7px;
+  }
+
+  .ranking-podium {
+    padding-inline: 12px;
+  }
+
+  .ranking-podium-top {
+    gap: 6px;
+  }
+
+  .stats-tab {
+    font-size: 13px;
+  }
+
+  .nav-btn span {
+    font-size: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stats-panel-inner,
+  .stats-panel-inner.stats-slide-next,
+  .stats-panel-inner.stats-slide-prev,
+  .ranking-card {
+    animation: none !important;
+    opacity: 1 !important;
   }
 }

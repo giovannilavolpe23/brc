@@ -122,6 +122,9 @@ const statsApiFailed = {};
 let participantsApiLoading = false;
 let sessionExpiredHandled = false;
 let dailySaveSubmitting = false;
+let apiSyncIndicatorTimer = null;
+let apiSyncJustSynced = false;
+let apiSyncIsProcessing = false;
 
 function renderApiLoadingBanner(message) {
   return `
@@ -147,6 +150,56 @@ function showSessionExpiredMessage() {
 function hideSessionExpiredMessage() {
   const el = document.getElementById("session-expired-message");
   if (el) el.classList.remove("visible");
+}
+
+function ensureApiSyncIndicator() {
+  let el = document.getElementById("api-sync-indicator");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "api-sync-indicator";
+    el.className = "api-sync-indicator";
+    el.setAttribute("role", "status");
+    el.setAttribute("aria-live", "polite");
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+function setApiSyncJustSynced() {
+  apiSyncJustSynced = true;
+  if (apiSyncIndicatorTimer) clearTimeout(apiSyncIndicatorTimer);
+  updateApiSyncIndicator();
+  apiSyncIndicatorTimer = setTimeout(() => {
+    apiSyncJustSynced = false;
+    apiSyncIndicatorTimer = null;
+    updateApiSyncIndicator();
+  }, 1800);
+}
+
+function updateApiSyncIndicator() {
+  const el = ensureApiSyncIndicator();
+  const pendingCount = getPendingApiOperations().length;
+  const isOnline = navigator.onLine !== false;
+  let text = "";
+  let state = "";
+
+  if (!isOnline) {
+    text = pendingCount > 0 ? `Sin conexión · ${pendingCount} cambio${pendingCount === 1 ? "" : "s"} pendiente${pendingCount === 1 ? "" : "s"}` : "Sin conexión";
+    state = "offline";
+  } else if (apiSyncIsProcessing && pendingCount > 0) {
+    text = "Sincronizando…";
+    state = "syncing";
+  } else if (pendingCount > 0) {
+    text = pendingCount === 1 ? "1 cambio pendiente" : `${pendingCount} cambios pendientes`;
+    state = "pending";
+  } else if (apiSyncJustSynced) {
+    text = "Sincronizado";
+    state = "synced";
+  }
+
+  el.textContent = text;
+  el.dataset.state = state;
+  el.classList.toggle("visible", !!text);
 }
 
 function resetApiReadFailures() {
@@ -210,9 +263,11 @@ function getPendingApiOperations() {
 function savePendingApiOperations(operations) {
   if (!operations.length) {
     localStorage.removeItem(STORAGE_KEYS.pendingApiOperations);
+    updateApiSyncIndicator();
     return;
   }
   localStorage.setItem(STORAGE_KEYS.pendingApiOperations, JSON.stringify(operations));
+  updateApiSyncIndicator();
 }
 
 function enqueuePendingApiOperation(operation) {
@@ -296,9 +351,15 @@ function schedulePendingApiSync(delayMs = 0) {
 
 async function processPendingApiOperations() {
   if (pendingApiSyncPromise) return pendingApiSyncPromise;
-  if (!localStorage.getItem(STORAGE_KEYS.apiAccessToken)) return;
+  if (!localStorage.getItem(STORAGE_KEYS.apiAccessToken)) {
+    updateApiSyncIndicator();
+    return;
+  }
 
   pendingApiSyncPromise = (async () => {
+    const initialPendingCount = getPendingApiOperations().length;
+    apiSyncIsProcessing = initialPendingCount > 0;
+    updateApiSyncIndicator();
     const operations = getPendingApiOperations();
     for (const operation of operations) {
       if (!getPendingApiOperations().some((op) => op.id === operation.id)) continue;
@@ -314,12 +375,17 @@ async function processPendingApiOperations() {
         console.warn("[apiQueue] Operación descartada por error funcional:", operation.type || operation.id);
       }
     }
+    if (initialPendingCount > 0 && getPendingApiOperations().length === 0) {
+      setApiSyncJustSynced();
+    }
   })();
 
   try {
     await pendingApiSyncPromise;
   } finally {
     pendingApiSyncPromise = null;
+    apiSyncIsProcessing = false;
+    updateApiSyncIndicator();
   }
 }
 
@@ -6974,6 +7040,7 @@ if (typeof window !== "undefined") {
 function init() {
   renderParticipantGrid();
   initLoginParallax();
+  updateApiSyncIndicator();
   schedulePendingApiSync(1000);
   refreshParticipantsFromApi();
 
@@ -6987,8 +7054,11 @@ function init() {
 
 window.addEventListener("online", () => {
   resetApiReadFailures();
+  updateApiSyncIndicator();
   schedulePendingApiSync();
   if (getCurrentUser()) navigate(routeFromHash());
 });
+
+window.addEventListener("offline", updateApiSyncIndicator);
 
 init();
