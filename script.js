@@ -527,6 +527,56 @@ function colorForId(id) {
   return AVATAR_COLORS[idx];
 }
 
+const PLAYER_PROFILE_IMAGES = {
+  gio: "images/Gio.JPG",
+  nata: "images/Nata.JPG",
+  tobi: "images/Tobi.JPG",
+  sebas: "images/Sebas.JPG",
+  marto: "images/Marto.JPG",
+  nerea: "images/Nerea.JPG",
+};
+
+function normalizePlayerImageKey(name) {
+  return String(name || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function playerProfileImageSrc(player) {
+  return PLAYER_PROFILE_IMAGES[normalizePlayerImageKey(player && player.name)] || null;
+}
+
+function createPlayerAvatarElement(player, className = "participant-avatar") {
+  const avatar = document.createElement("div");
+  avatar.className = className;
+  const src = playerProfileImageSrc(player);
+  if (src) {
+    avatar.classList.add("player-avatar-has-image");
+    avatar.style.background = colorForId(player.id);
+    const img = document.createElement("img");
+    img.className = "player-avatar-img";
+    img.src = src;
+    img.alt = "";
+    img.loading = "lazy";
+    img.decoding = "async";
+    avatar.appendChild(img);
+  } else {
+    avatar.style.background = colorForId(player.id);
+    avatar.textContent = getInitials(player.name);
+  }
+  return avatar;
+}
+
+function renderPlayerAvatarHtml(player, className = "participant-avatar") {
+  const src = playerProfileImageSrc(player);
+  if (src) {
+    return `<div class="${className} player-avatar-has-image" style="background:${colorForId(player.id)}"><img class="player-avatar-img" src="${src}" alt="" loading="lazy" decoding="async"></div>`;
+  }
+  return `<div class="${className}" style="background:${colorForId(player.id)}">${getInitials(player.name)}</div>`;
+}
+
 /* -----------------------------------------------------------
    Render: selector de usuario
    ----------------------------------------------------------- */
@@ -542,10 +592,7 @@ function renderParticipantGrid() {
     btn.setAttribute("role", "listitem");
     btn.addEventListener("click", () => handleSelectUser(p));
 
-    const avatar = document.createElement("div");
-    avatar.className = "participant-avatar";
-    avatar.style.background = colorForId(p.id);
-    avatar.textContent = getInitials(p.name);
+    const avatar = createPlayerAvatarElement(p);
 
     const name = document.createElement("span");
     name.className = "participant-name";
@@ -799,10 +846,7 @@ function renderAdmin() {
     const row = document.createElement("div");
     row.className = "admin-participant-row";
 
-    const avatar = document.createElement("div");
-    avatar.className = "participant-avatar";
-    avatar.style.background = colorForId(p.id);
-    avatar.textContent = getInitials(p.name);
+    const avatar = createPlayerAvatarElement(p);
 
     const info = document.createElement("div");
     info.className = "admin-participant-info";
@@ -5290,15 +5334,14 @@ function renderTituloBadge({ config, winner }) {
   `;
 }
 
-// Perfil de un jugador: nombre + avatar (mismas iniciales/color que
-// el resto de la app, `getInitials`/`colorForId`) y, debajo, la
-// lista de títulos que ganó.
+// Perfil de un jugador: nombre + avatar compartido con el resto de la
+// app y, debajo, la lista de títulos que ganó.
 function renderTituloProfileCard({ participant, titles }) {
   const badgesHtml = titles.map(renderTituloBadge).join("");
   return `
     <article class="titulo-profile-card">
       <div class="titulo-profile-header">
-        <div class="titulo-profile-avatar" style="background:${colorForId(participant.id)}">${getInitials(participant.name)}</div>
+        ${renderPlayerAvatarHtml(participant, "titulo-profile-avatar")}
         <div class="titulo-profile-heading">
           <h3>${escapeHtml(participant.name)}</h3>
           <span class="titulo-profile-count">${titles.length} título${titles.length === 1 ? "" : "s"}</span>
