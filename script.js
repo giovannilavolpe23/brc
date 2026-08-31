@@ -7067,7 +7067,7 @@ function init() {
 
   const user = getCurrentUser();
   if (user) {
-    navigate(routeFromHash());
+    navigate("home");
   } else {
     navigate("select");
   }
