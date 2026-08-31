@@ -605,12 +605,19 @@ function colorForId(id) {
 }
 
 const PLAYER_PROFILE_IMAGES = {
-  gio: "images/Gio.JPG",
-  nata: "images/Nata.JPG",
-  tobi: "images/Tobi.JPG",
-  sebas: "images/Sebas.JPG",
+  agus: "images/Agus.jpeg",
+  barua: "images/Barua.jpeg",
+  ger: "images/Ger.jpg",
+  gio: "images/Gio.jpeg",
+  jere: "images/Jere.jpeg",
+  lara: "images/Lara.jpeg",
   marto: "images/Marto.JPG",
+  mati: "images/Mati.jpeg",
+  nata: "images/Nata.JPG",
   nerea: "images/Nerea.JPG",
+  sebas: "images/Sebas.jpeg",
+  simon: "images/Simon.jpeg",
+  tobi: "images/Tobi.jpeg",
 };
 
 function normalizePlayerImageKey(name) {
@@ -622,7 +629,13 @@ function normalizePlayerImageKey(name) {
 }
 
 function playerProfileImageSrc(player) {
-  return PLAYER_PROFILE_IMAGES[normalizePlayerImageKey(player && player.name)] || null;
+  const keys = [player && player.legacyId, player && player.id, player && player.name]
+    .map(normalizePlayerImageKey)
+    .filter(Boolean);
+  for (const key of keys) {
+    if (PLAYER_PROFILE_IMAGES[key]) return PLAYER_PROFILE_IMAGES[key];
+  }
+  return null;
 }
 
 function createPlayerAvatarElement(player, className = "participant-avatar") {
