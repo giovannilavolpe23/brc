@@ -4455,19 +4455,91 @@ function sortRankingDesc(items) {
   return items.slice().sort((a, b) => b.value - a.value);
 }
 
-function dayRankingHorasDormidas(dateKey) {
+function sortRankingAsc(items) {
+  return items.slice().sort((a, b) => a.value - b.value);
+}
+
+function sleepRankingRow(player, minutes) {
+  return {
+    name: player.name,
+    value: minutes,
+    display: formatDuration(minutes),
+    secondaryDisplay: formatDurationWithMinutes(minutes),
+  };
+}
+
+function validComputedMinutes(computed, key) {
+  const value = computed && computed[key];
+  return value === null || value === undefined ? null : value;
+}
+
+function computedTotalSleepMinutes(entry) {
+  if (!entry || !entry.computed) return null;
+  const total = validComputedMinutes(entry.computed, "totalSleepMinutes");
+  if (total !== null) return total;
+  const sleep = validComputedMinutes(entry.computed, "sleepMinutes");
+  const nap = validComputedMinutes(entry.computed, "napMinutes");
+  if (sleep === null && nap === null) return null;
+  return (sleep || 0) + (nap || 0);
+}
+
+function dayRankingSleepBy(dateKey, minutesForEntry, sortFn) {
   const rows = [];
   getAdminPlayersArray().forEach((player) => {
     const entry = (player.data.dailyEntries || {})[dateKey];
-    if (!entry || !entry.computed || entry.computed.sleepMinutes === null || entry.computed.sleepMinutes === undefined) return;
-    rows.push({
-      name: player.name,
-      value: entry.computed.sleepMinutes,
-      display: formatDuration(entry.computed.sleepMinutes),
-      secondaryDisplay: formatDurationWithMinutes(entry.computed.sleepMinutes),
+    const minutes = minutesForEntry(entry);
+    if (minutes === null) return;
+    rows.push(sleepRankingRow(player, minutes));
+  });
+  return sortFn(rows);
+}
+
+function totalRankingSleepBy(closedDays, minutesForEntry, sortFn) {
+  const set = new Set(closedDays);
+  const totals = {};
+  getAdminPlayersArray().forEach((player) => {
+    const entries = player.data.dailyEntries || {};
+    Object.keys(entries).forEach((key) => {
+      if (!set.has(key)) return;
+      const minutes = minutesForEntry(entries[key]);
+      if (minutes === null) return;
+      totals[player.name] = (totals[player.name] || 0) + minutes;
     });
   });
-  return sortRankingDesc(rows);
+  const rows = Object.keys(totals).map((name) => ({
+    name,
+    value: totals[name],
+    display: formatDuration(totals[name]),
+    secondaryDisplay: formatDurationWithMinutes(totals[name]),
+  }));
+  return sortFn(rows);
+}
+
+function dayRankingHorasDormidas(dateKey) {
+  return dayRankingSleepBy(dateKey, (entry) => validComputedMinutes(entry && entry.computed, "sleepMinutes"), sortRankingDesc);
+}
+
+function dayRankingMenosDormidas(dateKey) {
+  return dayRankingSleepBy(dateKey, computedTotalSleepMinutes, sortRankingAsc);
+}
+
+function apiLeastSleepStatsRows(stats) {
+  const daily = (stats && stats.dailyEntries) || {};
+  const rows = daily.leastSleepMinutes || [];
+  if (rows.length) return rows;
+  return (daily.sleepMinutes || []).slice().sort((a, b) => a.value - b.value || a.userId.localeCompare(b.userId));
+}
+
+function apiLeastSleepRows(stats) {
+  return apiRankingRows(stats, apiLeastSleepStatsRows(stats), formatDuration, formatDurationWithMinutes);
+}
+
+function totalRankingHorasDormidas(closedDays) {
+  return totalRankingSleepBy(closedDays, (entry) => validComputedMinutes(entry && entry.computed, "sleepMinutes"), sortRankingDesc);
+}
+
+function totalRankingMenosDormidas(closedDays) {
+  return totalRankingSleepBy(closedDays, computedTotalSleepMinutes, sortRankingAsc);
 }
 
 function dayRankingSiestas(dateKey) {
@@ -4589,35 +4661,14 @@ function dayRankingPrevias(dateKey) {
 /* -----------------------------------------------------------
    Estadísticas reales — apartado TOTAL
    -----------------------------------------------------------
-   Mismas ocho estadísticas que DÍA, pero acumuladas sobre todos los
-   días "cerrados" disponibles (mismo conjunto `getStatsClosedDays()`
-   que usa DÍA). Un jugador entra en el ranking de una tarjeta si
+   Mismas estadísticas que DÍA, pero acumuladas sobre todos los días
+   "cerrados" disponibles (mismo conjunto `getStatsClosedDays()` que
+   usa DÍA). Un jugador entra en el ranking de una tarjeta si
    tiene al menos un día cerrado con ese dato cargado (no se inventan
    ceros para jugadores que nunca registraron ese campo); si tiene
    datos en algunos días y en otros no, solo se acumulan los días
    donde sí cargó el dato.
    ----------------------------------------------------------- */
-
-function totalRankingHorasDormidas(closedDays) {
-  const set = new Set(closedDays);
-  const totals = {};
-  getAdminPlayersArray().forEach((player) => {
-    const entries = player.data.dailyEntries || {};
-    Object.keys(entries).forEach((key) => {
-      if (!set.has(key)) return;
-      const entry = entries[key];
-      if (!entry.computed || entry.computed.sleepMinutes === null || entry.computed.sleepMinutes === undefined) return;
-      totals[player.name] = (totals[player.name] || 0) + entry.computed.sleepMinutes;
-    });
-  });
-  const rows = Object.keys(totals).map((name) => ({
-    name,
-    value: totals[name],
-    display: formatDuration(totals[name]),
-    secondaryDisplay: formatDurationWithMinutes(totals[name]),
-  }));
-  return sortRankingDesc(rows);
-}
 
 function totalRankingSiestas(closedDays) {
   const set = new Set(closedDays);
@@ -5035,6 +5086,7 @@ function renderDayStatsReal(dateKey) {
     <div class="card-list stats-real-list">
       ${renderStatsSectionHeading("-Datos de registro-", "left")}
       ${renderRankingCard("😴", "#4cc9f0", "¿Quién durmió más?", "Horas dormidas", dayRankingHorasDormidas(dateKey))}
+      ${renderRankingCard("🧟", "#06d6a0", "Quién durmió menos", "Horas dormidas", dayRankingMenosDormidas(dateKey))}
       ${renderRankingCard("🛋️", "#4cc9f0", "Fanático de la siesta", "Siesta hoy", dayRankingSiestas(dateKey))}
       ${renderRankingCard("🍔", "#ffd166", "La quinta comida", "¿Comió una quinta?", dayRankingQuintaComida(dateKey))}
       ${renderRankingCard("🚽", "#ffd166", "Maratón de baño", "Veces que fue al baño", dayRankingBanio(dateKey))}
@@ -5056,6 +5108,7 @@ function renderTotalStatsReal(closedDays) {
     <div class="card-list stats-real-list">
       ${renderStatsSectionHeading("-Datos de registro-", "left")}
       ${renderRankingCard("😴", "#4cc9f0", "¿Quién durmió más?", "Horas dormidas totales", totalRankingHorasDormidas(closedDays), msg)}
+      ${renderRankingCard("🧟", "#06d6a0", "Quién durmió menos", "Horas dormidas totales", totalRankingMenosDormidas(closedDays), msg)}
       ${renderRankingCard("🛋️", "#4cc9f0", "Fanático de la siesta", "Siestas de todo el viaje", totalRankingSiestas(closedDays), msg)}
       ${renderRankingCard("🍔", "#ffd166", "La quinta comida", "Quintas comidas del viaje", totalRankingQuintaComida(closedDays), msg)}
       ${renderRankingCard("🚽", "#ffd166", "Maratón de baño", "Veces al baño en total", totalRankingBanio(closedDays), msg)}
@@ -5086,6 +5139,7 @@ function renderDayStatsFromApi(stats) {
     <div class="card-list stats-real-list">
       ${renderStatsSectionHeading("-Datos de registro-", "left")}
       ${renderRankingCard("😴", "#4cc9f0", "¿Quién durmió más?", "Horas dormidas", apiRankingRows(stats, stats.dailyEntries.sleepMinutes, formatDuration, formatDurationWithMinutes))}
+      ${renderRankingCard("🧟", "#06d6a0", "Quién durmió menos", "Horas dormidas", apiLeastSleepRows(stats))}
       ${renderRankingCard("🛋️", "#4cc9f0", "Fanático de la siesta", "Siesta hoy", apiRankingRows(stats, stats.dailyEntries.siestas, (value) => (value ? "Sí" : "No")))}
       ${renderRankingCard("🍔", "#ffd166", "La quinta comida", "¿Comió una quinta?", apiRankingRows(stats, stats.dailyEntries.fifthMeals, (value) => (value ? "Sí" : "No")))}
       ${renderRankingCard("🚽", "#ffd166", "Maratón de baño", "Veces que fue al baño", apiRankingRows(stats, stats.dailyEntries.bathroom, (value) => (value === 1 ? "1 vez" : `${value} veces`)))}
@@ -5107,6 +5161,7 @@ function renderTotalStatsFromApi(stats) {
     <div class="card-list stats-real-list">
       ${renderStatsSectionHeading("-Datos de registro-", "left")}
       ${renderRankingCard("😴", "#4cc9f0", "¿Quién durmió más?", "Horas dormidas totales", apiRankingRows(stats, stats.dailyEntries.sleepMinutes, formatDuration, formatDurationWithMinutes), msg)}
+      ${renderRankingCard("🧟", "#06d6a0", "Quién durmió menos", "Horas dormidas totales", apiLeastSleepRows(stats), msg)}
       ${renderRankingCard("🛋️", "#4cc9f0", "Fanático de la siesta", "Siestas de todo el viaje", apiRankingRows(stats, stats.dailyEntries.siestas, (value) => `${value} siesta${value === 1 ? "" : "s"}`), msg)}
       ${renderRankingCard("🍔", "#ffd166", "La quinta comida", "Quintas comidas del viaje", apiRankingRows(stats, stats.dailyEntries.fifthMeals, (value) => `${value} vez${value === 1 ? "" : "es"}`), msg)}
       ${renderRankingCard("🚽", "#ffd166", "Maratón de baño", "Veces al baño en total", apiRankingRows(stats, stats.dailyEntries.bathroom, (value) => (value === 1 ? "1 vez" : `${value} veces`)), msg)}
@@ -5302,6 +5357,15 @@ const TITULOS_CONFIG = [
     totalFn: totalRankingHorasDormidas,
   },
   {
+    key: "sleepLess",
+    icon: "🧟",
+    accent: "#06d6a0",
+    title: "El más zombi",
+    caption: "El que menos durmió",
+    dayFn: dayRankingMenosDormidas,
+    totalFn: totalRankingMenosDormidas,
+  },
+  {
     key: "nap",
     icon: "🛌",
     accent: "#c77dff",
@@ -5474,6 +5538,7 @@ function titulosApiRows(stats, config) {
 
   const byKey = {
     sleep: [daily.sleepMinutes, formatDuration],
+    sleepLess: [apiLeastSleepStatsRows(stats), formatDuration],
     nap: [daily.siestas, stats.scope === "day" ? displayDayYesNo : displayCount("siesta")],
     fifthMeal: [daily.fifthMeals, stats.scope === "day" ? displayDayYesNo : (value) => `${value} vez${value === 1 ? "" : "es"}`],
     bathroom: [daily.bathroom, (value) => (value === 1 ? "1 vez" : `${value} veces`)],

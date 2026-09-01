@@ -65,6 +65,7 @@ function moneyStats(expenses: ExpenseRow[]): StatsResponse["money"] {
 function dailyEntryStats(entries: DailyEntryStatsRow[]): StatsResponse["dailyEntries"] {
   return {
     sleepMinutes: sortRankingRows(sumDefined(entries, sleepDurationMinutes)),
+    leastSleepMinutes: sortRankingRowsAsc(sumDefined(entries, totalSleepDurationMinutes)),
     siestas: sortRankingRows(sumDefined(entries, (entry) => (entry.napStart && entry.napEnd ? 1 : 0))),
     fifthMeals: sortRankingRows(sumDefined(entries, (entry) => (entry.fifthMeal === null ? null : entry.fifthMeal === "yes" ? 1 : 0))),
     bathroom: sortRankingRows(sumDefined(entries, (entry) => entry.bathroom)),
@@ -136,6 +137,18 @@ function sleepDurationMinutes(entry: DailyEntryStatsRow | undefined): number | n
   return wake - bedtime;
 }
 
+function totalSleepDurationMinutes(entry: DailyEntryStatsRow | undefined): number | null {
+  const sleepMinutes = sleepDurationMinutes(entry);
+  const napMinutes = napDurationMinutes(entry);
+  if (sleepMinutes === null && napMinutes === null) return null;
+  return (sleepMinutes ?? 0) + (napMinutes ?? 0);
+}
+
+function napDurationMinutes(entry: DailyEntryStatsRow | undefined): number | null {
+  if (!entry || !entry.napStart || !entry.napEnd) return null;
+  return Math.max(0, timeToMinutes(entry.napEnd) - timeToMinutes(entry.napStart));
+}
+
 function bolicheDurationMinutes(entry: DailyEntryStatsRow | undefined): number | null {
   if (!entry || entry.bolicheDidNotGo || !entry.bolicheExitTime) return null;
   return Math.max(0, timeToMinutes(entry.bolicheExitTime) - BOLICHE_ARRIVAL_MINUTES);
@@ -183,6 +196,10 @@ function rankingFromCounts(counts: Map<string, number>): RankingRow[] {
 
 function sortRankingRows(rows: RankingRow[]): RankingRow[] {
   return rows.slice().sort((a, b) => b.value - a.value || a.userId.localeCompare(b.userId));
+}
+
+function sortRankingRowsAsc(rows: RankingRow[]): RankingRow[] {
+  return rows.slice().sort((a, b) => a.value - b.value || a.userId.localeCompare(b.userId));
 }
 
 function sortCategoryRows(rows: { category: string; value: number }[]): { category: string; value: number }[] {

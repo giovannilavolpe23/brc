@@ -75,6 +75,8 @@ describe("stats routes", () => {
     assert.equal(gioResponse.status, 200);
     assert.equal(jereResponse.status, 200);
     assert.deepEqual(gioResponse.body.money, jereResponse.body.money);
+    assert.deepEqual(gioResponse.body.dailyEntries, jereResponse.body.dailyEntries);
+    assert.deepEqual(gioResponse.body.dailyEntries.leastSleepMinutes, [{ userId: gio.id, value: 480 }]);
   });
 
   it("rejects today and future day views", async () => {

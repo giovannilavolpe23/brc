@@ -22,6 +22,7 @@ export type StatsResponse = {
   };
   dailyEntries: {
     sleepMinutes: RankingRow[];
+    leastSleepMinutes: RankingRow[];
     siestas: RankingRow[];
     fifthMeals: RankingRow[];
     bathroom: RankingRow[];
