@@ -91,6 +91,7 @@ if (typeof window !== "undefined") {
 const STORAGE_KEYS = {
   currentUser: "currentUser",
   apiAccessToken: "apiAccessToken",
+  themePreference: "barilocheThemePreference",
   pendingApiOperations: "pendingApiOperations",
   userData: (id) => `userData:${id}`,
   adminPlayers: "adminPlayers",
@@ -125,6 +126,70 @@ let dailySaveSubmitting = false;
 let apiSyncIndicatorTimer = null;
 let apiSyncJustSynced = false;
 let apiSyncIsProcessing = false;
+let homeThemeGreetingOverride = null;
+
+function getSavedThemePreference() {
+  const saved = localStorage.getItem(STORAGE_KEYS.themePreference);
+  return saved === "dark" || saved === "light" ? saved : null;
+}
+
+function getSystemThemePreference() {
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function getInitialThemePreference() {
+  return getSavedThemePreference() || getSystemThemePreference();
+}
+
+function updateThemeMeta(theme) {
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", theme === "dark" ? "#071421" : "#eaf6ff");
+}
+
+function updateThemeToggle(theme) {
+  const btn = document.getElementById("btn-theme-toggle");
+  if (!btn) return;
+  const isDark = theme === "dark";
+  btn.setAttribute("aria-pressed", isDark ? "true" : "false");
+  btn.setAttribute("aria-label", isDark ? "Activar modo claro" : "Activar modo oscuro");
+  btn.title = isDark ? "Modo claro" : "Modo oscuro";
+}
+
+function applyThemePreference(theme, options = {}) {
+  const normalized = theme === "dark" ? "dark" : "light";
+  document.documentElement.dataset.theme = normalized;
+  updateThemeMeta(normalized);
+  updateThemeToggle(normalized);
+  if (options.persist) {
+    localStorage.setItem(STORAGE_KEYS.themePreference, normalized);
+  }
+  if (options.manual) {
+    showManualThemeGreeting(normalized);
+  }
+}
+
+function getActiveThemePreference() {
+  return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+}
+
+function toggleThemePreference() {
+  const previousTheme = getActiveThemePreference();
+  const nextTheme = previousTheme === "dark" ? "light" : "dark";
+  applyThemePreference(nextTheme, { persist: true, manual: true });
+}
+
+function setHomeGreetingQuestion(text) {
+  const greetQuestion = document.querySelector(".home-greet-question");
+  if (greetQuestion) greetQuestion.textContent = text;
+}
+
+function showManualThemeGreeting(theme) {
+  const homeScreen = document.getElementById("screen-home");
+  if (!homeScreen || !homeScreen.classList.contains("active") || !getCurrentUser()) return;
+  homeThemeGreetingOverride = theme === "dark" ? "Hostia puta ¡el modo oscuro!" : "Uff volvimos a la claridad.";
+  setHomeGreetingQuestion(homeThemeGreetingOverride);
+  playHomeGreetingAnimation();
+}
 
 function renderApiLoadingBanner(message) {
   return `
@@ -886,8 +951,9 @@ function renderHome(user) {
   document.getElementById("home-username").textContent = user.name;
   const greetQuestion = document.querySelector(".home-greet-question");
   if (greetQuestion) {
-    greetQuestion.textContent = pickRandomHomeGreetingQuestion();
-    if (greetQuestion.textContent == "Turip ip ip") {
+    const greeting = homeThemeGreetingOverride || pickRandomHomeGreetingQuestion();
+    greetQuestion.textContent = greeting;
+    if (!homeThemeGreetingOverride && greeting == "Turip ip ip") {
       const turip = new Audio('ip.mp3');
       turip.volume = 0.02;
       turip.play()
@@ -4893,6 +4959,7 @@ function medalForRow(item) {
 }
 
 function rankClassForRow(item) {
+  if (item.medal === "gold") return " is-gold";
   if (item.medal === "silver") return " is-silver";
   if (item.medal === "bronze") return " is-bronze";
   return "";
@@ -6565,6 +6632,7 @@ function navigate(route) {
 
   if (!user) {
     // Sin sesión: siempre selector, sin importar el hash.
+    homeThemeGreetingOverride = null;
     location.hash = "#/select";
     showScreen("select");
     bottomNav.classList.remove("visible");
@@ -6582,6 +6650,8 @@ function navigate(route) {
   if (route === "previas-jere" && !canRegisterLocalPrevia(user.id)) {
     route = "home";
   }
+
+  if (route !== "home") homeThemeGreetingOverride = null;
 
   if (route === "admin") {
     location.hash = "#/admin";
@@ -6703,6 +6773,8 @@ document.getElementById("btn-logout").addEventListener("click", () => {
   clearCurrentUser();
   navigateBetweenScreensWithTransition("home", "select");
 });
+
+document.getElementById("btn-theme-toggle").addEventListener("click", toggleThemePreference);
 
 document.getElementById("btn-admin-back").addEventListener("click", () => {
   navigateBetweenScreensWithTransition("admin", "home");
@@ -7258,6 +7330,7 @@ if (typeof window !== "undefined") {
    ----------------------------------------------------------- */
 
 function init() {
+  applyThemePreference(getInitialThemePreference());
   renderParticipantGrid();
   initLoginParallax();
   updateApiSyncIndicator();
