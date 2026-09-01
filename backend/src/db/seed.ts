@@ -18,17 +18,17 @@ const permissions = [
 ];
 
 const users: SeedUser[] = [
-  { legacyId: "gio", displayName: "Gio", roleKey: "admin", passwordHash: "$2a$12$o6JEOoqEAgjIF8jUH2Dru.wOsQ9eKoemF2RgNi6qwW.le0jVkw9Ny" },
-  { legacyId: "marto", displayName: "Marto", roleKey: "user", passwordHash: "$2a$12$jyuRGHUliHb0GLJqlfUQW.JxVSyhpAhgDhLOar/wgCw5HRHBka.bi" },
-  { legacyId: "sebas", displayName: "Sebas", roleKey: "user", passwordHash: "$2a$12$37FuJ.2jUSsOGYe.STW0x.qR/roAFOBcZQvH5zwG8BFvoAvDy5bf2" },
-  { legacyId: "ger", displayName: "Ger", roleKey: "user", passwordHash: "$2a$12$RQ3c3RjM8E1SDoCg6o7ZkuLRZiibdpxQh79Mq.KkEaH0Hf1xP5cZO" },
-  { legacyId: "nerea", displayName: "Nerea", roleKey: "user", passwordHash: "$2a$12$bzqJuRhWMhkJgiMMPtgI9.HrjEhdtLgyzIUKt.ZN4Qtn2oi4KPsBm" },
-  { legacyId: "simon", displayName: "Simon", roleKey: "user", passwordHash: "$2a$12$ZbtfqRbUqiQUKeT8R8AjvOOuUXEMPUjvDHr22rMTidf8AMeMxhjna" },
-  { legacyId: "agus", displayName: "Agus", roleKey: "user", passwordHash: "$2a$12$mx3XTWZc04mX/6GU5a/K7.JLXuNxtRe2JlTMbUS50hTk6ckl0TAk2" },
-  { legacyId: "nata", displayName: "Nata", roleKey: "user", passwordHash: "$2a$12$7hpGm/48bOb.hAGyF/dzFuWAQ5v0Avo9ak4tqt8xuQiDLdNXsxnVq" },
-  { legacyId: "barua", displayName: "Barua", roleKey: "user", passwordHash: "$2a$12$fzx6RawKYxU6hBkeMertIOt40ZKKzCgG/InIQnOYnTfdXpWZjZST." },
-  { legacyId: "jere", displayName: "Jere", roleKey: "user", passwordHash: "$2a$12$JrYMoQjTUEExzmMQRzhVKeslu4BGiyG3N57oD3.8yNaMhEvrzeW6u", permissions: ["create_previa"] },
-  { legacyId: "tobi", displayName: "Tobi", roleKey: "user", passwordHash: "$2a$12$0izgtGsnQff3nnGBhUFs7e3VWNh75Ha96f5nRrrz7UfAwgR81ZmWW" },
+  { legacyId: "gio", displayName: "Gio", roleKey: "admin", passwordHash: "$2a$12$ErRI6zdXcekHh1vGuYPmmu5Uf/S4iqp6MPg17/OHAUdCOxk1M/RVi" },
+  { legacyId: "marto", displayName: "Marto", roleKey: "user", passwordHash: "$2a$12$T2k8XT/xfE9/ko9iaTMpS.Rg9AmLNcnrwK4rdcbkVtVNYJQl1HL0a" },
+  { legacyId: "sebas", displayName: "Sebas", roleKey: "user", passwordHash: "$2a$12$R/xS2HY8AR1HabaAmDXiGe6ve57YnUtSKq2dUjf0srHuTOvxWtfOa" },
+  { legacyId: "ger", displayName: "Ger", roleKey: "user", passwordHash: "$2a$12$gz6g.Nc38PtxBsooMZSY/ed6zy8uNShT.mKF8cXoIVNCz0aqCt1ES" },
+  { legacyId: "nerea", displayName: "Nerea", roleKey: "user", passwordHash: "$2a$12$hdar2smfyCiDtnQeyz.8GekkiNy.HOl.J05pdVEwdK15YTRIB8hAW" },
+  { legacyId: "simon", displayName: "Simon", roleKey: "user", passwordHash: "$2a$12$tc1dlDxBSfNBklHgg07Ax.qsJbBByp7RIxoWTsNY9EGMR90dr8O0u" },
+  { legacyId: "agus", displayName: "Agus", roleKey: "user", passwordHash: "$2a$12$WffH.e9cMCXhpZJ9FtG3bem8CYPvoBG.ov9obyW/tnwserORf8uBC" },
+  { legacyId: "nata", displayName: "Nata", roleKey: "user", passwordHash: "$2a$12$GuIwHylzMEHQ6oicpIXIEeS24pDCznSqRQyn.ctXkpQkl0ydYZ9Mu" },
+  { legacyId: "barua", displayName: "Barua", roleKey: "user", passwordHash: "$2a$12$MIJ5YkF.STnudHrqC1gIjuYelE4XNzwIVSRgAwFsOsrrhvcSUomim" },
+  { legacyId: "jere", displayName: "Jere", roleKey: "user", passwordHash: "$2a$12$iDCdKUke6L6zCIFTbFxe5uVSIthut8cerw8cntKmrV/s9ID0PiWfO", permissions: ["create_previa"] },
+  { legacyId: "tobi", displayName: "Tobi", roleKey: "user", passwordHash: "$2a$12$eMH7Z.fsFxHVGXsseZkXnengUbk0BLao9zFOkmvrVRkKnaVv.wxQ." },
 ];
 
 async function seedRoles(): Promise<void> {

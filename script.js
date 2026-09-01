@@ -12,17 +12,17 @@
    es exclusivo de Gio.
    ----------------------------------------------------------- */
 const DEFAULT_PARTICIPANTS = [
-  { id: "gio", name: "Gio", password: "lv", isAdmin: true },
-  { id: "marto", name: "Marto", password: "ze" },
-  { id: "sebas", name: "Sebas", password: "do" },
-  { id: "ger", name: "Ger", password: "te" },
-  { id: "nerea", name: "Nerea", password: "ri" },
-  { id: "simon", name: "Simon", password: "da" },
-  { id: "agus", name: "Agus", password: "ju" },
-  { id: "nata", name: "Nata", password: "ch" },
-  { id: "barua", name: "Barua", password: "ba" },
-  { id: "jere", name: "Jere", password: "so", canRegisterPrevias: true },
-  { id: "tobi", name: "Tobi", password: "ma" },
+  { id: "gio", name: "Gio", password: "77", isAdmin: true },
+  { id: "marto", name: "Marto", password: "67" },
+  { id: "sebas", name: "Sebas", password: "12" },
+  { id: "ger", name: "Ger", password: "11" },
+  { id: "nerea", name: "Nerea", password: "28" },
+  { id: "simon", name: "Simon", password: "47" },
+  { id: "agus", name: "Agus", password: "17" },
+  { id: "nata", name: "Nata", password: "57" },
+  { id: "barua", name: "Barua", password: "23" },
+  { id: "jere", name: "Jere", password: "00", canRegisterPrevias: true },
+  { id: "tobi", name: "Tobi", password: "10" },
 ];
 const PARTICIPANTS = DEFAULT_PARTICIPANTS.map((participant) => ({ ...participant }));
 const ORIGINAL_PARTICIPANT_IDS = new Set(DEFAULT_PARTICIPANTS.map((participant) => participant.id));
