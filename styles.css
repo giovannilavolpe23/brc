@@ -1635,6 +1635,118 @@ img, svg {
   color: var(--text-dim);
 }
 
+.king-profile-hero-card {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 26px 18px 24px;
+  margin-bottom: 22px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(165deg, var(--surface) 0%, var(--surface) 56%, color-mix(in srgb, #ffd166 12%, var(--surface-2)) 145%);
+  border: 1px solid color-mix(in srgb, #ffd166 34%, var(--border));
+  box-shadow: 0 16px 34px -25px rgba(255, 209, 102, 0.65), 0 14px 30px -24px rgba(76, 201, 240, 0.45);
+  opacity: 0;
+  animation: statsFadeUp 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.king-profile-hero-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #ffd166, var(--accent-2), transparent);
+  opacity: 0.85;
+}
+
+.king-profile-avatar-wrap {
+  position: relative;
+  display: grid;
+  place-items: center;
+  margin-bottom: 15px;
+}
+
+.king-profile-crown {
+  position: absolute;
+  top: -17px;
+  right: -18px;
+  z-index: 2;
+  font-size: 32px;
+  line-height: 1;
+  color: #ffd166;
+  text-shadow: 0 5px 14px rgba(255, 209, 102, 0.26);
+}
+
+.king-profile-avatar {
+  width: min(136px, 42vw);
+  height: min(136px, 42vw);
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 850;
+  color: #10233a;
+  box-shadow: 0 0 0 5px color-mix(in srgb, #ffd166 42%, transparent), 0 14px 28px -16px rgba(255, 209, 102, 0.85);
+  overflow: hidden;
+}
+
+.king-profile-hero-card h2 {
+  width: 100%;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 30px;
+  line-height: 1.12;
+  font-weight: 850;
+  color: var(--text);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.king-profile-hero-card p {
+  margin: 7px 0 0;
+  font-size: 13px;
+  line-height: 1.35;
+  font-weight: 800;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.king-profile-achievements {
+  padding-bottom: 8px;
+}
+
+.king-profile-empty {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 14px 30px -24px rgba(0, 0, 0, 0.68);
+  opacity: 0;
+  animation: statsFadeUp 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.king-profile-empty-icon {
+  flex-shrink: 0;
+  font-size: 24px;
+  line-height: 1;
+  color: #ffd166;
+  opacity: 0.65;
+}
+
+.king-profile-empty p {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
 .titulos-profile-list {
   gap: 22px;
 }
@@ -1823,6 +1935,20 @@ img, svg {
 }
 
 @media (max-width: 359px) {
+  .king-profile-hero-card {
+    padding: 23px 14px 21px;
+  }
+
+  .king-profile-avatar {
+    width: min(118px, 44vw);
+    height: min(118px, 44vw);
+    font-size: 29px;
+  }
+
+  .king-profile-hero-card h2 {
+    font-size: 25px;
+  }
+
   .titulos-king-card {
     padding: 16px 14px;
   }
@@ -1864,6 +1990,8 @@ img, svg {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .king-profile-hero-card,
+  .king-profile-empty,
   .titulos-king-card,
   .titulo-profile-card {
     opacity: 1;
@@ -3651,6 +3779,27 @@ img, svg {
   border-color: rgba(255, 209, 102, 0.34);
 }
 
+.screen.admin-frost .king-profile-hero-card {
+  background: linear-gradient(165deg, #ffffff 0%, #f9fdff 56%, #fff7df 145%);
+  border-color: rgba(255, 209, 102, 0.46);
+  box-shadow: 0 14px 30px -24px rgba(199, 148, 35, 0.55), 0 12px 26px -22px rgba(47, 143, 209, 0.34);
+}
+
+.screen.admin-frost .king-profile-hero-card h2 {
+  color: #10233a;
+}
+
+.screen.admin-frost .king-profile-hero-card p,
+.screen.admin-frost .king-profile-empty p {
+  color: #4a5b72;
+}
+
+.screen.admin-frost .king-profile-empty {
+  background: #ffffff;
+  border-color: rgba(76, 201, 240, 0.3);
+  box-shadow: 0 12px 24px -22px rgba(47, 143, 209, 0.34);
+}
+
 .screen.admin-frost .titulo-badge {
   background: color-mix(in srgb, var(--titulo-accent, #2f8fd1) 10%, #ffffff);
   border-color: color-mix(in srgb, var(--titulo-accent, #2f8fd1) 32%, rgba(76, 201, 240, 0.3));
@@ -4579,6 +4728,7 @@ html[data-theme="dark"] .screen.admin-frost .admin-hero .eyebrow {
 html[data-theme="dark"] .screen.admin-frost .admin-hero .hero-name,
 html[data-theme="dark"] .screen.admin-frost .daily-total-sleep strong,
 html[data-theme="dark"] .screen.admin-frost .titulos-king-copy h2,
+html[data-theme="dark"] .screen.admin-frost .king-profile-hero-card h2,
 html[data-theme="dark"] .screen.admin-frost .titulos-king-tie,
 html[data-theme="dark"] .screen.admin-frost .titulos-source-note strong {
   color: #edf7ff;
@@ -4772,7 +4922,8 @@ html[data-theme="dark"] .screen.admin-frost .titulo-profile-header {
 
 html[data-theme="dark"] .screen.admin-frost .titulo-profile-avatar,
 html[data-theme="dark"] .screen.admin-frost .titulos-king-avatar,
-html[data-theme="dark"] .screen.admin-frost .titulos-king-tie-avatar {
+html[data-theme="dark"] .screen.admin-frost .titulos-king-tie-avatar,
+html[data-theme="dark"] .screen.admin-frost .king-profile-avatar {
   color: #061522;
 }
 
@@ -4782,13 +4933,21 @@ html[data-theme="dark"] .screen.admin-frost .titulos-king-card {
   box-shadow: 0 14px 30px -24px rgba(255, 209, 102, 0.42), 0 13px 30px -24px rgba(0, 0, 0, 0.8);
 }
 
+html[data-theme="dark"] .screen.admin-frost .king-profile-hero-card {
+  background: linear-gradient(165deg, rgba(13, 31, 46, 0.92) 0%, rgba(13, 31, 46, 0.86) 56%, rgba(58, 48, 22, 0.72) 145%);
+  border-color: rgba(255, 209, 102, 0.28);
+  box-shadow: 0 14px 30px -24px rgba(255, 209, 102, 0.32), 0 13px 30px -24px rgba(0, 0, 0, 0.82);
+}
+
 html[data-theme="dark"] .screen.admin-frost .titulos-king-kicker {
   color: #ffd166;
 }
 
 html[data-theme="dark"] .screen.admin-frost .titulos-king-copy p,
+html[data-theme="dark"] .screen.admin-frost .king-profile-hero-card p,
 html[data-theme="dark"] .screen.admin-frost .titulos-king-ties > span,
 html[data-theme="dark"] .screen.admin-frost .titulos-king-empty p,
+html[data-theme="dark"] .screen.admin-frost .king-profile-empty p,
 html[data-theme="dark"] .screen.admin-frost .titulos-source-note p,
 html[data-theme="dark"] .screen.admin-frost .titulo-badge-caption {
   color: #bad0df;
@@ -4811,6 +4970,12 @@ html[data-theme="dark"] .screen.admin-frost .titulo-badge {
 html[data-theme="dark"] .screen.admin-frost .titulos-source-note {
   background: color-mix(in srgb, var(--titulos-source-accent, #5ec7ec) 10%, rgba(13, 31, 46, 0.88));
   border-color: color-mix(in srgb, var(--titulos-source-accent, #5ec7ec) 28%, rgba(127, 200, 231, 0.24));
+}
+
+html[data-theme="dark"] .screen.admin-frost .king-profile-empty {
+  background: rgba(13, 31, 46, 0.9);
+  border-color: rgba(127, 200, 231, 0.24);
+  box-shadow: 0 13px 30px -24px rgba(0, 0, 0, 0.82);
 }
 
 /* Sheets y modales compartidos en tema oscuro. */

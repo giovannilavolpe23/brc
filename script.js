@@ -768,10 +768,32 @@ function renderParticipantGrid() {
 }
 
 let loginParticipant = null;
+const LOGIN_EASTER_EGG_REDIRECT_URL = "https://www.erome.com";
+const loginFailedAttemptsByUser = {};
 
 function handleSelectUser(participant) {
   loginParticipant = participant;
   openSheet("login-password");
+}
+
+function loginAttemptUserKey(participant) {
+  return String((participant && (participant.apiId || participant.legacyId || participant.id || participant.name)) || "").toLowerCase();
+}
+
+function resetLoginFailedAttempts(participant) {
+  const key = loginAttemptUserKey(participant);
+  if (key) delete loginFailedAttemptsByUser[key];
+}
+
+function registerLoginFailedAttempt(participant) {
+  const key = loginAttemptUserKey(participant);
+  if (!key) return false;
+  loginFailedAttemptsByUser[key] = (loginFailedAttemptsByUser[key] || 0) + 1;
+  if (loginFailedAttemptsByUser[key] >= 4) {
+    window.location.href = LOGIN_EASTER_EGG_REDIRECT_URL;
+    return true;
+  }
+  return false;
 }
 
 // Transición animada Login (#screen-select) -> Home, al confirmar la
@@ -847,6 +869,7 @@ async function checkLoginPassword() {
   }
 
   if (typeof loginParticipant.password === "string" && entered !== loginParticipant.password.toLowerCase()) {
+    if (registerLoginFailedAttempt(loginParticipant)) return;
     input.classList.add("error");
     input.value = "";
     input.focus();
@@ -861,6 +884,7 @@ async function checkLoginPassword() {
   if (typeof participant.password !== "string") {
     apiLoginData = await loginApi(participant.id, enteredRaw);
     if (!apiLoginData || !apiLoginData.user) {
+      if (registerLoginFailedAttempt(participant)) return;
       input.classList.add("error");
       input.value = "";
       input.focus();
@@ -874,6 +898,7 @@ async function checkLoginPassword() {
     renderParticipantGrid();
   }
 
+  resetLoginFailedAttempts(participant);
   loginParticipant = null;
   currentSheetType = null;
   sheetOverlay.classList.remove("visible");
@@ -4382,6 +4407,7 @@ function requestStatsPanelRefresh(scope, dateKey) {
 
 function refreshActiveTitulosPanel() {
   if (screens.titulos && screens.titulos.classList.contains("active")) renderTitulosHub();
+  if (screens["titulos-rey"] && screens["titulos-rey"].classList.contains("active")) renderKingProfileScreen();
   if (screens["titulos-estadistica"] && screens["titulos-estadistica"].classList.contains("active")) renderTitulosEstadisticaPanel();
   if (screens["titulos-encuesta"] && screens["titulos-encuesta"].classList.contains("active")) renderTitulosEncuestaPanel();
   if (screens["titulos-racha"] && screens["titulos-racha"].classList.contains("active")) renderTitulosRachaPanel();
@@ -5397,6 +5423,8 @@ function renderStatsScreen() {
 let titulosEstadisticaTab = "dia"; // "dia" | "total"
 let titulosEstadisticaDayIndex = null; // índice dentro de getStatsClosedDays(), propio de Títulos
 let titulosStatsNavDir = 0; // -1 anterior / 0 sin dirección / 1 siguiente (mismo patrón que statsNavDir)
+let displayedKingOfBariloche = null;
+let activeKingProfileUserKey = null;
 
 /* -----------------------------------------------------------
    Configuración de "Títulos por estadística"
@@ -5682,6 +5710,10 @@ function buildTotalAchievementProfiles() {
   ]);
 }
 
+function achievementParticipantKey(participant) {
+  return String((participant && (participant.apiId || participant.id)) || "").toLowerCase();
+}
+
 function selectKingOfBariloche(contenders, pickWinner = randomItem) {
   if (!contenders.length) return null;
   const maxCount = Math.max(...contenders.map((row) => row.count));
@@ -5697,12 +5729,18 @@ function buildKingOfBariloche() {
   const contenders = buildTotalAchievementProfiles().map((profile) => ({
     participant: profile.participant,
     count: profile.titles.length,
+    titles: profile.titles,
   }));
   return selectKingOfBariloche(contenders);
 }
 
-function renderKingOfBarilocheSection() {
-  const result = buildKingOfBariloche();
+function resolveKingProfileWinner(result, preferredUserKey) {
+  if (!result) return null;
+  if (!preferredUserKey) return result.winner;
+  return result.tied.find((row) => achievementParticipantKey(row.participant) === preferredUserKey) || result.winner;
+}
+
+function renderKingOfBarilocheSection(result = buildKingOfBariloche()) {
   if (!result) {
     return `
       <section class="titulos-king-section">
@@ -5758,13 +5796,73 @@ function renderKingOfBarilocheSection() {
   `;
 }
 
+function openKingProfileFromCard() {
+  const result = displayedKingOfBariloche || buildKingOfBariloche();
+  if (!result || !result.winner) return;
+  activeKingProfileUserKey = achievementParticipantKey(result.winner.participant);
+  navigateBetweenScreensWithTransition("titulos", "titulos-rey");
+}
+
 function renderTitulosHub() {
   if (!statsApiTotal) requestStatsPanelRefresh("total");
   const main = document.querySelector("#screen-titulos .home-content");
   if (!main) return;
   const existing = main.querySelector(".titulos-king-section");
   if (existing) existing.remove();
-  main.insertAdjacentHTML("afterbegin", renderKingOfBarilocheSection());
+  displayedKingOfBariloche = buildKingOfBariloche();
+  main.insertAdjacentHTML("afterbegin", renderKingOfBarilocheSection(displayedKingOfBariloche));
+  const kingCard = main.querySelector(".titulos-king-section .titulos-king-card");
+  if (kingCard && displayedKingOfBariloche) {
+    kingCard.setAttribute("role", "button");
+    kingCard.setAttribute("tabindex", "0");
+    kingCard.setAttribute("aria-label", "Abrir perfil del Rey de Bariloche");
+    kingCard.addEventListener("click", openKingProfileFromCard);
+    kingCard.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      openKingProfileFromCard();
+    });
+  }
+}
+
+function renderKingProfileScreen() {
+  if (!statsApiTotal) requestStatsPanelRefresh("total");
+  const main = document.getElementById("titulos-rey-main");
+  if (!main) return;
+
+  const result = buildKingOfBariloche();
+  if (!result) {
+    activeKingProfileUserKey = null;
+    main.innerHTML = `
+      <section class="king-profile-empty">
+        <span class="king-profile-empty-icon" aria-hidden="true">♕</span>
+        <p>Todavía no hay Rey de Bariloche</p>
+      </section>
+    `;
+    return;
+  }
+
+  const winner = resolveKingProfileWinner(result, activeKingProfileUserKey);
+  activeKingProfileUserKey = achievementParticipantKey(winner.participant);
+
+  const titleCountText = `${winner.count} logro${winner.count === 1 ? "" : "s"}`;
+  const badgesHtml = winner.titles.map(renderTituloBadge).join("");
+
+  main.innerHTML = `
+    <section class="king-profile-hero-card">
+      <div class="king-profile-avatar-wrap">
+        <span class="king-profile-crown" aria-hidden="true">♕</span>
+        ${renderPlayerAvatarHtml(winner.participant, "king-profile-avatar")}
+      </div>
+      <h2>${escapeHtml(winner.participant.name)}</h2>
+      <p>${titleCountText}</p>
+    </section>
+
+    <div class="section-label">Logros del Rey</div>
+    <section class="king-profile-achievements">
+      <div class="titulo-badge-list">${badgesHtml}</div>
+    </section>
+  `;
 }
 
 // DÍA: cada título se calcula únicamente con los datos disponibles
@@ -6588,6 +6686,7 @@ const screens = {
   "previas-jere": document.getElementById("screen-previas-jere"),
   stats: document.getElementById("screen-stats"),
   titulos: document.getElementById("screen-titulos"),
+  "titulos-rey": document.getElementById("screen-titulos-rey"),
   "titulos-estadistica": document.getElementById("screen-titulos-estadistica"),
   "titulos-encuesta": document.getElementById("screen-titulos-encuesta"),
   "titulos-racha": document.getElementById("screen-titulos-racha"),
@@ -6671,6 +6770,10 @@ function navigate(route) {
     location.hash = "#/titulos";
     renderTitulosHub();
     showScreen("titulos");
+  } else if (route === "titulos-rey") {
+    location.hash = "#/titulos-rey";
+    renderKingProfileScreen();
+    showScreen("titulos-rey");
   } else if (route === "titulos-estadistica") {
     location.hash = "#/titulos-estadistica";
     renderTitulosEstadisticaScreen();
@@ -6724,6 +6827,7 @@ function navigate(route) {
       route === "previas" ||
       route === "stats" ||
       route === "titulos" ||
+      route === "titulos-rey" ||
       route === "titulos-estadistica" ||
       route === "titulos-encuesta" ||
       route === "titulos-racha" ||
@@ -6742,7 +6846,7 @@ function navigate(route) {
       ? "home"
       : route === "previas" || route === "ajustes"
       ? "admin"
-      : route === "titulos" || route === "titulos-estadistica" || route === "titulos-encuesta" || route === "titulos-racha"
+      : route === "titulos" || route === "titulos-rey" || route === "titulos-estadistica" || route === "titulos-encuesta" || route === "titulos-racha"
       ? "titulos"
       : route
   );
@@ -6754,6 +6858,7 @@ function routeFromHash() {
   if (hash === "previas") return "previas";
   if (hash === "stats") return "stats";
   if (hash === "titulos") return "titulos";
+  if (hash === "titulos-rey") return "titulos-rey";
   if (hash === "titulos-estadistica") return "titulos-estadistica";
   if (hash === "titulos-encuesta") return "titulos-encuesta";
   if (hash === "titulos-racha") return "titulos-racha";
@@ -6812,6 +6917,10 @@ document.getElementById("btn-stats-back").addEventListener("click", () => {
 
 document.getElementById("btn-titulos-back").addEventListener("click", () => {
   navigateScreenToHomeWithTransition("titulos");
+});
+
+document.getElementById("btn-titulos-rey-back").addEventListener("click", () => {
+  navigateBetweenScreensWithTransition("titulos-rey", "titulos");
 });
 
 document.getElementById("card-titulos-estadistica").addEventListener("click", () => {
@@ -6928,6 +7037,7 @@ bottomNav.addEventListener("click", (e) => {
       "previas",
       "stats",
       "titulos",
+      "titulos-rey",
       "titulos-estadistica",
       "titulos-encuesta",
       "titulos-racha",
@@ -6950,6 +7060,7 @@ bottomNav.addEventListener("click", (e) => {
       "previas",
       "stats",
       "titulos",
+      "titulos-rey",
       "titulos-estadistica",
       "titulos-encuesta",
       "titulos-racha",
@@ -6962,7 +7073,7 @@ bottomNav.addEventListener("click", (e) => {
   }
 
   if (route === "stats") {
-    const activeAnimatedOrigin = ["home", "admin", "titulos"].find((r) => screens[r] && screens[r].classList.contains("active"));
+    const activeAnimatedOrigin = ["home", "admin", "titulos", "titulos-rey"].find((r) => screens[r] && screens[r].classList.contains("active"));
     if (activeAnimatedOrigin) {
       navigateBetweenScreensWithTransition(activeAnimatedOrigin, "stats");
       return;
@@ -6970,7 +7081,7 @@ bottomNav.addEventListener("click", (e) => {
   }
 
   if (route === "titulos") {
-    const activeAnimatedOrigin = ["home", "admin", "stats"].find((r) => screens[r] && screens[r].classList.contains("active"));
+    const activeAnimatedOrigin = ["home", "admin", "stats", "titulos-rey"].find((r) => screens[r] && screens[r].classList.contains("active"));
     if (activeAnimatedOrigin) {
       navigateBetweenScreensWithTransition(activeAnimatedOrigin, "titulos");
       return;
