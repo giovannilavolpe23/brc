@@ -4315,6 +4315,7 @@ function requestStatsPanelRefresh(scope, dateKey) {
 }
 
 function refreshActiveTitulosPanel() {
+  if (screens.titulos && screens.titulos.classList.contains("active")) renderTitulosHub();
   if (screens["titulos-estadistica"] && screens["titulos-estadistica"].classList.contains("active")) renderTitulosEstadisticaPanel();
   if (screens["titulos-encuesta"] && screens["titulos-encuesta"].classList.contains("active")) renderTitulosEncuestaPanel();
   if (screens["titulos-racha"] && screens["titulos-racha"].classList.contains("active")) renderTitulosRachaPanel();
@@ -5562,7 +5563,7 @@ function titulosApiRows(stats, config) {
   }));
 }
 
-function renderTitulosProfilesFromApi(stats, configs, allTied) {
+function buildTitulosProfilesFromApi(stats, configs, allTied) {
   const wonByUserId = new Map();
 
   configs.forEach((config) => {
@@ -5577,7 +5578,126 @@ function renderTitulosProfilesFromApi(stats, configs, allTied) {
     });
   });
 
-  return Array.from(wonByUserId.values()).map(renderTituloProfileCard).join("");
+  return Array.from(wonByUserId.values());
+}
+
+function renderTitulosProfilesFromApi(stats, configs, allTied) {
+  return buildTitulosProfilesFromApi(stats, configs, allTied).map(renderTituloProfileCard).join("");
+}
+
+function mergeAchievementProfiles(profileGroups) {
+  const byUserId = new Map();
+  profileGroups.flat().forEach((profile) => {
+    const participant = profile.participant;
+    const key = participant.apiId || participant.id;
+    if (!key) return;
+    if (!byUserId.has(key)) byUserId.set(key, { participant, titles: [] });
+    byUserId.get(key).titles.push(...profile.titles);
+  });
+  return Array.from(byUserId.values());
+}
+
+function buildTotalAchievementProfiles() {
+  if (statsApiTotal) {
+    return mergeAchievementProfiles([
+      buildTitulosProfilesFromApi(statsApiTotal, TITULOS_CONFIG, false),
+      buildTitulosProfilesFromApi(statsApiTotal, ENCUESTAS_CONFIG, true),
+      buildTitulosProfilesFromApi(statsApiTotal, RACHAS_CONFIG, true),
+    ]);
+  }
+
+  const closedDays = getSharedStatsClosedDays();
+  if (!closedDays.length) return [];
+  return mergeAchievementProfiles([
+    buildTitulosByPlayer((config) => config.totalFn(closedDays)),
+    buildTitulosByPlayerFromEncuestas((config) => config.totalFn(closedDays)),
+    buildTitulosByPlayerFromRachas((config) => config.totalFn(closedDays)),
+  ]);
+}
+
+function selectKingOfBariloche(contenders, pickWinner = randomItem) {
+  if (!contenders.length) return null;
+  const maxCount = Math.max(...contenders.map((row) => row.count));
+  if (maxCount <= 0) return null;
+  const tied = contenders.filter((row) => row.count === maxCount);
+  return {
+    winner: pickWinner(tied),
+    tied,
+  };
+}
+
+function buildKingOfBariloche() {
+  const contenders = buildTotalAchievementProfiles().map((profile) => ({
+    participant: profile.participant,
+    count: profile.titles.length,
+  }));
+  return selectKingOfBariloche(contenders);
+}
+
+function renderKingOfBarilocheSection() {
+  const result = buildKingOfBariloche();
+  if (!result) {
+    return `
+      <section class="titulos-king-section">
+        <article class="titulos-king-card titulos-king-card-empty">
+          <span class="titulos-king-kicker">REY DE BARILOCHE</span>
+          <div class="titulos-king-empty">
+            <span class="titulos-king-crown" aria-hidden="true">♕</span>
+            <p>Todavía no hay Rey de Bariloche</p>
+          </div>
+        </article>
+      </section>
+    `;
+  }
+
+  const { winner, tied } = result;
+  const tiedOthers = tied.filter((row) => row !== winner);
+  const countText = `${winner.count} logro${winner.count === 1 ? "" : "s"}`;
+  const tieText = tiedOthers.length
+    ? `
+      <div class="titulos-king-ties">
+        <span>También empatado${tiedOthers.length === 1 ? "" : "s"}</span>
+        <div class="titulos-king-tie-list">
+          ${tiedOthers
+            .map(
+              (row) => `
+                <span class="titulos-king-tie">
+                  ${renderPlayerAvatarHtml(row.participant, "titulos-king-tie-avatar")}
+                  <span>${escapeHtml(row.participant.name)}</span>
+                </span>
+              `
+            )
+            .join("")}
+        </div>
+      </div>
+    `
+    : "";
+
+  return `
+    <section class="titulos-king-section">
+      <article class="titulos-king-card">
+        <span class="titulos-king-kicker">REY DE BARILOCHE</span>
+        <span class="titulos-king-crown" aria-hidden="true">♕</span>
+        <div class="titulos-king-main">
+          ${renderPlayerAvatarHtml(winner.participant, "titulos-king-avatar")}
+          <div class="titulos-king-copy">
+            <h2>${escapeHtml(winner.participant.name)}</h2>
+            <p>${countText}</p>
+          </div>
+        </div>
+        ${tieText}
+      </article>
+    </section>
+  `;
+}
+
+function renderTitulosHub() {
+  if (!statsApiTotal) requestStatsPanelRefresh("total");
+  const main = document.querySelector("#screen-titulos .home-content");
+  if (!main) return;
+  const existing = main.querySelector(".titulos-king-section");
+  if (existing) existing.remove();
+  main.insertAdjacentHTML("afterbegin", renderKingOfBarilocheSection());
 }
 
 // DÍA: cada título se calcula únicamente con los datos disponibles
@@ -6479,6 +6599,7 @@ function navigate(route) {
     showScreen("stats");
   } else if (route === "titulos") {
     location.hash = "#/titulos";
+    renderTitulosHub();
     showScreen("titulos");
   } else if (route === "titulos-estadistica") {
     location.hash = "#/titulos-estadistica";
