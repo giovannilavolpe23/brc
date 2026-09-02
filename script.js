@@ -5566,7 +5566,7 @@ function buildTitulosByPlayer(getRows) {
     if (!rows.length) return;
     const winner = rows[0];
     if (!wonByName.has(winner.name)) wonByName.set(winner.name, []);
-    wonByName.get(winner.name).push({ config, winner });
+    wonByName.get(winner.name).push({ config, winner, group: "stats" });
   });
 
   return PARTICIPANTS.filter((p) => wonByName.has(p.name)).map((p) => ({
@@ -5658,7 +5658,7 @@ function titulosApiRows(stats, config) {
   }));
 }
 
-function buildTitulosProfilesFromApi(stats, configs, allTied) {
+function buildTitulosProfilesFromApi(stats, configs, allTied, group = "stats") {
   const wonByUserId = new Map();
 
   configs.forEach((config) => {
@@ -5669,7 +5669,7 @@ function buildTitulosProfilesFromApi(stats, configs, allTied) {
     winners.forEach((winner) => {
       const key = winner.userId;
       if (!wonByUserId.has(key)) wonByUserId.set(key, { participant: titulosApiParticipant(stats, key), titles: [] });
-      wonByUserId.get(key).titles.push({ config, winner });
+      wonByUserId.get(key).titles.push({ config, winner, group });
     });
   });
 
@@ -5695,9 +5695,9 @@ function mergeAchievementProfiles(profileGroups) {
 function buildTotalAchievementProfiles() {
   if (statsApiTotal) {
     return mergeAchievementProfiles([
-      buildTitulosProfilesFromApi(statsApiTotal, TITULOS_CONFIG, false),
-      buildTitulosProfilesFromApi(statsApiTotal, ENCUESTAS_CONFIG, true),
-      buildTitulosProfilesFromApi(statsApiTotal, RACHAS_CONFIG, true),
+      buildTitulosProfilesFromApi(statsApiTotal, TITULOS_CONFIG, false, "stats"),
+      buildTitulosProfilesFromApi(statsApiTotal, ENCUESTAS_CONFIG, true, "surveys"),
+      buildTitulosProfilesFromApi(statsApiTotal, RACHAS_CONFIG, true, "streaks"),
     ]);
   }
 
@@ -5712,6 +5712,59 @@ function buildTotalAchievementProfiles() {
 
 function achievementParticipantKey(participant) {
   return String((participant && (participant.apiId || participant.id)) || "").toLowerCase();
+}
+
+function titleDominanceLabel(title) {
+  const byKey = {
+    sleep: "Sueño",
+    sleepLess: "Menos sueño",
+    nap: "Siesta",
+    fifthMeal: "Quinta comida",
+    bathroom: "Baño",
+    boliche: "Boliche",
+    money: "Gasto",
+    previas: "Previas",
+    destroyedVote: "Encuestas",
+    streakBoliche: "Boliche",
+    streakFifthMeal: "Quinta comida",
+    streakBathroom: "Baño",
+    streakChocolates: "Chocolates",
+    streakAlcohol: "Alcohol",
+  };
+  return byKey[title && title.config && title.config.key] || (title && title.config && title.config.caption) || "";
+}
+
+function dominantKingStatText(titles) {
+  const counts = new Map();
+  titles.forEach((title) => {
+    const label = titleDominanceLabel(title);
+    if (!label) return;
+    if (!counts.has(label)) counts.set(label, { label, count: 0 });
+    counts.get(label).count += 1;
+  });
+  const top = Array.from(counts.values()).sort((a, b) => b.count - a.count)[0];
+  return top ? `Su fuerte: ${top.label}` : "";
+}
+
+function groupKingProfileTitles(titles) {
+  const groupOrder = ["stats", "surveys", "streaks"];
+  return groupOrder.map((group) => titles.filter((title) => title.group === group)).filter((groupTitles) => groupTitles.length);
+}
+
+function sortedAlmostKings(profiles, king) {
+  const kingCount = king ? king.count : 0;
+  const kingKey = king ? achievementParticipantKey(king.participant) : "";
+  return profiles
+    .map((profile) => ({
+      participant: profile.participant,
+      count: profile.titles.length,
+    }))
+    .filter((row) => row.count > 0 && row.count < kingCount && achievementParticipantKey(row.participant) !== kingKey)
+    .sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return achievementParticipantKey(a.participant).localeCompare(achievementParticipantKey(b.participant));
+    })
+    .slice(0, 5);
 }
 
 function selectKingOfBariloche(contenders, pickWinner = randomItem) {
@@ -5738,6 +5791,43 @@ function resolveKingProfileWinner(result, preferredUserKey) {
   if (!result) return null;
   if (!preferredUserKey) return result.winner;
   return result.tied.find((row) => achievementParticipantKey(row.participant) === preferredUserKey) || result.winner;
+}
+
+function renderKingProfileTitleGroups(titles) {
+  return groupKingProfileTitles(titles)
+    .map((groupTitles) => `<div class="king-profile-title-group">${groupTitles.map(renderTituloBadge).join("")}</div>`)
+    .join("");
+}
+
+function renderAlmostKings(rows) {
+  if (!rows.length) {
+    return `
+      <section class="king-almost-section">
+        <h3>Casi Reyes</h3>
+        <div class="king-almost-empty">Todavía no hay escoltas con logros.</div>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="king-almost-section">
+      <h3>Casi Reyes</h3>
+      <div class="king-almost-columns" style="--almost-count:${rows.length}">
+        ${rows
+          .map(
+            (row, index) => `
+              <article class="king-almost-column king-almost-column-${index + 2}" aria-label="${escapeHtml(row.participant.name)}: ${row.count} título${row.count === 1 ? "" : "s"}">
+                ${renderPlayerAvatarHtml(row.participant, "king-almost-avatar")}
+                <div class="king-almost-pedestal">
+                  <span>${row.count} título${row.count === 1 ? "" : "s"}</span>
+                </div>
+              </article>
+            `
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
 }
 
 function renderKingOfBarilocheSection(result = buildKingOfBariloche()) {
@@ -5830,7 +5920,14 @@ function renderKingProfileScreen() {
   const main = document.getElementById("titulos-rey-main");
   if (!main) return;
 
-  const result = buildKingOfBariloche();
+  const profiles = buildTotalAchievementProfiles();
+  const result = selectKingOfBariloche(
+    profiles.map((profile) => ({
+      participant: profile.participant,
+      count: profile.titles.length,
+      titles: profile.titles,
+    }))
+  );
   if (!result) {
     activeKingProfileUserKey = null;
     main.innerHTML = `
@@ -5846,7 +5943,8 @@ function renderKingProfileScreen() {
   activeKingProfileUserKey = achievementParticipantKey(winner.participant);
 
   const titleCountText = `${winner.count} logro${winner.count === 1 ? "" : "s"}`;
-  const badgesHtml = winner.titles.map(renderTituloBadge).join("");
+  const dominantStat = dominantKingStatText(winner.titles);
+  const almostKingsHtml = renderAlmostKings(sortedAlmostKings(profiles, winner));
 
   main.innerHTML = `
     <section class="king-profile-hero-card">
@@ -5856,12 +5954,14 @@ function renderKingProfileScreen() {
       </div>
       <h2>${escapeHtml(winner.participant.name)}</h2>
       <p>${titleCountText}</p>
+      ${dominantStat ? `<span class="king-profile-dominant">${escapeHtml(dominantStat)}</span>` : ""}
     </section>
 
-    <div class="section-label">Logros del Rey</div>
     <section class="king-profile-achievements">
-      <div class="titulo-badge-list">${badgesHtml}</div>
+      ${renderKingProfileTitleGroups(winner.titles)}
     </section>
+
+    ${almostKingsHtml}
   `;
 }
 
@@ -6122,7 +6222,7 @@ const ENCUESTAS_CONFIG = [
 // empate real. Es el mismo criterio de "resolver empates sin romper
 // la interfaz" que usan tanto "Por encuesta" como "Por racha", así
 // que vive acá una sola vez y ambos lo reutilizan.
-function buildTitulosByPlayerAllTiedWinners(configs, getRows) {
+function buildTitulosByPlayerAllTiedWinners(configs, getRows, group) {
   const wonByName = new Map(); // nombre del jugador -> [{ config, winner }]
   configs.forEach((config) => {
     const rows = getRows(config);
@@ -6131,7 +6231,7 @@ function buildTitulosByPlayerAllTiedWinners(configs, getRows) {
     const winners = rows.filter((row) => row.value === topValue);
     winners.forEach((winner) => {
       if (!wonByName.has(winner.name)) wonByName.set(winner.name, []);
-      wonByName.get(winner.name).push({ config, winner });
+      wonByName.get(winner.name).push({ config, winner, group });
     });
   });
 
@@ -6151,7 +6251,7 @@ function buildTitulosByPlayerAllTiedWinners(configs, getRows) {
 // con el mismo título, en vez de forzar un único ganador o mostrar
 // un estado roto.
 function buildTitulosByPlayerFromEncuestas(getRows) {
-  return buildTitulosByPlayerAllTiedWinners(ENCUESTAS_CONFIG, getRows);
+  return buildTitulosByPlayerAllTiedWinners(ENCUESTAS_CONFIG, getRows, "surveys");
 }
 
 // Arma un perfil por cada jugador que ganó al menos un título por
@@ -6513,7 +6613,7 @@ const RACHAS_CONFIG = [
 // mismo criterio de empates que "Por encuesta": el título se
 // reparte entre TODOS los que hayan quedado con la racha máxima.
 function buildTitulosByPlayerFromRachas(getRows) {
-  return buildTitulosByPlayerAllTiedWinners(RACHAS_CONFIG, getRows);
+  return buildTitulosByPlayerAllTiedWinners(RACHAS_CONFIG, getRows, "streaks");
 }
 
 // Arma un perfil por cada jugador que ganó al menos un título por
