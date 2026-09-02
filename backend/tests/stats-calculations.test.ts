@@ -99,6 +99,22 @@ describe("stats calculations", () => {
     assert.equal(stats.money.rankingByCategory.some((row) => row.category === "Chocolates"), false);
   });
 
+  it("does not expose streaks in day stats", () => {
+    const stats = calculateStats("day", baseData(), "2026-08-28");
+
+    assert.deepEqual(stats.streaks, {
+      boliche: [],
+      fifthMeal: [],
+      bathroom: [],
+      chocolates: [],
+      alcohol: [],
+      zombie: [],
+      alcoholSpender: [],
+      destroyedVote: [],
+      moneySpender: [],
+    });
+  });
+
   it("uses user ids in rankings and aggregates daily entries", () => {
     const stats = calculateStats("day", baseData(), "2026-08-28");
 
@@ -225,6 +241,139 @@ describe("stats calculations", () => {
     assert.deepEqual(stats.streaks.fifthMeal, [{ userId: gioId, value: 2 }]);
     assert.deepEqual(stats.streaks.bathroom, [{ userId: gioId, value: 2 }]);
     assert.deepEqual(stats.streaks.alcohol, [{ userId: jereId, value: 1 }]);
+  });
+
+  it("calculates all negative streak titles from daily winners", () => {
+    const stats = calculateStats("total", {
+      users: [
+        { id: gioId, legacyId: "gio", displayName: "Gio" },
+        { id: jereId, legacyId: "jere", displayName: "Jere" },
+        { id: laraId, legacyId: "lara", displayName: "Lara" },
+      ],
+      expenses: [
+        { userId: gioId, dateKey: "2026-08-24", category: "Alcohol", amount: 100 },
+        { userId: jereId, dateKey: "2026-08-24", category: "Comida", amount: 300 },
+        { userId: gioId, dateKey: "2026-08-25", category: "Alcohol", amount: 120 },
+        { userId: jereId, dateKey: "2026-08-25", category: "Comida", amount: 320 },
+        { userId: gioId, dateKey: "2026-08-26", category: "Alcohol", amount: 140 },
+        { userId: jereId, dateKey: "2026-08-26", category: "Comida", amount: 340 },
+      ],
+      dailyEntries: [
+        entry(gioId, "2026-08-24", { sleepBedtime: "04:00", sleepWake: "08:00" }),
+        entry(jereId, "2026-08-24", { sleepBedtime: "02:00", sleepWake: "10:00" }),
+        entry(gioId, "2026-08-25", { sleepBedtime: "04:00", sleepWake: "08:00" }),
+        entry(jereId, "2026-08-25", { sleepBedtime: "02:00", sleepWake: "10:00" }),
+        entry(gioId, "2026-08-26", { sleepBedtime: "04:00", sleepWake: "08:00" }),
+        entry(jereId, "2026-08-26", { sleepBedtime: "02:00", sleepWake: "10:00" }),
+      ],
+      surveyVotes: [
+        { surveyKey: "destroyed_vote", dateKey: "2026-08-24", votedUserId: laraId },
+        { surveyKey: "destroyed_vote", dateKey: "2026-08-25", votedUserId: laraId },
+        { surveyKey: "destroyed_vote", dateKey: "2026-08-26", votedUserId: laraId },
+      ],
+      previaParticipants: [],
+    });
+
+    assert.deepEqual(stats.streaks.zombie, [{ userId: gioId, value: 3 }]);
+    assert.deepEqual(stats.streaks.alcoholSpender, [{ userId: gioId, value: 3 }]);
+    assert.deepEqual(stats.streaks.destroyedVote, [{ userId: laraId, value: 3 }]);
+    assert.deepEqual(stats.streaks.moneySpender, [{ userId: jereId, value: 3 }]);
+  });
+
+  it("keeps historical negative streak maximum after the streak ends", () => {
+    const stats = calculateStats("total", {
+      users: baseData().users,
+      expenses: [],
+      dailyEntries: [
+        entry(gioId, "2026-08-24", { sleepBedtime: "04:00", sleepWake: "08:00" }),
+        entry(jereId, "2026-08-24", { sleepBedtime: "02:00", sleepWake: "10:00" }),
+        entry(gioId, "2026-08-25", { sleepBedtime: "04:00", sleepWake: "08:00" }),
+        entry(jereId, "2026-08-25", { sleepBedtime: "02:00", sleepWake: "10:00" }),
+        entry(gioId, "2026-08-26", { sleepBedtime: "04:00", sleepWake: "08:00" }),
+        entry(jereId, "2026-08-26", { sleepBedtime: "02:00", sleepWake: "10:00" }),
+        entry(gioId, "2026-08-27", { sleepBedtime: "02:00", sleepWake: "10:00" }),
+        entry(jereId, "2026-08-27", { sleepBedtime: "05:00", sleepWake: "08:00" }),
+      ],
+      surveyVotes: [],
+      previaParticipants: [],
+    });
+
+    assert.deepEqual(stats.streaks.zombie, [
+      { userId: gioId, value: 3 },
+      { userId: jereId, value: 1 },
+    ]);
+  });
+
+  it("lets another player surpass an ended negative streak", () => {
+    const stats = calculateStats("total", {
+      users: baseData().users,
+      expenses: [],
+      dailyEntries: [
+        entry(gioId, "2026-08-24", { sleepBedtime: "04:00", sleepWake: "08:00" }),
+        entry(jereId, "2026-08-24", { sleepBedtime: "02:00", sleepWake: "10:00" }),
+        entry(gioId, "2026-08-25", { sleepBedtime: "04:00", sleepWake: "08:00" }),
+        entry(jereId, "2026-08-25", { sleepBedtime: "02:00", sleepWake: "10:00" }),
+        entry(gioId, "2026-08-26", { sleepBedtime: "04:00", sleepWake: "08:00" }),
+        entry(jereId, "2026-08-26", { sleepBedtime: "02:00", sleepWake: "10:00" }),
+        entry(gioId, "2026-08-27", { sleepBedtime: "02:00", sleepWake: "10:00" }),
+        entry(jereId, "2026-08-27", { sleepBedtime: "05:00", sleepWake: "08:00" }),
+        entry(gioId, "2026-08-28", { sleepBedtime: "02:00", sleepWake: "10:00" }),
+        entry(jereId, "2026-08-28", { sleepBedtime: "05:00", sleepWake: "08:00" }),
+        entry(gioId, "2026-08-29", { sleepBedtime: "02:00", sleepWake: "10:00" }),
+        entry(jereId, "2026-08-29", { sleepBedtime: "05:00", sleepWake: "08:00" }),
+        entry(gioId, "2026-08-30", { sleepBedtime: "02:00", sleepWake: "10:00" }),
+        entry(jereId, "2026-08-30", { sleepBedtime: "05:00", sleepWake: "08:00" }),
+      ],
+      surveyVotes: [],
+      previaParticipants: [],
+    });
+
+    assert.deepEqual(stats.streaks.zombie, [
+      { userId: jereId, value: 4 },
+      { userId: gioId, value: 3 },
+    ]);
+  });
+
+  it("counts daily ties for all tied winners and returns tied historical maxima", () => {
+    const stats = calculateStats("total", {
+      users: baseData().users,
+      expenses: [],
+      dailyEntries: [
+        entry(gioId, "2026-08-24", { sleepBedtime: "04:00", sleepWake: "08:00" }),
+        entry(jereId, "2026-08-24", { sleepBedtime: "04:00", sleepWake: "08:00" }),
+        entry(gioId, "2026-08-25", { sleepBedtime: "04:00", sleepWake: "08:00" }),
+        entry(jereId, "2026-08-25", { sleepBedtime: "04:00", sleepWake: "08:00" }),
+      ],
+      surveyVotes: [],
+      previaParticipants: [],
+    });
+
+    assert.deepEqual(stats.streaks.zombie, [
+      { userId: gioId, value: 2 },
+      { userId: jereId, value: 2 },
+    ]);
+  });
+
+  it("cuts negative streaks when a calendar day is skipped or lost", () => {
+    const stats = calculateStats("total", {
+      users: baseData().users,
+      expenses: [],
+      dailyEntries: [
+        entry(gioId, "2026-08-24", { sleepBedtime: "04:00", sleepWake: "08:00" }),
+        entry(jereId, "2026-08-24", { sleepBedtime: "02:00", sleepWake: "10:00" }),
+        entry(gioId, "2026-08-25", { sleepBedtime: "02:00", sleepWake: "10:00" }),
+        entry(jereId, "2026-08-25", { sleepBedtime: "05:00", sleepWake: "08:00" }),
+        entry(gioId, "2026-08-27", { sleepBedtime: "04:00", sleepWake: "08:00" }),
+        entry(jereId, "2026-08-27", { sleepBedtime: "02:00", sleepWake: "10:00" }),
+      ],
+      surveyVotes: [],
+      previaParticipants: [],
+    });
+
+    assert.deepEqual(stats.streaks.zombie, [
+      { userId: gioId, value: 1 },
+      { userId: jereId, value: 1 },
+    ]);
   });
 
   it("returns empty statistics after reset data while preserving users", () => {

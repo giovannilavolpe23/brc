@@ -1297,6 +1297,107 @@ async function handleAdminResetDataConfirm() {
   }
 }
 
+function handleAdminGenerateDemoDataClick() {
+  const error = document.getElementById("admin-generate-demo-data-error");
+  const msg = document.getElementById("admin-generate-demo-data-msg");
+  if (error) error.textContent = "";
+  if (msg) {
+    msg.textContent = "";
+    msg.classList.remove("visible");
+  }
+
+  if (getPendingApiOperations().length > 0) {
+    if (error) {
+      error.textContent = "Tenés cambios pendientes por sincronizar. Conectate y esperá a que se sincronicen antes de generar datos de prueba.";
+    }
+    return;
+  }
+
+  openSheet("admin-generate-demo-data-confirm");
+}
+
+async function handleAdminGenerateDemoDataConfirm() {
+  if (adminGenerateDemoSubmitting) return;
+  const select = document.getElementById("admin-demo-nights");
+  const submitBtn = document.getElementById("sheet-submit-btn");
+  const nights = Number(select ? select.value : 7);
+
+  if (nights !== 6 && nights !== 7) {
+    showSheetError("Elegí 6 o 7 noches.");
+    return;
+  }
+
+  adminGenerateDemoSubmitting = true;
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Generando...";
+  }
+
+  try {
+    const response = await apiFetch("/admin/dev/generate-demo-data", {
+      method: "POST",
+      body: JSON.stringify({ nights }),
+    });
+
+    if (response.status === 403) {
+      showSheetError("Solo un administrador puede generar datos de prueba.");
+      return;
+    }
+
+    if (response.status === 400) {
+      showSheetError("Elegí 6 o 7 noches.");
+      return;
+    }
+
+    if (!response.ok) {
+      showSheetError("No se pudieron generar los datos de prueba.");
+      return;
+    }
+
+    await response.json().catch(() => null);
+    clearApiBackedLocalCaches();
+    clearStatsApiCache();
+    closeSheet();
+
+    const error = document.getElementById("admin-generate-demo-data-error");
+    const msg = document.getElementById("admin-generate-demo-data-msg");
+    if (error) error.textContent = "";
+    if (msg) {
+      msg.textContent = "✓ Datos de prueba generados";
+      msg.classList.add("visible");
+      setTimeout(() => msg.classList.remove("visible"), 2500);
+    }
+
+    refreshParticipantsFromApi();
+    requestStatsPanelRefresh("total");
+    if (screens.stats && screens.stats.classList.contains("active")) renderStatsScreen();
+    refreshActiveTitulosPanel();
+  } catch (e) {
+    showSheetError("No se pudieron generar los datos de prueba.");
+  } finally {
+    adminGenerateDemoSubmitting = false;
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Generar datos";
+    }
+  }
+}
+
+function clearApiBackedLocalCaches() {
+  moneyApiLoadedUsers.clear();
+  dailyApiLoadedKeys.clear();
+  previasApiLoadedKeys.clear();
+  moneyApiFailedUsers.clear();
+  dailyApiFailedKeys.clear();
+  previasApiFailedKeys.clear();
+  localStorage.removeItem(STORAGE_KEYS.adminPlayers);
+  localStorage.removeItem(STORAGE_KEYS.adminPrevias);
+  PARTICIPANTS.forEach((participant) => {
+    localStorage.removeItem(STORAGE_KEYS.userData(participant.id));
+    localStorage.removeItem(STORAGE_KEYS.localPrevias(participant.id));
+  });
+}
+
 /* =============================================================
    ADMIN — JUGADORES IMPORTADOS (vía código de datos)
    =============================================================
@@ -2104,7 +2205,7 @@ const CATEGORY_RANKING_META = {
   Boliche: { title: "Quién tuvo más ganas de quebrar", icon: "🍾", accent: "#ff5470" },
   Actividades: { title: "Quién gastó más en actividades", icon: "🎿", accent: "#4cc9f0" },
   Bebida: { title: "Quién compró más bebidas s/a", icon: "🥤", accent: "#4cc9f0" },
-  Otros: { title: "Quién gastó más en otros", icon: "📦", accent: "#ff9f1c" },
+  Otros: { title: "Quién gastó más en cosas secundarias", icon: "📦", accent: "#ff9f1c" },
 };
 
 function genId() {
@@ -2490,6 +2591,7 @@ let adminImportStep = null; // "paste" | "preview"
 let backupImportStep = null; // "paste" | "preview"
 let backupImportPendingPayload = null; // payload de backup completo, ya validado, pendiente de confirmar
 let adminResetSubmitting = false;
+let adminGenerateDemoSubmitting = false;
 
 function findMovement(money, id) {
   return money.movements.find((m) => m.id === id) || null;
@@ -2566,6 +2668,22 @@ function openSheet(type, movement) {
     });
     sheetOverlay.classList.add("visible");
     input.focus();
+    return;
+  }
+
+  if (type === "admin-generate-demo-data-confirm") {
+    const select = document.getElementById("admin-demo-nights");
+    const nights = select ? select.value : "7";
+    sheetContent.innerHTML = `
+      <h2 class="sheet-title">Generar datos de prueba</h2>
+      <p class="sheet-sub">Esto va a limpiar los datos del viaje y crear datos ficticios para todos los jugadores activos durante ${escapeHtml(nights)} noches. No elimina usuarios, roles, permisos, contraseñas ni saldos iniciales.</p>
+      <p class="sheet-error" id="sheet-error"></p>
+      <button class="sheet-submit danger" id="sheet-submit-btn" type="button">Generar datos</button>
+      <button class="sheet-cancel-link" id="sheet-cancel-btn" type="button">Cancelar</button>
+    `;
+    document.getElementById("sheet-submit-btn").addEventListener("click", handleAdminGenerateDemoDataConfirm);
+    document.getElementById("sheet-cancel-btn").addEventListener("click", closeSheet);
+    sheetOverlay.classList.add("visible");
     return;
   }
 
@@ -5182,17 +5300,17 @@ function renderDayStatsReal(dateKey) {
       ${renderStatsSectionHeading("-Datos de registro-", "left")}
       ${renderRankingCard("😴", "#4cc9f0", "¿Quién durmió más?", "Horas dormidas", dayRankingHorasDormidas(dateKey))}
       ${renderRankingCard("🧟", "#06d6a0", "Quién durmió menos", "Horas dormidas", dayRankingMenosDormidas(dateKey))}
-      ${renderRankingCard("🛋️", "#4cc9f0", "Fanático de la siesta", "Siesta hoy", dayRankingSiestas(dateKey))}
-      ${renderRankingCard("🍔", "#ffd166", "La quinta comida", "¿Comió una quinta?", dayRankingQuintaComida(dateKey))}
-      ${renderRankingCard("🚽", "#ffd166", "Maratón de baño", "Veces que fue al baño", dayRankingBanio(dateKey))}
-      ${renderRankingCard("🕺", "#ff5470", "Resistencia en el boliche", "Tiempo adentro", dayRankingBoliche(dateKey))}
-      ${renderRankingCard("💸", "#ff9f1c", "El más gastador", "Gasto total del día", dayRankingDineroTotal(dateKey))}
+      ${renderRankingCard("🛋️", "#4cc9f0", "¿Quién tiró siesta?", "Hubo siestita? y pajita?", dayRankingSiestas(dateKey))}
+      ${renderRankingCard("🍔", "#ffd166", "¿Jugó 5ta comida?", "Quinta comida", dayRankingQuintaComida(dateKey))}
+      ${renderRankingCard("🚽", "#ffd166", "¿Detonaron el retrete?", "No requiere explicación. Ger no participa, anunciado el 1/09.", dayRankingBanio(dateKey))}
+      ${renderRankingCard("🕺", "#ff5470", "Resistencia en el baile", "Horas en el baile", dayRankingBoliche(dateKey))}
+      ${renderRankingCard("💸", "#ff9f1c", "¿Quién tuvo más ganas de gastar?", "Gasto total por persona", dayRankingDineroTotal(dateKey))}
       ${renderStatsSectionHeading("-Pulso del viaje-", "right")}
-      ${renderRankingCard("🧾", "#ff9f1c", "¿En qué se fue la plata?", "Gasto por categoría", dayRankingDineroPorCategoria(dateKey))}
+      ${renderRankingCard("🧾", "#ff9f1c", "¿En qué categoría se derrochó más billete?", "Gastos por categoría", dayRankingDineroPorCategoria(dateKey))}
       ${renderStatsSectionHeading("-Gastos por categoría-", "left")}
       ${renderCategoryRankingCards((category) => dayRankingPorCategoriaJugador(dateKey, category))}
       ${renderStatsSectionHeading("-PREVIAS-", "right")}
-      ${renderRankingCard("🍻", "#c77dff", "Rey/reina de las previas", "Previas del día", dayRankingPrevias(dateKey))}
+      ${renderRankingCard("🍻", "#c77dff", "Rey/Reyna de las previas", "Previas realizadas", dayRankingPrevias(dateKey))}
     </div>
   `;
 }
@@ -5202,19 +5320,19 @@ function renderTotalStatsReal(closedDays) {
   return `
     <div class="card-list stats-real-list">
       ${renderStatsSectionHeading("-Datos de registro-", "left")}
-      ${renderRankingCard("😴", "#4cc9f0", "¿Quién durmió más?", "Horas dormidas totales", totalRankingHorasDormidas(closedDays), msg)}
+      ${renderRankingCard("😴", "#4cc9f0", "¿Quién durmió más?", "Horas dormidas", totalRankingHorasDormidas(closedDays), msg)}
       ${renderRankingCard("🧟", "#06d6a0", "Quién durmió menos", "Horas dormidas totales", totalRankingMenosDormidas(closedDays), msg)}
-      ${renderRankingCard("🛋️", "#4cc9f0", "Fanático de la siesta", "Siestas de todo el viaje", totalRankingSiestas(closedDays), msg)}
-      ${renderRankingCard("🍔", "#ffd166", "La quinta comida", "Quintas comidas del viaje", totalRankingQuintaComida(closedDays), msg)}
-      ${renderRankingCard("🚽", "#ffd166", "Maratón de baño", "Veces al baño en total", totalRankingBanio(closedDays), msg)}
-      ${renderRankingCard("🕺", "#ff5470", "Resistencia en el boliche", "Tiempo adentro acumulado", totalRankingBoliche(closedDays), msg)}
-      ${renderRankingCard("💸", "#ff9f1c", "El más gastador", "Gasto total del viaje", totalRankingDineroTotal(closedDays), msg)}
+      ${renderRankingCard("🛋️", "#4cc9f0", "¿Quién tiró más siestas?", "Cantidad de siestas", totalRankingSiestas(closedDays), msg)}
+      ${renderRankingCard("🍔", "#ffd166", "¿Quién fue el más bajonero?", "Cantidad de 5ta comidas realizadas", totalRankingQuintaComida(closedDays), msg)}
+      ${renderRankingCard("🚽", "#ffd166", "¿Quién fue el minigun de mierdas?", "No requiere explicación. Ger no participa, anunciado el 1/09.", totalRankingBanio(closedDays), msg)}
+      ${renderRankingCard("🕺", "#ff5470", "Resistencia en el baile", "Horas en el baile (trolazo el último)", totalRankingBoliche(closedDays), msg)}
+      ${renderRankingCard("💸", "#ff9f1c", "¿Quién tuvo más ganas de gastar?", "Gasto total por persona", totalRankingDineroTotal(closedDays), msg)}
       ${renderStatsSectionHeading("-Pulso del viaje-", "right")}
-      ${renderRankingCard("🧾", "#ff9f1c", "¿En qué se fue la plata?", "Gasto por categoría", totalRankingDineroPorCategoria(closedDays), msg)}
+      ${renderRankingCard("🧾", "#ff9f1c", "¿En qué categoría se derrochó más billete?", "Gastos por categoría totales", totalRankingDineroPorCategoria(closedDays), msg)}
       ${renderStatsSectionHeading("-Gastos por categoría-", "left")}
       ${renderCategoryRankingCards((category) => totalRankingPorCategoriaJugador(closedDays, category))}
       ${renderStatsSectionHeading("-PREVIAS-", "right")}
-      ${renderRankingCard("🍻", "#c77dff", "Rey/reina de las previas", "Previas de todo el viaje", totalRankingPrevias(closedDays), msg)}
+      ${renderRankingCard("🍻", "#c77dff", "Rey/Reyna de las previas", "Previas realizadas", totalRankingPrevias(closedDays), msg)}
     </div>
   `;
 }
@@ -5235,17 +5353,17 @@ function renderDayStatsFromApi(stats) {
       ${renderStatsSectionHeading("-Datos de registro-", "left")}
       ${renderRankingCard("😴", "#4cc9f0", "¿Quién durmió más?", "Horas dormidas", apiRankingRows(stats, stats.dailyEntries.sleepMinutes, formatDuration, formatDurationWithMinutes))}
       ${renderRankingCard("🧟", "#06d6a0", "Quién durmió menos", "Horas dormidas", apiLeastSleepRows(stats))}
-      ${renderRankingCard("🛋️", "#4cc9f0", "Fanático de la siesta", "Siesta hoy", apiRankingRows(stats, stats.dailyEntries.siestas, (value) => (value ? "Sí" : "No")))}
-      ${renderRankingCard("🍔", "#ffd166", "La quinta comida", "¿Comió una quinta?", apiRankingRows(stats, stats.dailyEntries.fifthMeals, (value) => (value ? "Sí" : "No")))}
-      ${renderRankingCard("🚽", "#ffd166", "Maratón de baño", "Veces que fue al baño", apiRankingRows(stats, stats.dailyEntries.bathroom, (value) => (value === 1 ? "1 vez" : `${value} veces`)))}
-      ${renderRankingCard("🕺", "#ff5470", "Resistencia en el boliche", "Tiempo adentro", apiRankingRows(stats, stats.dailyEntries.bolicheMinutes, formatDuration))}
-      ${renderRankingCard("💸", "#ff9f1c", "El más gastador", "Gasto total del día", apiRankingRows(stats, stats.money.totalSpentByUser, formatMoney))}
+      ${renderRankingCard("🛋️", "#4cc9f0", "¿Quién tiró siesta?", "Hubo siestita? y pajita?", apiRankingRows(stats, stats.dailyEntries.siestas, (value) => (value ? "Sí" : "No")))}
+      ${renderRankingCard("🍔", "#ffd166", "¿Jugó 5ta comida?", "Quinta comida", apiRankingRows(stats, stats.dailyEntries.fifthMeals, (value) => (value ? "Sí" : "No")))}
+      ${renderRankingCard("🚽", "#ffd166", "¿Detonaron el retrete?", "No requiere explicación. Ger no participa, anunciado el 1/09.", apiRankingRows(stats, stats.dailyEntries.bathroom, (value) => (value === 1 ? "1 vez" : `${value} veces`)))}
+      ${renderRankingCard("🕺", "#ff5470", "Resistencia en el baile", "Horas en el baile", apiRankingRows(stats, stats.dailyEntries.bolicheMinutes, formatDuration))}
+      ${renderRankingCard("💸", "#ff9f1c", "¿Quién tuvo más ganas de gastar?", "Gasto total por persona", apiRankingRows(stats, stats.money.totalSpentByUser, formatMoney))}
       ${renderStatsSectionHeading("-Pulso del viaje-", "right")}
-      ${renderRankingCard("🧾", "#ff9f1c", "¿En qué se fue la plata?", "Gasto por categoría", apiCategoryRows(stats.money.rankingByCategory))}
+      ${renderRankingCard("🧾", "#ff9f1c", "¿En qué categoría se derrochó más billete?", "Gastos por categoría", apiCategoryRows(stats.money.rankingByCategory))}
       ${renderStatsSectionHeading("-Gastos por categoría-", "left")}
       ${renderApiCategoryRankingCards(stats)}
       ${renderStatsSectionHeading("-PREVIAS-", "right")}
-      ${renderRankingCard("🍻", "#c77dff", "Rey/reina de las previas", "Previas del día", apiRankingRows(stats, stats.previas.byParticipant, (value) => `${value} previa${value === 1 ? "" : "s"}`))}
+      ${renderRankingCard("🍻", "#c77dff", "Rey/Reyna de las previas", "Previas realizadas", apiRankingRows(stats, stats.previas.byParticipant, (value) => `${value} previa${value === 1 ? "" : "s"}`))}
     </div>
   `;
 }
@@ -5255,19 +5373,19 @@ function renderTotalStatsFromApi(stats) {
   return `
     <div class="card-list stats-real-list">
       ${renderStatsSectionHeading("-Datos de registro-", "left")}
-      ${renderRankingCard("😴", "#4cc9f0", "¿Quién durmió más?", "Horas dormidas totales", apiRankingRows(stats, stats.dailyEntries.sleepMinutes, formatDuration, formatDurationWithMinutes), msg)}
+      ${renderRankingCard("😴", "#4cc9f0", "¿Quién durmió más?", "Horas dormidas", apiRankingRows(stats, stats.dailyEntries.sleepMinutes, formatDuration, formatDurationWithMinutes), msg)}
       ${renderRankingCard("🧟", "#06d6a0", "Quién durmió menos", "Horas dormidas totales", apiLeastSleepRows(stats), msg)}
-      ${renderRankingCard("🛋️", "#4cc9f0", "Fanático de la siesta", "Siestas de todo el viaje", apiRankingRows(stats, stats.dailyEntries.siestas, (value) => `${value} siesta${value === 1 ? "" : "s"}`), msg)}
-      ${renderRankingCard("🍔", "#ffd166", "La quinta comida", "Quintas comidas del viaje", apiRankingRows(stats, stats.dailyEntries.fifthMeals, (value) => `${value} vez${value === 1 ? "" : "es"}`), msg)}
-      ${renderRankingCard("🚽", "#ffd166", "Maratón de baño", "Veces al baño en total", apiRankingRows(stats, stats.dailyEntries.bathroom, (value) => (value === 1 ? "1 vez" : `${value} veces`)), msg)}
-      ${renderRankingCard("🕺", "#ff5470", "Resistencia en el boliche", "Tiempo adentro acumulado", apiRankingRows(stats, stats.dailyEntries.bolicheMinutes, formatDuration), msg)}
-      ${renderRankingCard("💸", "#ff9f1c", "El más gastador", "Gasto total del viaje", apiRankingRows(stats, stats.money.totalSpentByUser, formatMoney), msg)}
+      ${renderRankingCard("🛋️", "#4cc9f0", "¿Quién tiró más siestas?", "Cantidad de siestas", apiRankingRows(stats, stats.dailyEntries.siestas, (value) => `${value} siesta${value === 1 ? "" : "s"}`), msg)}
+      ${renderRankingCard("🍔", "#ffd166", "¿Quién fue el más bajonero?", "Cantidad de 5ta comidas realizadas", apiRankingRows(stats, stats.dailyEntries.fifthMeals, (value) => `${value} ${value === 1 ? "vez" : "veces"}`), msg)}
+      ${renderRankingCard("🚽", "#ffd166", "¿Quién fue el minigun de mierdas?", "No requiere explicación. Ger no participa, anunciado el 1/09.", apiRankingRows(stats, stats.dailyEntries.bathroom, (value) => (value === 1 ? "1 vez" : `${value} veces`)), msg)}
+      ${renderRankingCard("🕺", "#ff5470", "Resistencia en el baile", "Horas en el baile (trolazo el último)", apiRankingRows(stats, stats.dailyEntries.bolicheMinutes, formatDuration), msg)}
+      ${renderRankingCard("💸", "#ff9f1c", "¿Quién tuvo más ganas de gastar?", "Gasto total por persona", apiRankingRows(stats, stats.money.totalSpentByUser, formatMoney), msg)}
       ${renderStatsSectionHeading("-Pulso del viaje-", "right")}
-      ${renderRankingCard("🧾", "#ff9f1c", "¿En qué se fue la plata?", "Gasto por categoría", apiCategoryRows(stats.money.rankingByCategory), msg)}
+      ${renderRankingCard("🧾", "#ff9f1c", "¿En qué categoría se derrochó más billete?", "Gastos por categoría totales", apiCategoryRows(stats.money.rankingByCategory), msg)}
       ${renderStatsSectionHeading("-Gastos por categoría-", "left")}
       ${renderApiCategoryRankingCards(stats)}
       ${renderStatsSectionHeading("-PREVIAS-", "right")}
-      ${renderRankingCard("🍻", "#c77dff", "Rey/reina de las previas", "Previas de todo el viaje", apiRankingRows(stats, stats.previas.byParticipant, (value) => `${value} previa${value === 1 ? "" : "s"}`), msg)}
+      ${renderRankingCard("🍻", "#c77dff", "Rey/Reyna de las previas", "Previas realizadas", apiRankingRows(stats, stats.previas.byParticipant, (value) => `${value} previa${value === 1 ? "" : "s"}`), msg)}
     </div>
   `;
 }
@@ -5437,9 +5555,7 @@ let activeKingProfileUserKey = null;
    Agregar o modificar un título es sumar/editar una entrada acá; no
    hace falta tocar el resto del render.
 
-   `title` es el nombre del título en sí. Los marcados con
-   `provisional: true` todavía no tienen nombre definitivo — se
-   muestran con una etiqueta "Provisional" hasta que se definan.
+   `title` es el nombre del título en sí.
    `caption` describe el dato literal que decide al ganador, igual
    que la leyenda de las tarjetas de Estadísticas.
    ----------------------------------------------------------- */
@@ -5467,8 +5583,7 @@ const TITULOS_CONFIG = [
     icon: "🛌",
     accent: "#c77dff",
     title: "El rey de la siesta",
-    caption: "Siestas",
-    provisional: true,
+    caption: "Siestitas",
     dayFn: dayRankingSiestas,
     totalFn: totalRankingSiestas,
   },
@@ -5476,9 +5591,8 @@ const TITULOS_CONFIG = [
     key: "fifthMeal",
     icon: "🍔",
     accent: "#ff9f1c",
-    title: "El más comilón",
+    title: "La panza más grande",
     caption: "Quinta comida",
-    provisional: true,
     dayFn: dayRankingQuintaComida,
     totalFn: totalRankingQuintaComida,
   },
@@ -5486,9 +5600,8 @@ const TITULOS_CONFIG = [
     key: "bathroom",
     icon: "🚽",
     accent: "#06d6a0",
-    title: "El más urgente",
-    caption: "Veces que fue al baño",
-    provisional: true,
+    title: "Minigun de mierdas",
+    caption: "Veces que metió detonadita de báter",
     dayFn: dayRankingBanio,
     totalFn: totalRankingBanio,
   },
@@ -5496,9 +5609,8 @@ const TITULOS_CONFIG = [
     key: "boliche",
     icon: "🕺",
     accent: "#ff5470",
-    title: "El más aguante del boliche",
-    caption: "Tiempo en el boliche",
-    provisional: true,
+    title: "El que más se la bancó en el baile",
+    caption: "Tiempo en el baile",
     dayFn: dayRankingBoliche,
     totalFn: totalRankingBoliche,
   },
@@ -5506,7 +5618,7 @@ const TITULOS_CONFIG = [
     key: "money",
     icon: "💸",
     accent: "#ffd166",
-    title: "El más gastador",
+    title: "Billetera sin fondo",
     caption: "Dinero gastado",
     dayFn: dayRankingDineroTotal,
     totalFn: totalRankingDineroTotal,
@@ -5515,9 +5627,8 @@ const TITULOS_CONFIG = [
     key: "previas",
     icon: "🍻",
     accent: "#118ab2",
-    title: "El más previero",
-    caption: "Previas",
-    provisional: true,
+    title: "El más manija",
+    caption: "Previas realizadas",
     dayFn: dayRankingPrevias,
     totalFn: totalRankingPrevias,
   },
@@ -5581,14 +5692,11 @@ function buildTitulosByPlayer(getRows) {
 // (misma leyenda `caption` que ya usaba la tarjeta por estadística,
 // más el valor puntual con el que lo ganó).
 function renderTituloBadge({ config, winner }) {
-  const provisionalTag = config.provisional
-    ? ' <span class="soon-tag titulo-provisional-tag">Provisional</span>'
-    : "";
   return `
     <div class="titulo-badge" style="--titulo-accent:${config.accent}">
       <span class="titulo-badge-icon" aria-hidden="true">${config.icon}</span>
       <div class="titulo-badge-text">
-        <span class="titulo-badge-name">${config.title}${provisionalTag}</span>
+        <span class="titulo-badge-name">${config.title}</span>
         <span class="titulo-badge-caption">${config.caption} · ${winner.display}</span>
       </div>
     </div>
@@ -5637,7 +5745,7 @@ function titulosApiRows(stats, config) {
     sleep: [daily.sleepMinutes, formatDuration],
     sleepLess: [apiLeastSleepStatsRows(stats), formatDuration],
     nap: [daily.siestas, stats.scope === "day" ? displayDayYesNo : displayCount("siesta")],
-    fifthMeal: [daily.fifthMeals, stats.scope === "day" ? displayDayYesNo : (value) => `${value} vez${value === 1 ? "" : "es"}`],
+    fifthMeal: [daily.fifthMeals, stats.scope === "day" ? displayDayYesNo : (value) => `${value} ${value === 1 ? "vez" : "veces"}`],
     bathroom: [daily.bathroom, (value) => (value === 1 ? "1 vez" : `${value} veces`)],
     boliche: [daily.bolicheMinutes, formatDuration],
     money: [money.totalSpentByUser, formatMoney],
@@ -5648,6 +5756,10 @@ function titulosApiRows(stats, config) {
     streakBathroom: [(stats.streaks || {}).bathroom, displayCount("día")],
     streakChocolates: [(stats.streaks || {}).chocolates, displayCount("día")],
     streakAlcohol: [(stats.streaks || {}).alcohol, displayCount("día")],
+    streakZombie: [(stats.streaks || {}).zombie, displayCount("día")],
+    streakAlcoholSpender: [(stats.streaks || {}).alcoholSpender, displayCount("día")],
+    streakDestroyedVote: [(stats.streaks || {}).destroyedVote, displayCount("día")],
+    streakMoneySpender: [(stats.streaks || {}).moneySpender, displayCount("día")],
   };
 
   const [rows, displayFn] = byKey[config.key] || [[], String];
@@ -5677,8 +5789,8 @@ function buildTitulosProfilesFromApi(stats, configs, allTied, group = "stats") {
   return Array.from(wonByUserId.values());
 }
 
-function renderTitulosProfilesFromApi(stats, configs, allTied) {
-  return buildTitulosProfilesFromApi(stats, configs, allTied).map(renderTituloProfileCard).join("");
+function renderTitulosProfilesFromApi(stats, configs, allTied, group) {
+  return buildTitulosProfilesFromApi(stats, configs, allTied, group).map(renderTituloProfileCard).join("");
 }
 
 function mergeAchievementProfiles(profileGroups) {
@@ -5698,7 +5810,7 @@ function buildTotalAchievementProfiles() {
     return mergeAchievementProfiles([
       buildTitulosProfilesFromApi(statsApiTotal, TITULOS_CONFIG, false, "stats"),
       buildTitulosProfilesFromApi(statsApiTotal, ENCUESTAS_CONFIG, true, "surveys"),
-      buildTitulosProfilesFromApi(statsApiTotal, RACHAS_CONFIG, true, "streaks"),
+      buildTitulosProfilesFromApi(statsApiTotal, ALL_RACHAS_CONFIG, true, "streaks"),
     ]);
   }
 
@@ -5731,6 +5843,10 @@ function titleDominanceLabel(title) {
     streakBathroom: "Baño",
     streakChocolates: "Chocolates",
     streakAlcohol: "Alcohol",
+    streakZombie: "Menos sueño",
+    streakAlcoholSpender: "Alcohol",
+    streakDestroyedVote: "Encuestas",
+    streakMoneySpender: "Gasto",
   };
   return byKey[title && title.config && title.config.key] || (title && title.config && title.config.caption) || "";
 }
@@ -6424,23 +6540,15 @@ function renderTitulosEncuestaScreen() {
    cerrar en el medio, la racha se corta ahí, aunque ese hueco no
    aparezca en la lista de días cerrados (`isNextDayKey`).
 
-   - **DÍA**: la racha se calcula con los datos disponibles HASTA
-     ese día puntual (todos los días cerrados desde el principio del
-     viaje hasta el día seleccionado en la barra `← día →`) — a
-     diferencia de "Por estadística"/"Por encuesta", donde DÍA usa
-     solo el dato de ESE día. Acá no aplica: una racha por
-     definición necesita el historial previo.
-   - **TOTAL**: la racha se calcula con todo el historial de días
-     cerrados del viaje.
+   Las rachas se calculan solo sobre TOTAL porque necesitan mirar el
+   historial completo de días cerrados.
 
    `RACHAS_CONFIG` es un arreglo de configuración igual en espíritu a
    `TITULOS_CONFIG`/`ENCUESTAS_CONFIG`: cada entrada define un
    `predicate(player, dateKey)` que dice si ESE jugador cumplió el
    hábito ESE día — el motor de rachas (`longestStreak`) hace el
    resto. Agregar un tipo de racha nuevo es sumar una entrada acá;
-   no hace falta tocar el resto del render. Los nombres de título
-   son provisionales (`provisional: true`, misma convención que
-   `TITULOS_CONFIG`) y quedan fáciles de renombrar más adelante.
+   no hace falta tocar el resto del render.
 
    El resultado se dibuja reutilizando EXACTAMENTE la misma
    estructura visual de perfiles que "Por estadística"/"Por
@@ -6450,10 +6558,6 @@ function renderTitulosEncuestaScreen() {
    resuelven con `buildTitulosByPlayerAllTiedWinners`, igual que
    "Por encuesta": el título se reparte entre todos los empatados.
    ============================================================= */
-
-let titulosRachaTab = "dia"; // "dia" | "total"
-let titulosRachaDayIndex = null; // índice dentro de getStatsClosedDays(), propio de Títulos por racha
-let titulosRachaNavDir = 0; // -1 anterior / 0 sin dirección / 1 siguiente (mismo patrón que statsNavDir)
 
 // ¿`dateKey` es exactamente el día calendario siguiente a `prevKey`?
 // Ambas claves son YYYY-MM-DD. Se usa para saber si dos días
@@ -6510,15 +6614,6 @@ function streakRankingRows(days, predicate) {
   return sortRankingDesc(rows);
 }
 
-// `days` recortado HASTA `dateKey` inclusive, dentro de
-// `closedDays` (para DÍA: la racha usa todo lo disponible hasta ese
-// punto, no solo ese día suelto).
-function daysUpTo(closedDays, dateKey) {
-  const idx = closedDays.indexOf(dateKey);
-  if (idx === -1) return closedDays;
-  return closedDays.slice(0, idx + 1);
-}
-
 // Predicados: ¿el jugador cumplió el hábito ESE día puntual? Todos
 // leen exactamente los mismos campos que ya usan Estadísticas/
 // Títulos por estadística, sin ningún cálculo nuevo sobre los datos
@@ -6545,13 +6640,38 @@ function playerGastoEnCategoria(player, dateKey, category) {
   return dayExpenses(dateKey).some((e) => e.playerName === player.name && e.category === category);
 }
 
+function rankingWinners(rows) {
+  if (!rows.length) return new Set();
+  const topValue = rows[0].value;
+  return new Set(rows.filter((row) => row.value === topValue).map((row) => row.name));
+}
+
+function playerWonDailyRanking(player, rows) {
+  return rankingWinners(rows).has(player.name);
+}
+
+function playerWonMenosDormidas(player, dateKey) {
+  return playerWonDailyRanking(player, dayRankingMenosDormidas(dateKey));
+}
+
+function playerWonAlcoholSpending(player, dateKey) {
+  return playerWonDailyRanking(player, dayRankingPorCategoriaJugador(dateKey, "Alcohol"));
+}
+
+function playerWonDestroyedVote(player, dateKey) {
+  return playerWonDailyRanking(player, votesToRankingRows(tallyVotesForDay(dateKey, "destroyedVote")));
+}
+
+function playerWonMoneySpending(player, dateKey) {
+  return playerWonDailyRanking(player, dayRankingDineroTotal(dateKey));
+}
+
 /* -----------------------------------------------------------
    Configuración de "Títulos por racha"
    -----------------------------------------------------------
    Cada entrada define un título de racha: se lo lleva quien haya
    conseguido la racha más larga de días consecutivos cumpliendo
-   `predicate`. `dayFn(closedDays, dateKey)`/`totalFn(closedDays)`
-   arman las filas ya recortadas al período correspondiente sobre
+   `predicate`. `totalFn(closedDays)` arma las filas sobre
    `streakRankingRows`. Agregar un tipo de racha nuevo (u otra
    categoría de gasto) es sumar una entrada acá.
    ----------------------------------------------------------- */
@@ -6562,28 +6682,22 @@ const RACHAS_CONFIG = [
     accent: "#ff5470",
     title: "Rey de la noche",
     caption: "Mayor racha de días yendo al boliche",
-    provisional: true,
-    dayFn: (closedDays, dateKey) => streakRankingRows(daysUpTo(closedDays, dateKey), playerFueAlBoliche),
     totalFn: (closedDays) => streakRankingRows(closedDays, playerFueAlBoliche),
   },
   {
     key: "streakFifthMeal",
     icon: "🍔",
     accent: "#ff9f1c",
-    title: "Racha comilona",
-    caption: "Mayor racha de días comiendo quinta comida",
-    provisional: true,
-    dayFn: (closedDays, dateKey) => streakRankingRows(daysUpTo(closedDays, dateKey), playerComioQuintaComida),
+    title: "Racha de putogor",
+    caption: "Mayor racha de días metiendo 5ta comida",
     totalFn: (closedDays) => streakRankingRows(closedDays, playerComioQuintaComida),
   },
   {
     key: "streakBathroom",
     icon: "🚽",
     accent: "#06d6a0",
-    title: "Intestino de hierro",
+    title: "Intestino saludable",
     caption: "Mayor racha de días yendo al baño",
-    provisional: true,
-    dayFn: (closedDays, dateKey) => streakRankingRows(daysUpTo(closedDays, dateKey), playerFueAlBanio),
     totalFn: (closedDays) => streakRankingRows(closedDays, playerFueAlBanio),
   },
   {
@@ -6592,9 +6706,6 @@ const RACHAS_CONFIG = [
     accent: "#c77dff",
     title: "Racha dulce",
     caption: "Mayor racha de días gastando en chocolates",
-    provisional: true,
-    dayFn: (closedDays, dateKey) =>
-      streakRankingRows(daysUpTo(closedDays, dateKey), (player, dk) => playerGastoEnCategoria(player, dk, "Chocolates")),
     totalFn: (closedDays) => streakRankingRows(closedDays, (player, dk) => playerGastoEnCategoria(player, dk, "Chocolates")),
   },
   {
@@ -6603,54 +6714,68 @@ const RACHAS_CONFIG = [
     accent: "#118ab2",
     title: "Racha alcohólica",
     caption: "Mayor racha de días gastando en alcohol",
-    provisional: true,
-    dayFn: (closedDays, dateKey) =>
-      streakRankingRows(daysUpTo(closedDays, dateKey), (player, dk) => playerGastoEnCategoria(player, dk, "Alcohol")),
     totalFn: (closedDays) => streakRankingRows(closedDays, (player, dk) => playerGastoEnCategoria(player, dk, "Alcohol")),
   },
 ];
+
+const NEGATIVE_RACHAS_CONFIG = [
+  {
+    key: "streakZombie",
+    icon: "🧟",
+    accent: "#06d6a0",
+    title: "Racha zombi",
+    caption: "Mayor racha siendo el que menos duerme",
+    totalFn: (closedDays) => streakRankingRows(closedDays, playerWonMenosDormidas),
+  },
+  {
+    key: "streakAlcoholSpender",
+    icon: "🍷",
+    accent: "#118ab2",
+    title: "Racha de realizar análisis de estadísticas del rendimiento del hígado",
+    caption: "Mayor racha siendo el que más gasta en alcohol",
+    totalFn: (closedDays) => streakRankingRows(closedDays, playerWonAlcoholSpending),
+  },
+  {
+    key: "streakDestroyedVote",
+    icon: "🥴",
+    accent: "#c77dff",
+    title: "Racha de ser el Registro Nacional de Hidratación Alternativa",
+    caption: 'Mayor racha en ganar "Quién te pareció el más destruido"',
+    totalFn: (closedDays) => streakRankingRows(closedDays, playerWonDestroyedVote),
+  },
+  {
+    key: "streakMoneySpender",
+    icon: "💸",
+    accent: "#ffd166",
+    title: "Racha de billetera sin fondo",
+    caption: "Mayor racha de ser el más gastador",
+    totalFn: (closedDays) => streakRankingRows(closedDays, playerWonMoneySpending),
+  },
+];
+
+const ALL_RACHAS_CONFIG = [...RACHAS_CONFIG, ...NEGATIVE_RACHAS_CONFIG];
 
 // Agrupa los títulos por racha ganados por cada jugador, con el
 // mismo criterio de empates que "Por encuesta": el título se
 // reparte entre TODOS los que hayan quedado con la racha máxima.
 function buildTitulosByPlayerFromRachas(getRows) {
-  return buildTitulosByPlayerAllTiedWinners(RACHAS_CONFIG, getRows, "streaks");
-}
-
-// Arma un perfil por cada jugador que ganó al menos un título por
-// racha en el período mostrado, reutilizando EXACTAMENTE la misma
-// tarjeta de perfil que "Por estadística"/"Por encuesta"
-// (`renderTituloProfileCard`) — nunca como un ranking de barras.
-function renderTitulosRachaProfiles(getRows) {
-  const profiles = buildTitulosByPlayerFromRachas(getRows);
-  return profiles.map(renderTituloProfileCard).join("");
-}
-
-// DÍA: cada racha se calcula con los datos disponibles hasta ese día
-// puntual (`daysUpTo` ya recorta `closedDays` dentro de cada
-// `dayFn` de `RACHAS_CONFIG`).
-function renderTitulosRachaDayReal(closedDays, dateKey) {
-  const profilesHtml = statsApiDays[dateKey]
-    ? renderTitulosProfilesFromApi(statsApiDays[dateKey], RACHAS_CONFIG, true)
-    : renderTitulosRachaProfiles((config) => config.dayFn(closedDays, dateKey));
-  if (!profilesHtml) {
-    return `
-      <div class="stats-empty-banner">
-        <span class="stats-empty-banner-icon" aria-hidden="true">🔥</span>
-        <p>Todavía no hay ninguna racha en curso hasta este día, así que no hay ningún título por racha para repartir.</p>
-      </div>
-    `;
-  }
-  return `<div class="card-list titulos-profile-list">${profilesHtml}</div>`;
+  return buildTitulosByPlayerAllTiedWinners(ALL_RACHAS_CONFIG, getRows, "streaks");
 }
 
 // TOTAL: cada racha se calcula sobre todo el historial de días
 // cerrados del viaje.
 function renderTitulosRachaTotalReal(closedDays) {
-  const profilesHtml = statsApiTotal
-    ? renderTitulosProfilesFromApi(statsApiTotal, RACHAS_CONFIG, true)
-    : renderTitulosRachaProfiles((config) => config.totalFn(closedDays));
-  if (!profilesHtml) {
+  const positiveProfilesHtml = statsApiTotal
+    ? renderTitulosProfilesFromApi(statsApiTotal, RACHAS_CONFIG, true, "streaks")
+    : buildTitulosByPlayerAllTiedWinners(RACHAS_CONFIG, (config) => config.totalFn(closedDays), "streaks")
+        .map(renderTituloProfileCard)
+        .join("");
+  const negativeProfilesHtml = statsApiTotal
+    ? renderTitulosProfilesFromApi(statsApiTotal, NEGATIVE_RACHAS_CONFIG, true, "streaks")
+    : buildTitulosByPlayerAllTiedWinners(NEGATIVE_RACHAS_CONFIG, (config) => config.totalFn(closedDays), "streaks")
+        .map(renderTituloProfileCard)
+        .join("");
+  if (!positiveProfilesHtml && !negativeProfilesHtml) {
     return `
       <div class="stats-empty-banner">
         <span class="stats-empty-banner-icon" aria-hidden="true">🔥</span>
@@ -6658,7 +6783,13 @@ function renderTitulosRachaTotalReal(closedDays) {
       </div>
     `;
   }
-  return `<div class="card-list titulos-profile-list">${profilesHtml}</div>`;
+  return `
+    <div class="card-list titulos-profile-list">
+      ${positiveProfilesHtml}
+      ${negativeProfilesHtml ? renderStatsSectionHeading("Rachas negativas", "right") : ""}
+      ${negativeProfilesHtml}
+    </div>
+  `;
 }
 
 function renderTitulosRachaPanel() {
@@ -6667,80 +6798,25 @@ function renderTitulosRachaPanel() {
   if (!statsApiTotal) requestStatsPanelRefresh("total");
   const closedDays = getSharedStatsClosedDays();
 
-  const navDir = titulosRachaNavDir;
-  titulosRachaNavDir = 0;
-  const innerClass = navDir === 1 ? "stats-slide-next" : navDir === -1 ? "stats-slide-prev" : "";
-
-  if (titulosRachaTab === "dia") {
-    if (titulosRachaDayIndex === null || titulosRachaDayIndex >= closedDays.length) {
-      titulosRachaDayIndex = closedDays.length - 1;
-    }
-
-    const hasDays = closedDays.length > 0;
-    const currentKey = hasDays ? closedDays[titulosRachaDayIndex] : null;
-    const atFirst = !hasDays || titulosRachaDayIndex <= 0;
-    const atLast = !hasDays || titulosRachaDayIndex >= closedDays.length - 1;
-    if (hasDays && !statsApiDays[currentKey]) requestStatsPanelRefresh("day", currentKey);
-
-    panel.innerHTML = `
-      <div class="stats-panel-inner ${innerClass}">
-        <div class="stats-day-nav">
-          <button type="button" id="titulos-racha-day-prev" class="stats-day-btn" ${atFirst ? "disabled" : ""} aria-label="Día anterior">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-          </button>
-          <div class="stats-day-label">
-            ${hasDays ? `<strong>${formatDailyDate(currentKey)}</strong>` : `<strong>Sin días cerrados</strong>`}
-          </div>
-          <button type="button" id="titulos-racha-day-next" class="stats-day-btn" ${atLast ? "disabled" : ""} aria-label="Día siguiente">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-          </button>
+  const hasDays = closedDays.length > 0;
+  panel.innerHTML = `
+    <div class="stats-panel-inner">
+      <div class="stats-day-nav stats-day-nav-total">
+        <span class="stats-day-btn stats-day-btn-ghost" aria-hidden="true"></span>
+        <div class="stats-day-label">
+          <strong>Todo el viaje</strong>
+          <span class="stats-day-sub">${closedDays.length} día${closedDays.length === 1 ? "" : "s"} cerrado${closedDays.length === 1 ? "" : "s"}</span>
         </div>
-        ${
-          hasDays
-            ? ""
-            : `<div class="stats-empty-banner"><span class="stats-empty-banner-icon" aria-hidden="true">🔥</span><p>Todavía no hay días cerrados del viaje. En cuanto se registre e importe el primer día completo, vas a poder ver los títulos por racha hasta ese día acá.</p></div>`
-        }
-        ${hasDays ? renderTitulosRachaDayReal(closedDays, currentKey) : ""}
+        <span class="stats-day-btn stats-day-btn-ghost" aria-hidden="true"></span>
       </div>
-    `;
-
-    if (hasDays) {
-      document.getElementById("titulos-racha-day-prev").addEventListener("click", () => {
-        if (titulosRachaDayIndex > 0) {
-          titulosRachaDayIndex -= 1;
-          titulosRachaNavDir = -1;
-          renderTitulosRachaPanel();
-        }
-      });
-      document.getElementById("titulos-racha-day-next").addEventListener("click", () => {
-        if (titulosRachaDayIndex < closedDays.length - 1) {
-          titulosRachaDayIndex += 1;
-          titulosRachaNavDir = 1;
-          renderTitulosRachaPanel();
-        }
-      });
-    }
-  } else {
-    const hasDays = closedDays.length > 0;
-    panel.innerHTML = `
-      <div class="stats-panel-inner ${innerClass}">
-        <div class="stats-day-nav stats-day-nav-total">
-          <span class="stats-day-btn stats-day-btn-ghost" aria-hidden="true"></span>
-          <div class="stats-day-label">
-            <strong>Todo el viaje</strong>
-            <span class="stats-day-sub">${closedDays.length} día${closedDays.length === 1 ? "" : "s"} cerrado${closedDays.length === 1 ? "" : "s"}</span>
-          </div>
-          <span class="stats-day-btn stats-day-btn-ghost" aria-hidden="true"></span>
-        </div>
-        ${
-          hasDays
-            ? ""
-            : `<div class="stats-empty-banner"><span class="stats-empty-banner-icon" aria-hidden="true">🔥</span><p>Todavía no hay días cerrados del viaje. En cuanto se registre e importe el primer día completo, vas a poder ver los títulos por racha de todo el viaje acá.</p></div>`
-        }
-        ${hasDays ? renderTitulosRachaTotalReal(closedDays) : ""}
-      </div>
-    `;
-  }
+      ${
+        hasDays
+          ? ""
+          : `<div class="stats-empty-banner"><span class="stats-empty-banner-icon" aria-hidden="true">🔥</span><p>Todavía no hay días cerrados del viaje. En cuanto se registre e importe el primer día completo, vas a poder ver los títulos por racha de todo el viaje acá.</p></div>`
+      }
+      ${hasDays ? renderTitulosRachaTotalReal(closedDays) : ""}
+    </div>
+  `;
 
   animateRankingBars(panel);
   observeStatsSectionHeadings(panel);
@@ -6750,24 +6826,8 @@ function renderTitulosRachaScreen() {
   const main = document.getElementById("titulos-racha-main");
   main.innerHTML = `
     ${renderTitulosSourceNote("🔥", "#ff5470", "Estos títulos salen de la <strong>racha más larga de días consecutivos</strong> cumpliendo un hábito (ir al boliche, comer quinta comida, gastar en una categoría...): se lo lleva quien sostenga la racha más larga.")}
-    <div class="stats-tabs" role="tablist">
-      <button type="button" class="stats-tab${titulosRachaTab === "dia" ? " active" : ""}" data-tab="dia" role="tab" aria-selected="${titulosRachaTab === "dia"}">Día</button>
-      <button type="button" class="stats-tab${titulosRachaTab === "total" ? " active" : ""}" data-tab="total" role="tab" aria-selected="${titulosRachaTab === "total"}">Total</button>
-    </div>
     <div id="titulos-racha-panel"></div>
   `;
-
-  main.querySelectorAll(".stats-tab").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      if (titulosRachaTab === btn.dataset.tab) return;
-      titulosRachaTab = btn.dataset.tab;
-      renderTitulosRachaPanel();
-      main.querySelectorAll(".stats-tab").forEach((b) => {
-        b.classList.toggle("active", b === btn);
-        b.setAttribute("aria-selected", b === btn ? "true" : "false");
-      });
-    });
-  });
 
   renderTitulosRachaPanel();
 }
@@ -7003,6 +7063,8 @@ document.getElementById("btn-admin-cancel-create-player").addEventListener("clic
 });
 
 document.getElementById("btn-admin-reset-data").addEventListener("click", handleAdminResetDataClick);
+
+document.getElementById("btn-admin-generate-demo-data").addEventListener("click", handleAdminGenerateDemoDataClick);
 
 document.getElementById("card-admin-previas").addEventListener("click", () => {
   navigateBetweenScreensWithTransition("admin", "previas");

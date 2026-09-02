@@ -41,6 +41,10 @@ export type StatsResponse = {
     bathroom: RankingRow[];
     chocolates: RankingRow[];
     alcohol: RankingRow[];
+    zombie: RankingRow[];
+    alcoholSpender: RankingRow[];
+    destroyedVote: RankingRow[];
+    moneySpender: RankingRow[];
   };
 };
 

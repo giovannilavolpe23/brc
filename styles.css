@@ -926,12 +926,6 @@ img, svg {
   flex-shrink: 0;
 }
 
-.titulo-provisional-tag {
-  margin-left: 6px;
-  vertical-align: middle;
-  display: inline-block;
-}
-
 .soon-tag {
   font-size: 10px;
   font-weight: 700;

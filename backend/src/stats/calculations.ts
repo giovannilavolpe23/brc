@@ -29,7 +29,7 @@ export function calculateStats(scope: "day" | "total", data: StatsData, dateKey?
       destroyed_vote: rankingFromCounts(countBy(votes.filter((vote) => vote.surveyKey === "destroyed_vote"), "votedUserId")),
     },
     previas: previaStats(previaParticipants),
-    streaks: streakStats(scope === "day" && dateKey ? closedDays.filter((day) => day <= dateKey) : closedDays, data),
+    streaks: scope === "total" ? streakStats(closedDays, data) : emptyStreakStats(),
   };
 }
 
@@ -84,6 +84,7 @@ function streakStats(days: string[], data: StatsData): StatsResponse["streaks"] 
   const userIds = new Set<string>();
   data.dailyEntries.forEach((entry) => userIds.add(entry.userId));
   data.expenses.forEach((expense) => userIds.add(expense.userId));
+  data.surveyVotes.forEach((vote) => userIds.add(vote.votedUserId));
 
   const entriesByUserAndDay = new Map<string, DailyEntryStatsRow>();
   data.dailyEntries.forEach((entry) => entriesByUserAndDay.set(`${entry.userId}:${entry.dateKey}`, entry));
@@ -112,7 +113,78 @@ function streakStats(days: string[], data: StatsData): StatsResponse["streaks"] 
     }),
     chocolates: rowsFor((userId, day) => expenseCategoriesByUserAndDay.get(`${userId}:${day}`)?.has("Chocolates") ?? false),
     alcohol: rowsFor((userId, day) => expenseCategoriesByUserAndDay.get(`${userId}:${day}`)?.has("Alcohol") ?? false),
+    zombie: negativeStreakRows(days, userIds, (day) => dailyLeastSleepWinners(day, data.dailyEntries)),
+    alcoholSpender: negativeStreakRows(days, userIds, (day) => dailyCategorySpendingWinners(day, data.expenses, "Alcohol")),
+    destroyedVote: negativeStreakRows(days, userIds, (day) => dailyDestroyedVoteWinners(day, data.surveyVotes)),
+    moneySpender: negativeStreakRows(days, userIds, (day) => dailyMoneySpendingWinners(day, data.expenses)),
   };
+}
+
+function emptyStreakStats(): StatsResponse["streaks"] {
+  return {
+    boliche: [],
+    fifthMeal: [],
+    bathroom: [],
+    chocolates: [],
+    alcohol: [],
+    zombie: [],
+    alcoholSpender: [],
+    destroyedVote: [],
+    moneySpender: [],
+  };
+}
+
+function negativeStreakRows(
+  days: string[],
+  userIds: Set<string>,
+  winnersForDay: (day: string) => Set<string>
+): RankingRow[] {
+  return sortRankingRows(
+    Array.from(userIds)
+      .map((userId) => ({
+        userId,
+        value: longestStreak(days, (day) => winnersForDay(day).has(userId)),
+      }))
+      .filter((row) => row.value > 0)
+  );
+}
+
+function dailyLeastSleepWinners(day: string, entries: DailyEntryStatsRow[]): Set<string> {
+  const rows = entries
+    .filter((entry) => entry.dateKey === day)
+    .map((entry) => ({ userId: entry.userId, value: totalSleepDurationMinutes(entry) }))
+    .filter((row): row is { userId: string; value: number } => row.value !== null);
+  return winnersByValue(rows, "min");
+}
+
+function dailyCategorySpendingWinners(day: string, expenses: ExpenseRow[], category: string): Set<string> {
+  const rows = sumBy(
+    expenses.filter((expense) => expense.dateKey === day && expense.category === category),
+    "userId",
+    (expense) => expense.amount
+  );
+  return winnersByValue(rows, "max");
+}
+
+function dailyDestroyedVoteWinners(day: string, votes: SurveyVoteStatsRow[]): Set<string> {
+  const rows = rankingFromCounts(countBy(votes.filter((vote) => vote.dateKey === day && vote.surveyKey === "destroyed_vote"), "votedUserId"));
+  return winnersByValue(rows, "max");
+}
+
+function dailyMoneySpendingWinners(day: string, expenses: ExpenseRow[]): Set<string> {
+  const rows = sumBy(
+    expenses.filter((expense) => expense.dateKey === day),
+    "userId",
+    (expense) => expense.amount
+  );
+  return winnersByValue(rows, "max");
+}
+
+function winnersByValue(rows: RankingRow[], mode: "max" | "min"): Set<string> {
+  if (!rows.length) return new Set();
+  const values = rows.map((row) => row.value);
+  const target = mode === "max" ? Math.max(...values) : Math.min(...values);
+  return new Set(rows.filter((row) => row.value === target).map((row) => row.userId));
 }
 
 function collectClosedDays(data: StatsData, upToDateKey?: string): string[] {

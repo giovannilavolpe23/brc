@@ -19,6 +19,26 @@ export type DevResetRepository = {
 };
 
 type ResetClient = Pick<PoolClient, "query" | "release">;
+type ResetQueryClient = Pick<PoolClient, "query">;
+
+export async function deleteDevDataWithClient(client: ResetQueryClient): Promise<DevResetSummary> {
+  const surveyVotes = await client.query("delete from survey_votes");
+  const previaParticipants = await client.query("delete from previa_participants");
+  const previaProducts = await client.query("delete from previa_products");
+  const previas = await client.query("delete from previas");
+  const dailyEntries = await client.query("delete from daily_entries");
+  const moneyMovements = await client.query("delete from money_movements");
+
+  return {
+    moneyMovements: moneyMovements.rowCount ?? 0,
+    dailyEntries: dailyEntries.rowCount ?? 0,
+    surveyVotes: surveyVotes.rowCount ?? 0,
+    previas: previas.rowCount ?? 0,
+    previaProducts: previaProducts.rowCount ?? 0,
+    previaParticipants: previaParticipants.rowCount ?? 0,
+    initialBalances: 0,
+  };
+}
 
 export function createPostgresDevResetRepository(
   connect: () => Promise<ResetClient> = () => pool.connect()
@@ -29,24 +49,11 @@ export function createPostgresDevResetRepository(
       try {
         await client.query("begin");
 
-        const surveyVotes = await client.query("delete from survey_votes");
-        const previaParticipants = await client.query("delete from previa_participants");
-        const previaProducts = await client.query("delete from previa_products");
-        const previas = await client.query("delete from previas");
-        const dailyEntries = await client.query("delete from daily_entries");
-        const moneyMovements = await client.query("delete from money_movements");
+        const summary = await deleteDevDataWithClient(client);
 
         await client.query("commit");
 
-        return {
-          moneyMovements: moneyMovements.rowCount ?? 0,
-          dailyEntries: dailyEntries.rowCount ?? 0,
-          surveyVotes: surveyVotes.rowCount ?? 0,
-          previas: previas.rowCount ?? 0,
-          previaProducts: previaProducts.rowCount ?? 0,
-          previaParticipants: previaParticipants.rowCount ?? 0,
-          initialBalances: 0,
-        };
+        return summary;
       } catch (error) {
         await client.query("rollback");
         throw error;

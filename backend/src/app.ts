@@ -4,6 +4,7 @@ import express from "express";
 import { requireAuth } from "./auth/middleware";
 import { authRouter } from "./auth/routes";
 import { toPublicUser } from "./auth/types";
+import { adminDemoDataRouter } from "./admin/demo-data";
 import { adminDevRouter } from "./admin/dev-reset";
 import { adminUsersRouter } from "./admin/users";
 import { env } from "./config/env";
@@ -24,6 +25,7 @@ app.use(
 app.use(express.json());
 
 app.use("/auth", authRouter);
+app.use("/admin/dev", adminDemoDataRouter);
 app.use("/admin/dev", adminDevRouter);
 app.use("/admin", adminUsersRouter);
 app.use("/money", moneyRouter);

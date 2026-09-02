@@ -356,6 +356,21 @@
     <main class="home-content">
       <div class="section-label">Datos</div>
       <div class="daily-section">
+        <h3 class="daily-section-title">Generar datos de prueba</h3>
+        <p class="export-hint">Completa el viaje con datos aleatorios para probar estadísticas y logros.</p>
+        <div class="field">
+          <label class="field-label" for="admin-demo-nights">Noches a simular</label>
+          <select id="admin-demo-nights" class="field-input">
+            <option value="6">6 noches</option>
+            <option value="7" selected>7 noches</option>
+          </select>
+        </div>
+        <button type="button" id="btn-admin-generate-demo-data" class="sheet-submit">Generar datos</button>
+        <p class="daily-save-msg" id="admin-generate-demo-data-msg"></p>
+        <p class="sheet-error" id="admin-generate-demo-data-error"></p>
+      </div>
+
+      <div class="daily-section">
         <p class="export-hint">Generá un único código con TODOS los datos actuales de la app (jugadores, gastos, ganancias, saldo inicial, registros diarios, previas y más) para guardarlo como backup. No modifica ningún dato existente.</p>
         <button type="button" id="btn-export-backup" class="sheet-submit">Exportar backup</button>
         <textarea id="backup-code-box" class="export-code-box" readonly rows="4" hidden></textarea>
