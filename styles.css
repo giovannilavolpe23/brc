@@ -1459,6 +1459,9 @@ img, svg {
 
 .titulos-king-section {
   margin-bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .titulos-king-card {
@@ -1547,65 +1550,6 @@ img, svg {
   font-size: 13px;
   font-weight: 800;
   color: var(--text-dim);
-}
-
-.titulos-king-ties {
-  position: relative;
-  margin-top: 15px;
-  padding-top: 13px;
-  border-top: 1px solid color-mix(in srgb, #ffd166 28%, var(--border));
-}
-
-.titulos-king-ties > span {
-  display: block;
-  margin-bottom: 9px;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-
-.titulos-king-tie-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.titulos-king-tie {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  max-width: 100%;
-  padding: 5px 9px 5px 5px;
-  border-radius: 999px;
-  background: color-mix(in srgb, #ffd166 10%, var(--surface-2));
-  border: 1px solid color-mix(in srgb, #ffd166 28%, var(--border));
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text);
-}
-
-.titulos-king-tie span:last-child {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.titulos-king-tie-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-display);
-  font-size: 9px;
-  font-weight: 800;
-  color: #10233a;
-  overflow: hidden;
 }
 
 .titulos-king-empty {
@@ -2002,6 +1946,74 @@ img, svg {
   gap: 10px;
 }
 
+.titulo-badge-list .stats-section-heading {
+  margin: 4px 0 2px;
+}
+
+.titulo-badge-list .stats-section-heading:first-child {
+  margin-top: 0;
+}
+
+.titulo-badge-list .stats-section-heading-text {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+.titulo-blocked-card {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 15px 14px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-2) 78%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--text-faint) 32%, var(--border));
+  opacity: 0.58;
+  animation: statsFadeUp 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.titulo-blocked-icon {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--text-faint);
+  background: color-mix(in srgb, var(--text-faint) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-faint) 26%, transparent);
+}
+
+.titulo-blocked-copy {
+  min-width: 0;
+}
+
+.titulo-blocked-kicker {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.titulo-blocked-copy h3 {
+  margin: 0 0 3px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  line-height: 1.25;
+  color: var(--text-dim);
+}
+
+.titulo-blocked-copy p {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--text-faint);
+}
+
 /* Cada insignia se siente como un "trofeo" de escritorio: ícono
    dentro de un medallón con degradé/glow del color propio del
    título (mismo acento que ya tenía en Estadísticas), sin barras ni
@@ -2136,7 +2148,8 @@ img, svg {
   .king-almost-column,
   .king-profile-empty,
   .titulos-king-card,
-  .titulo-profile-card {
+  .titulo-profile-card,
+  .titulo-blocked-card {
     opacity: 1;
     animation: none !important;
   }
@@ -3902,24 +3915,13 @@ img, svg {
   color: #9a6a00;
 }
 
-.screen.admin-frost .titulos-king-copy h2,
-.screen.admin-frost .titulos-king-tie {
+.screen.admin-frost .titulos-king-copy h2 {
   color: #10233a;
 }
 
 .screen.admin-frost .titulos-king-copy p,
-.screen.admin-frost .titulos-king-ties > span,
 .screen.admin-frost .titulos-king-empty p {
   color: #4a5b72;
-}
-
-.screen.admin-frost .titulos-king-ties {
-  border-top-color: rgba(255, 209, 102, 0.36);
-}
-
-.screen.admin-frost .titulos-king-tie {
-  background: rgba(255, 209, 102, 0.12);
-  border-color: rgba(255, 209, 102, 0.34);
 }
 
 .screen.admin-frost .king-profile-hero-card {
@@ -4895,7 +4897,6 @@ html[data-theme="dark"] .screen.admin-frost .daily-total-sleep strong,
 html[data-theme="dark"] .screen.admin-frost .titulos-king-copy h2,
 html[data-theme="dark"] .screen.admin-frost .king-profile-hero-card h2,
 html[data-theme="dark"] .screen.admin-frost .king-almost-section h3,
-html[data-theme="dark"] .screen.admin-frost .titulos-king-tie,
 html[data-theme="dark"] .screen.admin-frost .titulos-source-note strong {
   color: #edf7ff;
   text-shadow: none;
@@ -5088,7 +5089,6 @@ html[data-theme="dark"] .screen.admin-frost .titulo-profile-header {
 
 html[data-theme="dark"] .screen.admin-frost .titulo-profile-avatar,
 html[data-theme="dark"] .screen.admin-frost .titulos-king-avatar,
-html[data-theme="dark"] .screen.admin-frost .titulos-king-tie-avatar,
 html[data-theme="dark"] .screen.admin-frost .king-profile-avatar,
 html[data-theme="dark"] .screen.admin-frost .king-almost-avatar {
   color: #061522;
@@ -5114,7 +5114,6 @@ html[data-theme="dark"] .screen.admin-frost .titulos-king-copy p,
 html[data-theme="dark"] .screen.admin-frost .king-profile-hero-card p,
 html[data-theme="dark"] .screen.admin-frost .king-profile-dominant,
 html[data-theme="dark"] .screen.admin-frost .king-almost-pedestal span,
-html[data-theme="dark"] .screen.admin-frost .titulos-king-ties > span,
 html[data-theme="dark"] .screen.admin-frost .titulos-king-empty p,
 html[data-theme="dark"] .screen.admin-frost .king-profile-empty p,
 html[data-theme="dark"] .screen.admin-frost .king-almost-empty,
@@ -5132,15 +5131,6 @@ html[data-theme="dark"] .screen.admin-frost .king-almost-pedestal {
   background: linear-gradient(180deg, rgba(19, 52, 74, 0.82) 0%, rgba(58, 48, 22, 0.5) 100%);
   border-color: rgba(127, 200, 231, 0.22);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 13px 26px -24px rgba(0, 0, 0, 0.82);
-}
-
-html[data-theme="dark"] .screen.admin-frost .titulos-king-ties {
-  border-top-color: rgba(255, 209, 102, 0.22);
-}
-
-html[data-theme="dark"] .screen.admin-frost .titulos-king-tie {
-  background: rgba(255, 209, 102, 0.11);
-  border-color: rgba(255, 209, 102, 0.26);
 }
 
 html[data-theme="dark"] .screen.admin-frost .titulo-badge {

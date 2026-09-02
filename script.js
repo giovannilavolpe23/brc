@@ -5703,10 +5703,20 @@ function renderTituloBadge({ config, winner }) {
   `;
 }
 
+function renderTituloRachaGroups(titles) {
+  const positiveTitles = titles.filter((title) => title.config && title.config.rachaType === "positive");
+  const negativeTitles = titles.filter((title) => title.config && title.config.rachaType === "negative");
+  return `
+    ${positiveTitles.length ? `${renderStatsSectionHeading("Rachas positivas", "left")}${positiveTitles.map(renderTituloBadge).join("")}` : ""}
+    ${negativeTitles.length ? `${renderStatsSectionHeading("Rachas negativas", "right")}${negativeTitles.map(renderTituloBadge).join("")}` : ""}
+  `;
+}
+
 // Perfil de un jugador: nombre + avatar compartido con el resto de la
 // app y, debajo, la lista de títulos que ganó.
 function renderTituloProfileCard({ participant, titles }) {
-  const badgesHtml = titles.map(renderTituloBadge).join("");
+  const isRachaProfile = titles.length > 0 && titles.every((title) => title.group === "streaks" && title.config && title.config.rachaType);
+  const badgesHtml = isRachaProfile ? renderTituloRachaGroups(titles) : titles.map(renderTituloBadge).join("");
   return `
     <article class="titulo-profile-card">
       <div class="titulo-profile-header">
@@ -5771,12 +5781,20 @@ function titulosApiRows(stats, config) {
   }));
 }
 
+function shouldBlockDestroyedVoteStreak(config, rows) {
+  if (!config || config.key !== "streakDestroyedVote" || !rows.length) return false;
+  const topValue = rows[0].value;
+  if (topValue !== 1) return false;
+  return rows.filter((row) => row.value === topValue).length > 1;
+}
+
 function buildTitulosProfilesFromApi(stats, configs, allTied, group = "stats") {
   const wonByUserId = new Map();
 
   configs.forEach((config) => {
     const rows = titulosApiRows(stats, config);
     if (!rows.length) return;
+    if (shouldBlockDestroyedVoteStreak(config, rows)) return;
     const topValue = rows[0].value;
     const winners = allTied ? rows.filter((row) => row.value === topValue) : [rows[0]];
     winners.forEach((winner) => {
@@ -5868,30 +5886,48 @@ function groupKingProfileTitles(titles) {
   return groupOrder.map((group) => titles.filter((title) => title.group === group)).filter((groupTitles) => groupTitles.length);
 }
 
-function sortedAlmostKings(profiles, king) {
-  const kingCount = king ? king.count : 0;
-  const kingKey = king ? achievementParticipantKey(king.participant) : "";
+function participantOrderIndex(participant) {
+  const key = achievementParticipantKey(participant);
+  const index = PARTICIPANTS.findIndex((candidate) => achievementParticipantKey(candidate) === key);
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+}
+
+function sortAchievementRowsStable(rows) {
+  return rows.slice().sort((a, b) => {
+    const orderDiff = participantOrderIndex(a.participant) - participantOrderIndex(b.participant);
+    if (orderDiff !== 0) return orderDiff;
+    return achievementParticipantKey(a.participant).localeCompare(achievementParticipantKey(b.participant));
+  });
+}
+
+function sortedAlmostKings(profiles, result) {
+  const kingCount = result ? result.maxCount : 0;
+  const kingKeys = new Set(result ? result.kings.map((king) => achievementParticipantKey(king.participant)) : []);
   return profiles
     .map((profile) => ({
       participant: profile.participant,
       count: profile.titles.length,
     }))
-    .filter((row) => row.count > 0 && row.count < kingCount && achievementParticipantKey(row.participant) !== kingKey)
+    .filter((row) => row.count > 0 && row.count < kingCount && !kingKeys.has(achievementParticipantKey(row.participant)))
     .sort((a, b) => {
       if (b.count !== a.count) return b.count - a.count;
+      const orderDiff = participantOrderIndex(a.participant) - participantOrderIndex(b.participant);
+      if (orderDiff !== 0) return orderDiff;
       return achievementParticipantKey(a.participant).localeCompare(achievementParticipantKey(b.participant));
     })
     .slice(0, 5);
 }
 
-function selectKingOfBariloche(contenders, pickWinner = randomItem) {
+function selectKingOfBariloche(contenders) {
   if (!contenders.length) return null;
   const maxCount = Math.max(...contenders.map((row) => row.count));
   if (maxCount <= 0) return null;
-  const tied = contenders.filter((row) => row.count === maxCount);
+  const kings = sortAchievementRowsStable(contenders.filter((row) => row.count === maxCount));
   return {
-    winner: pickWinner(tied),
-    tied,
+    winner: kings[0],
+    kings,
+    tied: kings,
+    maxCount,
   };
 }
 
@@ -5907,7 +5943,7 @@ function buildKingOfBariloche() {
 function resolveKingProfileWinner(result, preferredUserKey) {
   if (!result) return null;
   if (!preferredUserKey) return result.winner;
-  return result.tied.find((row) => achievementParticipantKey(row.participant) === preferredUserKey) || result.winner;
+  return result.kings.find((row) => achievementParticipantKey(row.participant) === preferredUserKey) || result.winner;
 }
 
 function renderKingProfileTitleGroups(titles) {
@@ -5962,51 +5998,36 @@ function renderKingOfBarilocheSection(result = buildKingOfBariloche()) {
     `;
   }
 
-  const { winner, tied } = result;
-  const tiedOthers = tied.filter((row) => row !== winner);
-  const countText = `${winner.count} logro${winner.count === 1 ? "" : "s"}`;
-  const tieText = tiedOthers.length
-    ? `
-      <div class="titulos-king-ties">
-        <span>También empatado${tiedOthers.length === 1 ? "" : "s"}</span>
-        <div class="titulos-king-tie-list">
-          ${tiedOthers
-            .map(
-              (row) => `
-                <span class="titulos-king-tie">
-                  ${renderPlayerAvatarHtml(row.participant, "titulos-king-tie-avatar")}
-                  <span>${escapeHtml(row.participant.name)}</span>
-                </span>
-              `
-            )
-            .join("")}
-        </div>
-      </div>
-    `
-    : "";
-
   return `
     <section class="titulos-king-section">
-      <article class="titulos-king-card">
-        <span class="titulos-king-kicker">REY DE BARILOCHE</span>
-        <span class="titulos-king-crown" aria-hidden="true">♕</span>
-        <div class="titulos-king-main">
-          ${renderPlayerAvatarHtml(winner.participant, "titulos-king-avatar")}
-          <div class="titulos-king-copy">
-            <h2>${escapeHtml(winner.participant.name)}</h2>
-            <p>${countText}</p>
-          </div>
-        </div>
-        ${tieText}
-      </article>
+      ${result.kings
+        .map((king) => {
+          const countText = `${king.count} logro${king.count === 1 ? "" : "s"}`;
+          const kingKey = achievementParticipantKey(king.participant);
+          return `
+            <article class="titulos-king-card" data-king-key="${escapeHtml(kingKey)}">
+              <span class="titulos-king-kicker">REY DE BARILOCHE</span>
+              <span class="titulos-king-crown" aria-hidden="true">♕</span>
+              <div class="titulos-king-main">
+                ${renderPlayerAvatarHtml(king.participant, "titulos-king-avatar")}
+                <div class="titulos-king-copy">
+                  <h2>${escapeHtml(king.participant.name)}</h2>
+                  <p>${countText}</p>
+                </div>
+              </div>
+            </article>
+          `;
+        })
+        .join("")}
     </section>
   `;
 }
 
-function openKingProfileFromCard() {
+function openKingProfileFromCard(kingKey) {
   const result = displayedKingOfBariloche || buildKingOfBariloche();
-  if (!result || !result.winner) return;
-  activeKingProfileUserKey = achievementParticipantKey(result.winner.participant);
+  if (!result || !result.kings || !result.kings.length) return;
+  const selected = result.kings.find((king) => achievementParticipantKey(king.participant) === kingKey) || result.kings[0];
+  activeKingProfileUserKey = achievementParticipantKey(selected.participant);
   navigateBetweenScreensWithTransition("titulos", "titulos-rey");
 }
 
@@ -6018,18 +6039,20 @@ function renderTitulosHub() {
   if (existing) existing.remove();
   displayedKingOfBariloche = buildKingOfBariloche();
   main.insertAdjacentHTML("afterbegin", renderKingOfBarilocheSection(displayedKingOfBariloche));
-  const kingCard = main.querySelector(".titulos-king-section .titulos-king-card");
-  if (kingCard && displayedKingOfBariloche) {
+  const kingCards = main.querySelectorAll(".titulos-king-section .titulos-king-card:not(.titulos-king-card-empty)");
+  kingCards.forEach((kingCard) => {
+    if (!displayedKingOfBariloche) return;
+    const kingKey = kingCard.dataset.kingKey;
     kingCard.setAttribute("role", "button");
     kingCard.setAttribute("tabindex", "0");
     kingCard.setAttribute("aria-label", "Abrir perfil del Rey de Bariloche");
-    kingCard.addEventListener("click", openKingProfileFromCard);
+    kingCard.addEventListener("click", () => openKingProfileFromCard(kingKey));
     kingCard.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" && event.key !== " ") return;
       event.preventDefault();
-      openKingProfileFromCard();
+      openKingProfileFromCard(kingKey);
     });
-  }
+  });
 }
 
 function renderKingProfileScreen() {
@@ -6061,7 +6084,7 @@ function renderKingProfileScreen() {
 
   const titleCountText = `${winner.count} logro${winner.count === 1 ? "" : "s"}`;
   const dominantStat = dominantKingStatText(winner.titles);
-  const almostKingsHtml = renderAlmostKings(sortedAlmostKings(profiles, winner));
+  const almostKingsHtml = renderAlmostKings(sortedAlmostKings(profiles, result));
 
   main.innerHTML = `
     <section class="king-profile-hero-card">
@@ -6344,6 +6367,7 @@ function buildTitulosByPlayerAllTiedWinners(configs, getRows, group) {
   configs.forEach((config) => {
     const rows = getRows(config);
     if (!rows.length) return;
+    if (shouldBlockDestroyedVoteStreak(config, rows)) return;
     const topValue = rows[0].value;
     const winners = rows.filter((row) => row.value === topValue);
     winners.forEach((winner) => {
@@ -6678,6 +6702,7 @@ function playerWonMoneySpending(player, dateKey) {
 const RACHAS_CONFIG = [
   {
     key: "streakBoliche",
+    rachaType: "positive",
     icon: "🕺",
     accent: "#ff5470",
     title: "Rey de la noche",
@@ -6686,6 +6711,7 @@ const RACHAS_CONFIG = [
   },
   {
     key: "streakFifthMeal",
+    rachaType: "positive",
     icon: "🍔",
     accent: "#ff9f1c",
     title: "Racha de putogor",
@@ -6694,6 +6720,7 @@ const RACHAS_CONFIG = [
   },
   {
     key: "streakBathroom",
+    rachaType: "positive",
     icon: "🚽",
     accent: "#06d6a0",
     title: "Intestino saludable",
@@ -6702,6 +6729,7 @@ const RACHAS_CONFIG = [
   },
   {
     key: "streakChocolates",
+    rachaType: "positive",
     icon: "🍫",
     accent: "#c77dff",
     title: "Racha dulce",
@@ -6710,6 +6738,7 @@ const RACHAS_CONFIG = [
   },
   {
     key: "streakAlcohol",
+    rachaType: "positive",
     icon: "🍷",
     accent: "#118ab2",
     title: "Racha alcohólica",
@@ -6721,6 +6750,7 @@ const RACHAS_CONFIG = [
 const NEGATIVE_RACHAS_CONFIG = [
   {
     key: "streakZombie",
+    rachaType: "negative",
     icon: "🧟",
     accent: "#06d6a0",
     title: "Racha zombi",
@@ -6729,6 +6759,7 @@ const NEGATIVE_RACHAS_CONFIG = [
   },
   {
     key: "streakAlcoholSpender",
+    rachaType: "negative",
     icon: "🍷",
     accent: "#118ab2",
     title: "Racha de realizar análisis de estadísticas del rendimiento del hígado",
@@ -6737,6 +6768,7 @@ const NEGATIVE_RACHAS_CONFIG = [
   },
   {
     key: "streakDestroyedVote",
+    rachaType: "negative",
     icon: "🥴",
     accent: "#c77dff",
     title: "Racha de ser el Registro Nacional de Hidratación Alternativa",
@@ -6745,6 +6777,7 @@ const NEGATIVE_RACHAS_CONFIG = [
   },
   {
     key: "streakMoneySpender",
+    rachaType: "negative",
     icon: "💸",
     accent: "#ffd166",
     title: "Racha de billetera sin fondo",
@@ -6762,20 +6795,47 @@ function buildTitulosByPlayerFromRachas(getRows) {
   return buildTitulosByPlayerAllTiedWinners(ALL_RACHAS_CONFIG, getRows, "streaks");
 }
 
+function destroyedVoteStreakConfig() {
+  return NEGATIVE_RACHAS_CONFIG.find((config) => config.key === "streakDestroyedVote");
+}
+
+function isDestroyedVoteStreakBlockedFromApi(stats) {
+  const config = destroyedVoteStreakConfig();
+  return !!(config && shouldBlockDestroyedVoteStreak(config, titulosApiRows(stats, config)));
+}
+
+function isDestroyedVoteStreakBlockedFromLocal(closedDays) {
+  const config = destroyedVoteStreakConfig();
+  return !!(config && shouldBlockDestroyedVoteStreak(config, config.totalFn(closedDays)));
+}
+
+function renderBlockedDestroyedVoteStreak() {
+  const config = destroyedVoteStreakConfig();
+  if (!config) return "";
+  return `
+    <article class="titulo-blocked-card">
+      <div class="titulo-blocked-icon" aria-hidden="true">🔒</div>
+      <div class="titulo-blocked-copy">
+        <span class="titulo-blocked-kicker">Título bloqueado</span>
+        <h3>${config.title}</h3>
+        <p>${config.caption}</p>
+      </div>
+    </article>
+  `;
+}
+
 // TOTAL: cada racha se calcula sobre todo el historial de días
 // cerrados del viaje.
 function renderTitulosRachaTotalReal(closedDays) {
-  const positiveProfilesHtml = statsApiTotal
-    ? renderTitulosProfilesFromApi(statsApiTotal, RACHAS_CONFIG, true, "streaks")
-    : buildTitulosByPlayerAllTiedWinners(RACHAS_CONFIG, (config) => config.totalFn(closedDays), "streaks")
-        .map(renderTituloProfileCard)
-        .join("");
-  const negativeProfilesHtml = statsApiTotal
-    ? renderTitulosProfilesFromApi(statsApiTotal, NEGATIVE_RACHAS_CONFIG, true, "streaks")
-    : buildTitulosByPlayerAllTiedWinners(NEGATIVE_RACHAS_CONFIG, (config) => config.totalFn(closedDays), "streaks")
-        .map(renderTituloProfileCard)
-        .join("");
-  if (!positiveProfilesHtml && !negativeProfilesHtml) {
+  const profiles = statsApiTotal
+    ? buildTitulosProfilesFromApi(statsApiTotal, ALL_RACHAS_CONFIG, true, "streaks")
+    : buildTitulosByPlayerAllTiedWinners(ALL_RACHAS_CONFIG, (config) => config.totalFn(closedDays), "streaks");
+  const profilesHtml = profiles.map(renderTituloProfileCard).join("");
+  const blockedHtml = statsApiTotal
+    ? isDestroyedVoteStreakBlockedFromApi(statsApiTotal) ? renderBlockedDestroyedVoteStreak() : ""
+    : isDestroyedVoteStreakBlockedFromLocal(closedDays) ? renderBlockedDestroyedVoteStreak() : "";
+
+  if (!profilesHtml && !blockedHtml) {
     return `
       <div class="stats-empty-banner">
         <span class="stats-empty-banner-icon" aria-hidden="true">🔥</span>
@@ -6785,9 +6845,8 @@ function renderTitulosRachaTotalReal(closedDays) {
   }
   return `
     <div class="card-list titulos-profile-list">
-      ${positiveProfilesHtml}
-      ${negativeProfilesHtml ? renderStatsSectionHeading("Rachas negativas", "right") : ""}
-      ${negativeProfilesHtml}
+      ${profilesHtml}
+      ${blockedHtml}
     </div>
   `;
 }
