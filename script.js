@@ -30,6 +30,54 @@ const ORIGINAL_PARTICIPANT_IDS = new Set(DEFAULT_PARTICIPANTS.map((participant) 
 
 const AVATAR_COLORS = ["#ff9f1c", "#4cc9f0", "#c77dff", "#ff5470", "#7bdff2", "#ffd166"];
 
+const APPEARANCE_PRESETS = [
+  { key: "aurora", label: "Aurora", primaryColor: "#4CC9F0", secondaryColor: "#7B61FF" },
+  { key: "glaciar", label: "Glaciar", primaryColor: "#38BDF8", secondaryColor: "#A5F3FC" },
+  { key: "medianoche", label: "Medianoche", primaryColor: "#2563EB", secondaryColor: "#1E1B4B" },
+  { key: "neon_frio", label: "Neón frío", primaryColor: "#22D3EE", secondaryColor: "#6366F1" },
+  { key: "violeta_polar", label: "Violeta Polar", primaryColor: "#8B5CF6", secondaryColor: "#C084FC" },
+  { key: "rosa_hielo", label: "Rosa Hielo", primaryColor: "#EC4899", secondaryColor: "#A78BFA" },
+  { key: "aurora_verde", label: "Aurora Verde", primaryColor: "#2DD4BF", secondaryColor: "#22C55E" },
+  { key: "oceano", label: "Océano", primaryColor: "#0EA5E9", secondaryColor: "#14B8A6" },
+  { key: "royal", label: "Royal", primaryColor: "#4F46E5", secondaryColor: "#9333EA" },
+  { key: "fuego_frio", label: "Fuego Frío", primaryColor: "#EF4444", secondaryColor: "#8B5CF6" },
+  { key: "cyber_ice", label: "Cyber Ice", primaryColor: "#06B6D4", secondaryColor: "#3B82F6" },
+  { key: "esmeralda_nocturna", label: "Esmeralda Nocturna", primaryColor: "#10B981", secondaryColor: "#0F766E" },
+];
+
+const DEFAULT_APPEARANCE_DRAFT = {
+  preset: "aurora",
+  primaryColor: "#4CC9F0",
+  secondaryColor: "#7B61FF",
+  gradientDirection: "135deg",
+  intensity: "normal",
+  visualStyle: "gradient",
+  avatarBorderStyle: "gradient",
+};
+
+const APPEARANCE_DIRECTIONS = [
+  { key: "135deg", label: "Diagonal izquierda" },
+  { key: "45deg", label: "Diagonal derecha" },
+  { key: "180deg", label: "Vertical" },
+  { key: "90deg", label: "Horizontal" },
+];
+const APPEARANCE_INTENSITIES = [
+  { key: "soft", label: "Suave" },
+  { key: "normal", label: "Normal" },
+  { key: "strong", label: "Fuerte" },
+];
+const APPEARANCE_VISUAL_STYLES = [
+  { key: "gradient", label: "Gradiente limpio" },
+  { key: "glass", label: "Glass tintado" },
+  { key: "glow", label: "Glow sutil" },
+];
+const APPEARANCE_AVATAR_BORDERS = [
+  { key: "solid", label: "Sólido" },
+  { key: "gradient", label: "Gradiente" },
+  { key: "none", label: "Sin borde" },
+];
+const APPEARANCE_HEX_RE = /^#[0-9A-F]{6}$/i;
+
 /* -----------------------------------------------------------
    HERRAMIENTA DE TESTING — simulación de fecha (day())
    -----------------------------------------------------------
@@ -98,6 +146,7 @@ const STORAGE_KEYS = {
   adminPlayers: "adminPlayers",
   adminPrevias: "adminPrevias",
   localPrevias: (id) => `localPrevias:${id}`,
+  userAppearances: "userAppearances",
 };
 
 const DEFAULT_API_BASE_URL =
@@ -128,6 +177,10 @@ let apiSyncIndicatorTimer = null;
 let apiSyncJustSynced = false;
 let apiSyncIsProcessing = false;
 let homeThemeGreetingOverride = null;
+let personalizationDraft = null;
+let personalizationSaving = false;
+let personalizationMessage = "";
+let personalizationError = "";
 
 function getSavedThemePreference() {
   const saved = localStorage.getItem(STORAGE_KEYS.themePreference);
@@ -504,12 +557,14 @@ function canRegisterLocalPrevia(id) {
 }
 
 function participantFromApiUser(user) {
+  cachePublicUserAppearance(user);
   return {
     id: user.legacyId,
     apiId: user.id,
     name: user.displayName,
     isAdmin: user.role === "admin",
     canRegisterPrevias: Array.isArray(user.permissions) && user.permissions.includes("create_previa"),
+    appearance: normalizeAppearance(user.appearance),
   };
 }
 
@@ -534,6 +589,7 @@ async function refreshParticipantsFromApi() {
     const payload = await response.json();
     if (!payload || !Array.isArray(payload.users)) return false;
 
+    payload.users.forEach(cachePublicUserAppearance);
     replaceParticipantsFromApi(payload.users);
     renderParticipantGrid();
     if (screens.admin && screens.admin.classList.contains("active")) renderAdmin();
@@ -541,6 +597,9 @@ async function refreshParticipantsFromApi() {
     if ((screens.previas && screens.previas.classList.contains("active")) || (screens["previas-jere"] && screens["previas-jere"].classList.contains("active"))) {
       renderPreviasScreen();
     }
+    if (screens.stats && screens.stats.classList.contains("active")) renderStatsPanel();
+    refreshAchievementScreens();
+    if (screens.personalizacion && screens.personalizacion.classList.contains("active")) renderPersonalizationScreen();
     return true;
   } catch (e) {
     return false;
@@ -617,6 +676,13 @@ async function loginApi(username, password) {
   if (typeof data.accessToken === "string" && data.accessToken) {
     localStorage.setItem(STORAGE_KEYS.apiAccessToken, data.accessToken);
   }
+  if (data.user) {
+    cachePublicUserAppearance(data.user);
+    const participant = participantFromApiUser(data.user);
+    const index = PARTICIPANTS.findIndex((p) => p.id === participant.id);
+    if (index >= 0) PARTICIPANTS[index] = { ...PARTICIPANTS[index], ...participant };
+    else PARTICIPANTS.push(participant);
+  }
   return data;
 }
 
@@ -670,6 +736,123 @@ function colorForId(id) {
   return AVATAR_COLORS[idx];
 }
 
+function normalizeHexColor(value) {
+  if (typeof value !== "string" || !APPEARANCE_HEX_RE.test(value.trim())) return null;
+  return value.trim().toUpperCase();
+}
+
+function normalizeAppearance(appearance) {
+  if (!appearance || typeof appearance !== "object") return null;
+  const presetKeys = new Set([...APPEARANCE_PRESETS.map((preset) => preset.key), "custom"]);
+  const directionKeys = new Set(APPEARANCE_DIRECTIONS.map((item) => item.key));
+  const intensityKeys = new Set(APPEARANCE_INTENSITIES.map((item) => item.key));
+  const styleKeys = new Set(APPEARANCE_VISUAL_STYLES.map((item) => item.key));
+  const borderKeys = new Set(APPEARANCE_AVATAR_BORDERS.map((item) => item.key));
+  const preset = presetKeys.has(appearance.preset) ? appearance.preset : null;
+  const primaryColor = normalizeHexColor(appearance.primaryColor);
+  const secondaryColor = normalizeHexColor(appearance.secondaryColor);
+  if (!preset || !primaryColor || !secondaryColor) return null;
+  return {
+    preset,
+    primaryColor,
+    secondaryColor,
+    gradientDirection: directionKeys.has(appearance.gradientDirection) ? appearance.gradientDirection : "135deg",
+    intensity: intensityKeys.has(appearance.intensity) ? appearance.intensity : "normal",
+    visualStyle: styleKeys.has(appearance.visualStyle) ? appearance.visualStyle : "gradient",
+    avatarBorderStyle: borderKeys.has(appearance.avatarBorderStyle) ? appearance.avatarBorderStyle : "gradient",
+  };
+}
+
+function getAppearanceCache() {
+  const raw = localStorage.getItem(STORAGE_KEYS.userAppearances);
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveAppearanceCache(cache) {
+  localStorage.setItem(STORAGE_KEYS.userAppearances, JSON.stringify(cache));
+}
+
+function cacheUserAppearanceKeys(keys, appearance) {
+  const cache = getAppearanceCache();
+  const normalized = normalizeAppearance(appearance);
+  keys.filter(Boolean).forEach((key) => {
+    cache[String(key).toLowerCase()] = normalized;
+  });
+  saveAppearanceCache(cache);
+}
+
+function cachePublicUserAppearance(user) {
+  if (!user) return;
+  cacheUserAppearanceKeys([user.id, user.legacyId], user.appearance || null);
+}
+
+function resolvePlayerAppearance(player) {
+  const direct = normalizeAppearance(player && player.appearance);
+  if (direct) return direct;
+  const byName = player && player.name ? PARTICIPANTS.find((participant) => participant.name === player.name) : null;
+  const namedAppearance = normalizeAppearance(byName && byName.appearance);
+  if (namedAppearance) return namedAppearance;
+  const cache = getAppearanceCache();
+  const keys = [player && player.apiId, player && player.legacyId, player && player.id, player && player.name]
+    .map((key) => String(key || "").toLowerCase())
+    .filter(Boolean);
+  for (const key of keys) {
+    const cached = normalizeAppearance(cache[key]);
+    if (cached) return cached;
+  }
+  return null;
+}
+
+function appearanceCssText(appearance) {
+  const normalized = normalizeAppearance(appearance);
+  if (!normalized) return "";
+  const alpha = normalized.intensity === "soft" ? "10%" : normalized.intensity === "strong" ? "22%" : "15%";
+  const borderAlpha = normalized.intensity === "soft" ? "28%" : normalized.intensity === "strong" ? "54%" : "40%";
+  const glowAlpha = normalized.intensity === "soft" ? "22%" : normalized.intensity === "strong" ? "42%" : "30%";
+  return [
+    `--person-primary:${normalized.primaryColor}`,
+    `--person-secondary:${normalized.secondaryColor}`,
+    `--person-gradient-direction:${normalized.gradientDirection}`,
+    `--person-gradient:linear-gradient(${normalized.gradientDirection}, ${normalized.primaryColor}, ${normalized.secondaryColor})`,
+    `--person-alpha:${alpha}`,
+    `--person-border-alpha:${borderAlpha}`,
+    `--person-glow-alpha:${glowAlpha}`,
+  ].join(";");
+}
+
+function appearanceClassSuffix(player, baseClass) {
+  return resolvePlayerAppearance(player) ? `${baseClass} personalized-surface` : baseClass;
+}
+
+function appearanceStyleAttr(player, extra = "") {
+  const css = appearanceCssText(resolvePlayerAppearance(player));
+  const merged = [extra, css].filter(Boolean).join(";");
+  return merged ? ` style="${merged}"` : "";
+}
+
+function appearanceDataAttrs(player) {
+  const appearance = resolvePlayerAppearance(player);
+  if (!appearance) return "";
+  return ` data-person-style="${appearance.visualStyle}" data-avatar-border="${appearance.avatarBorderStyle}"`;
+}
+
+function applyAppearanceToElement(el, player) {
+  const appearance = resolvePlayerAppearance(player);
+  if (!el || !appearance) return;
+  el.classList.add("personalized-avatar");
+  el.dataset.avatarBorder = appearance.avatarBorderStyle;
+  appearanceCssText(appearance).split(";").forEach((declaration) => {
+    const [property, value] = declaration.split(":");
+    if (property && value) el.style.setProperty(property, value);
+  });
+}
+
 const PLAYER_PROFILE_IMAGES = {
   agus: "images/Agus.jpeg",
   barua: "images/Barua.jpeg",
@@ -707,6 +890,7 @@ function playerProfileImageSrc(player) {
 function createPlayerAvatarElement(player, className = "participant-avatar") {
   const avatar = document.createElement("div");
   avatar.className = className;
+  applyAppearanceToElement(avatar, player);
   const src = playerProfileImageSrc(player);
   if (src) {
     avatar.classList.add("player-avatar-has-image");
@@ -727,10 +911,14 @@ function createPlayerAvatarElement(player, className = "participant-avatar") {
 
 function renderPlayerAvatarHtml(player, className = "participant-avatar") {
   const src = playerProfileImageSrc(player);
+  const appearanceClass = resolvePlayerAppearance(player) ? `${className} personalized-avatar` : className;
+  const appearanceAttrs = appearanceDataAttrs(player);
+  const baseBackground = `background:${colorForId(player.id)}`;
+  const style = appearanceStyleAttr(player, baseBackground);
   if (src) {
-    return `<div class="${className} player-avatar-has-image" style="background:${colorForId(player.id)}"><img class="player-avatar-img" src="${src}" alt="" loading="lazy" decoding="async"></div>`;
+    return `<div class="${appearanceClass} player-avatar-has-image"${appearanceAttrs}${style}><img class="player-avatar-img" src="${src}" alt="" loading="lazy" decoding="async"></div>`;
   }
-  return `<div class="${className}" style="background:${colorForId(player.id)}">${getInitials(player.name)}</div>`;
+  return `<div class="${appearanceClass}"${appearanceAttrs}${style}>${getInitials(player.name)}</div>`;
 }
 
 /* -----------------------------------------------------------
@@ -1005,6 +1193,240 @@ function playHomeGreetingAnimation() {
   // eslint-disable-next-line no-unused-expressions
   void heroBottom.offsetWidth; // fuerza reflow para reiniciar el keyframe
   heroBottom.classList.add("home-greeting-animate");
+}
+
+/* -----------------------------------------------------------
+   Render: personalización
+   ----------------------------------------------------------- */
+
+function presetByKey(key) {
+  return APPEARANCE_PRESETS.find((preset) => preset.key === key) || APPEARANCE_PRESETS[0];
+}
+
+function cloneAppearance(appearance) {
+  return appearance ? { ...appearance } : null;
+}
+
+function currentUserParticipant() {
+  const user = getCurrentUser();
+  if (!user) return null;
+  return PARTICIPANTS.find((participant) => participant.id === user.id) || user;
+}
+
+function startPersonalizationDraft() {
+  const participant = currentUserParticipant();
+  personalizationDraft = cloneAppearance(resolvePlayerAppearance(participant));
+  personalizationMessage = "";
+  personalizationError = "";
+}
+
+function setPersonalizationDraft(next) {
+  personalizationDraft = next ? normalizeAppearance(next) || { ...DEFAULT_APPEARANCE_DRAFT } : null;
+  personalizationMessage = "";
+  personalizationError = "";
+}
+
+function applySavedAppearanceToLocalUser(appearance) {
+  const participant = currentUserParticipant();
+  if (!participant) return;
+  const normalized = normalizeAppearance(appearance);
+  const index = PARTICIPANTS.findIndex((item) => item.id === participant.id);
+  if (index >= 0) PARTICIPANTS[index] = { ...PARTICIPANTS[index], appearance: normalized };
+  cacheUserAppearanceKeys([participant.apiId, participant.id, participant.name], normalized);
+}
+
+function renderAppearanceChips(group, options, selected) {
+  return `
+    <div class="appearance-chip-group" role="radiogroup">
+      ${options
+        .map(
+          (option) => `
+            <button type="button" class="appearance-chip${option.key === selected ? " selected" : ""}" data-appearance-group="${group}" data-appearance-value="${option.key}" aria-pressed="${option.key === selected ? "true" : "false"}">
+              ${escapeHtml(option.label)}
+            </button>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderPersonalizationPreview(user, draft) {
+  const previewPlayer = { ...(user || { id: "preview", name: "Usuario" }), appearance: draft };
+  return `
+    <section class="${appearanceClassSuffix(previewPlayer, "appearance-preview-card")}"${appearanceDataAttrs(previewPlayer)}${appearanceStyleAttr(previewPlayer)}>
+      <div class="appearance-preview-header">
+        ${renderPlayerAvatarHtml(previewPlayer, "appearance-preview-avatar")}
+        <div class="appearance-preview-identity">
+          <h2>${escapeHtml(previewPlayer.name)}</h2>
+          <span>Badge de ejemplo</span>
+        </div>
+      </div>
+      <div class="appearance-preview-line"></div>
+      <div class="appearance-preview-mini">
+        <span class="appearance-preview-dot" aria-hidden="true"></span>
+        <div>
+          <strong>Mini card</strong>
+          <p>Un detalle visual público, sin tocar el color del nombre.</p>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderPersonalizationScreen() {
+  if (!personalizationDraft && personalizationMessage === "" && personalizationError === "") startPersonalizationDraft();
+  const main = document.getElementById("personalizacion-main");
+  const user = currentUserParticipant();
+  if (!main || !user) return;
+  const draft = personalizationDraft;
+  const selectedPreset = draft ? draft.preset : "default";
+  const customSelected = selectedPreset === "custom";
+
+  main.innerHTML = `
+    ${renderPersonalizationPreview(user, draft)}
+
+    <section class="appearance-panel">
+      <div class="section-label">Presets</div>
+      <div class="appearance-preset-grid" role="radiogroup">
+        ${APPEARANCE_PRESETS.map(
+          (preset) => `
+            <button type="button" class="appearance-preset${selectedPreset === preset.key ? " selected" : ""}" data-appearance-preset="${preset.key}" aria-pressed="${selectedPreset === preset.key ? "true" : "false"}" style="--swatch-a:${preset.primaryColor};--swatch-b:${preset.secondaryColor}">
+              <span class="appearance-preset-swatch" aria-hidden="true"></span>
+              <span>${escapeHtml(preset.label)}</span>
+            </button>
+          `
+        ).join("")}
+        <button type="button" class="appearance-preset appearance-preset-custom${customSelected ? " selected" : ""}" data-appearance-preset="custom" aria-pressed="${customSelected ? "true" : "false"}">
+          <span class="appearance-preset-swatch" aria-hidden="true"></span>
+          <span>Personalizado</span>
+        </button>
+      </div>
+
+      <div class="appearance-custom-fields${customSelected ? " visible" : ""}">
+        <label class="appearance-color-field">
+          <span>Color 1</span>
+          <input id="appearance-color-1" type="color" value="${draft ? draft.primaryColor : DEFAULT_APPEARANCE_DRAFT.primaryColor}">
+        </label>
+        <label class="appearance-color-field">
+          <span>Color 2</span>
+          <input id="appearance-color-2" type="color" value="${draft ? draft.secondaryColor : DEFAULT_APPEARANCE_DRAFT.secondaryColor}">
+        </label>
+      </div>
+    </section>
+
+    <section class="appearance-panel">
+      <div class="section-label">Dirección</div>
+      ${renderAppearanceChips("gradientDirection", APPEARANCE_DIRECTIONS, draft ? draft.gradientDirection : DEFAULT_APPEARANCE_DRAFT.gradientDirection)}
+      <div class="section-label">Intensidad</div>
+      ${renderAppearanceChips("intensity", APPEARANCE_INTENSITIES, draft ? draft.intensity : DEFAULT_APPEARANCE_DRAFT.intensity)}
+      <div class="section-label">Estilo visual</div>
+      ${renderAppearanceChips("visualStyle", APPEARANCE_VISUAL_STYLES, draft ? draft.visualStyle : DEFAULT_APPEARANCE_DRAFT.visualStyle)}
+      <div class="section-label">Borde de avatar</div>
+      ${renderAppearanceChips("avatarBorderStyle", APPEARANCE_AVATAR_BORDERS, draft ? draft.avatarBorderStyle : DEFAULT_APPEARANCE_DRAFT.avatarBorderStyle)}
+    </section>
+
+    <div class="appearance-actions">
+      <button type="button" id="btn-appearance-save" class="sheet-submit" ${personalizationSaving ? "disabled" : ""}>${personalizationSaving ? "Guardando..." : "Guardar"}</button>
+      <button type="button" id="btn-appearance-reset" class="sheet-cancel-link">Restablecer</button>
+      <p class="daily-save-msg${personalizationMessage ? " visible" : ""}" id="appearance-save-msg">${escapeHtml(personalizationMessage)}</p>
+      <p class="sheet-error" id="appearance-error">${escapeHtml(personalizationError)}</p>
+    </div>
+  `;
+
+  bindPersonalizationControls();
+}
+
+function bindPersonalizationControls() {
+  const main = document.getElementById("personalizacion-main");
+  if (!main) return;
+
+  main.querySelectorAll("[data-appearance-preset]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const key = button.dataset.appearancePreset;
+      if (key === "custom") {
+        setPersonalizationDraft({ ...(personalizationDraft || DEFAULT_APPEARANCE_DRAFT), preset: "custom" });
+      } else {
+        const preset = presetByKey(key);
+        setPersonalizationDraft({
+          ...(personalizationDraft || DEFAULT_APPEARANCE_DRAFT),
+          preset: preset.key,
+          primaryColor: preset.primaryColor,
+          secondaryColor: preset.secondaryColor,
+        });
+      }
+      renderPersonalizationScreen();
+    });
+  });
+
+  main.querySelectorAll("[data-appearance-group]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const group = button.dataset.appearanceGroup;
+      const value = button.dataset.appearanceValue;
+      setPersonalizationDraft({ ...(personalizationDraft || DEFAULT_APPEARANCE_DRAFT), [group]: value });
+      renderPersonalizationScreen();
+    });
+  });
+
+  const color1 = document.getElementById("appearance-color-1");
+  const color2 = document.getElementById("appearance-color-2");
+  if (color1) {
+    color1.addEventListener("input", () => {
+      setPersonalizationDraft({ ...(personalizationDraft || DEFAULT_APPEARANCE_DRAFT), preset: "custom", primaryColor: color1.value });
+      renderPersonalizationScreen();
+    });
+  }
+  if (color2) {
+    color2.addEventListener("input", () => {
+      setPersonalizationDraft({ ...(personalizationDraft || DEFAULT_APPEARANCE_DRAFT), preset: "custom", secondaryColor: color2.value });
+      renderPersonalizationScreen();
+    });
+  }
+
+  const saveBtn = document.getElementById("btn-appearance-save");
+  if (saveBtn) saveBtn.addEventListener("click", savePersonalizationDraft);
+  const resetBtn = document.getElementById("btn-appearance-reset");
+  if (resetBtn) {
+    resetBtn.addEventListener("click", () => {
+      setPersonalizationDraft(null);
+      personalizationMessage = "Listo para restablecer. Tocá Guardar para persistirlo.";
+      renderPersonalizationScreen();
+    });
+  }
+}
+
+async function savePersonalizationDraft() {
+  if (personalizationSaving) return;
+  personalizationSaving = true;
+  personalizationMessage = "";
+  personalizationError = "";
+  renderPersonalizationScreen();
+  try {
+    const draft = normalizeAppearance(personalizationDraft);
+    const response = draft
+      ? await apiFetch("/users/me/appearance", { method: "PUT", body: JSON.stringify(draft) })
+      : await apiFetch("/users/me/appearance", { method: "DELETE" });
+    if (!response.ok) {
+      personalizationError = "No se pudo guardar. Probá de nuevo en un momento.";
+      return;
+    }
+
+    let savedAppearance = null;
+    if (draft && response.status !== 204) {
+      const payload = await response.json();
+      savedAppearance = normalizeAppearance(payload && payload.appearance);
+    }
+    applySavedAppearanceToLocalUser(savedAppearance);
+    personalizationDraft = cloneAppearance(savedAppearance) || null;
+    personalizationMessage = savedAppearance ? "Personalización guardada." : "Personalización restablecida.";
+    renderParticipantGrid();
+    refreshAchievementScreens();
+  } catch (e) {
+    personalizationError = "No se pudo guardar. La apariencia no quedó persistida.";
+  } finally {
+    personalizationSaving = false;
+    renderPersonalizationScreen();
+  }
 }
 
 /* -----------------------------------------------------------
@@ -4545,9 +4967,18 @@ function statsUserName(stats, userId) {
   return participant ? participant.name : userId;
 }
 
+function statsUserAppearance(stats, userId) {
+  const user = (stats.users || []).find((u) => u.id === userId);
+  if (user) return normalizeAppearance(user.appearance);
+  const participant = PARTICIPANTS.find((p) => p.id === userId);
+  return resolvePlayerAppearance(participant || { id: userId, name: userId });
+}
+
 function apiRankingRows(stats, rows, displayFn, secondaryDisplayFn) {
   return (rows || []).map((row) => ({
+    userId: row.userId,
     name: statsUserName(stats, row.userId),
+    appearance: statsUserAppearance(stats, row.userId),
     value: row.value,
     display: displayFn(row.value),
     secondaryDisplay: secondaryDisplayFn ? secondaryDisplayFn(row.value) : undefined,
@@ -5149,7 +5580,7 @@ function renderRankingBars(rows, emptyMessage) {
   const winnerPct = Math.max((winner.value / max) * 100, winner.value > 0 ? 4 : 0);
 
   const podium = `
-    <div class="ranking-podium">
+    <div class="${appearanceClassSuffix(winner, "ranking-podium")}"${appearanceDataAttrs(winner)}${appearanceStyleAttr(winner)}>
       <span class="ranking-podium-crown" aria-hidden="true">🏆</span>
       <div class="ranking-podium-body">
         <div class="ranking-podium-top">
@@ -5175,7 +5606,7 @@ function renderRankingBars(rows, emptyMessage) {
             const row = item.row;
             const pct = Math.max((row.value / max) * 100, row.value > 0 ? 4 : 0);
             return `
-              <div class="ranking-row${rankClassForRow(item)}" style="--row-delay:${i * 60}ms">
+              <div class="${appearanceClassSuffix(row, `ranking-row${rankClassForRow(item)}`)}"${appearanceDataAttrs(row)}${appearanceStyleAttr(row, `--row-delay:${i * 60}ms`)}>
                 <span class="ranking-rank">${medalForRow(item)}</span>
                 <span class="ranking-name">${escapeHtml(row.name)}</span>
                 <div class="ranking-bar-track">
@@ -5718,7 +6149,7 @@ function renderTituloProfileCard({ participant, titles }) {
   const isRachaProfile = titles.length > 0 && titles.every((title) => title.group === "streaks" && title.config && title.config.rachaType);
   const badgesHtml = isRachaProfile ? renderTituloRachaGroups(titles) : titles.map(renderTituloBadge).join("");
   return `
-    <article class="titulo-profile-card">
+    <article class="${appearanceClassSuffix(participant, "titulo-profile-card")}"${appearanceDataAttrs(participant)}${appearanceStyleAttr(participant)}>
       <div class="titulo-profile-header">
         ${renderPlayerAvatarHtml(participant, "titulo-profile-avatar")}
         <div class="titulo-profile-heading">
@@ -5741,7 +6172,7 @@ function renderTitulosProfiles(getRows) {
 function titulosApiParticipant(stats, userId) {
   const user = (stats.users || []).find((item) => item.id === userId);
   if (!user) return { id: userId, name: statsUserName(stats, userId) };
-  return { id: user.legacyId || user.id, apiId: user.id, name: user.displayName };
+  return { id: user.legacyId || user.id, apiId: user.id, name: user.displayName, appearance: normalizeAppearance(user.appearance) };
 }
 
 function titulosApiRows(stats, config) {
@@ -5969,7 +6400,7 @@ function renderAlmostKings(rows) {
         ${rows
           .map(
             (row, index) => `
-              <article class="king-almost-column king-almost-column-${index + 2}" aria-label="${escapeHtml(row.participant.name)}: ${row.count} título${row.count === 1 ? "" : "s"}">
+              <article class="${appearanceClassSuffix(row.participant, `king-almost-column king-almost-column-${index + 2}`)}"${appearanceDataAttrs(row.participant)}${appearanceStyleAttr(row.participant)} aria-label="${escapeHtml(row.participant.name)}: ${row.count} título${row.count === 1 ? "" : "s"}">
                 ${renderPlayerAvatarHtml(row.participant, "king-almost-avatar")}
                 <div class="king-almost-pedestal">
                   <span>${row.count} título${row.count === 1 ? "" : "s"}</span>
@@ -6005,7 +6436,7 @@ function renderKingOfBarilocheSection(result = buildKingOfBariloche()) {
           const countText = `${king.count} logro${king.count === 1 ? "" : "s"}`;
           const kingKey = achievementParticipantKey(king.participant);
           return `
-            <article class="titulos-king-card" data-king-key="${escapeHtml(kingKey)}">
+            <article class="${appearanceClassSuffix(king.participant, "titulos-king-card")}"${appearanceDataAttrs(king.participant)}${appearanceStyleAttr(king.participant)} data-king-key="${escapeHtml(kingKey)}">
               <span class="titulos-king-kicker">REY DE BARILOCHE</span>
               <span class="titulos-king-crown" aria-hidden="true">♕</span>
               <div class="titulos-king-main">
@@ -6087,7 +6518,7 @@ function renderKingProfileScreen() {
   const almostKingsHtml = renderAlmostKings(sortedAlmostKings(profiles, result));
 
   main.innerHTML = `
-    <section class="king-profile-hero-card">
+    <section class="${appearanceClassSuffix(winner.participant, "king-profile-hero-card")}"${appearanceDataAttrs(winner.participant)}${appearanceStyleAttr(winner.participant)}>
       <div class="king-profile-avatar-wrap">
         <span class="king-profile-crown" aria-hidden="true">♕</span>
         ${renderPlayerAvatarHtml(winner.participant, "king-profile-avatar")}
@@ -6910,6 +7341,7 @@ const screens = {
   "titulos-estadistica": document.getElementById("screen-titulos-estadistica"),
   "titulos-encuesta": document.getElementById("screen-titulos-encuesta"),
   "titulos-racha": document.getElementById("screen-titulos-racha"),
+  personalizacion: document.getElementById("screen-personalizacion"),
   ajustes: document.getElementById("screen-ajustes"),
 };
 
@@ -7006,6 +7438,10 @@ function navigate(route) {
     location.hash = "#/titulos-racha";
     renderTitulosRachaScreen();
     showScreen("titulos-racha");
+  } else if (route === "personalizacion") {
+    location.hash = "#/personalizacion";
+    renderPersonalizationScreen();
+    showScreen("personalizacion");
   } else if (route === "ajustes") {
     location.hash = "#/ajustes";
     showScreen("ajustes");
@@ -7051,6 +7487,7 @@ function navigate(route) {
       route === "titulos-estadistica" ||
       route === "titulos-encuesta" ||
       route === "titulos-racha" ||
+      route === "personalizacion" ||
       route === "ajustes" ||
       route === "money" ||
       route === "previas-jere" ||
@@ -7062,7 +7499,7 @@ function navigate(route) {
   // Previas y Ajustes son parte de Admin. Logros usa internamente las
   // rutas históricas "titulos".
   updateNav(
-    route === "money" || route === "daily" || route === "export" || route === "previas-jere"
+    route === "money" || route === "daily" || route === "export" || route === "previas-jere" || route === "personalizacion"
       ? "home"
       : route === "previas" || route === "ajustes"
       ? "admin"
@@ -7082,6 +7519,7 @@ function routeFromHash() {
   if (hash === "titulos-estadistica") return "titulos-estadistica";
   if (hash === "titulos-encuesta") return "titulos-encuesta";
   if (hash === "titulos-racha") return "titulos-racha";
+  if (hash === "personalizacion") return "personalizacion";
   if (hash === "ajustes") return "ajustes";
   if (hash === "previas-jere") return "previas-jere";
   if (hash === "money") return "money";
@@ -7100,6 +7538,15 @@ document.getElementById("btn-logout").addEventListener("click", () => {
 });
 
 document.getElementById("btn-theme-toggle").addEventListener("click", toggleThemePreference);
+
+document.getElementById("btn-appearance").addEventListener("click", () => {
+  startPersonalizationDraft();
+  navigateHomeToScreenWithTransition("personalizacion");
+});
+
+document.getElementById("btn-personalizacion-back").addEventListener("click", () => {
+  navigateScreenToHomeWithTransition("personalizacion");
+});
 
 document.getElementById("btn-admin-back").addEventListener("click", () => {
   navigateBetweenScreensWithTransition("admin", "home");
@@ -7255,6 +7702,7 @@ bottomNav.addEventListener("click", (e) => {
       "daily",
       "export",
       "previas-jere",
+      "personalizacion",
       "admin",
       "previas",
       "stats",

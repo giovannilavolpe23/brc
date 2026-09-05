@@ -669,6 +669,13 @@ img, svg {
   gap: 8px;
 }
 
+.home-hero-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
 .icon-btn {
   width: 38px;
   height: 38px;
@@ -717,6 +724,11 @@ img, svg {
   border-color: rgba(76, 201, 240, 0.35);
   background: rgba(255, 255, 255, 0.7);
   color: #10233a;
+}
+
+.home-hero .appearance-toggle {
+  width: 36px;
+  height: 36px;
 }
 
 .home-hero .hero-badge {
@@ -1015,6 +1027,305 @@ img, svg {
 
 #screen-home .home-footnote {
   color: #6f92ac;
+}
+
+/* ---------------------------------------------------------
+   Personalización pública de perfil
+   --------------------------------------------------------- */
+
+.personalized-surface {
+  --person-primary: #4cc9f0;
+  --person-secondary: #7b61ff;
+  --person-gradient-direction: 135deg;
+  --person-gradient: linear-gradient(var(--person-gradient-direction), var(--person-primary), var(--person-secondary));
+  --person-alpha: 15%;
+  --person-border-alpha: 40%;
+  --person-glow-alpha: 30%;
+}
+
+.personalized-avatar {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--person-primary) var(--person-border-alpha), transparent), 0 8px 18px -14px color-mix(in srgb, var(--person-secondary) var(--person-glow-alpha), transparent);
+}
+
+.personalized-avatar[data-avatar-border="solid"] {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--person-primary) 72%, transparent), 0 8px 18px -14px color-mix(in srgb, var(--person-primary) var(--person-glow-alpha), transparent);
+}
+
+.personalized-avatar[data-avatar-border="gradient"] {
+  box-shadow: 0 0 0 2px var(--person-primary), 0 0 0 4px color-mix(in srgb, var(--person-secondary) 58%, transparent), 0 9px 18px -13px color-mix(in srgb, var(--person-secondary) var(--person-glow-alpha), transparent);
+}
+
+.personalized-avatar[data-avatar-border="none"] {
+  box-shadow: none;
+}
+
+.appearance-preview-card,
+.appearance-panel {
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 14px 30px -24px rgba(0, 0, 0, 0.58);
+}
+
+.appearance-preview-card {
+  position: relative;
+  overflow: hidden;
+  padding: 18px;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.appearance-preview-card.personalized-surface,
+.titulo-profile-card.personalized-surface,
+.titulos-king-card.personalized-surface,
+.king-profile-hero-card.personalized-surface,
+.ranking-podium.personalized-surface {
+  background:
+    linear-gradient(165deg, color-mix(in srgb, var(--person-primary) var(--person-alpha), var(--surface)) 0%, var(--surface) 58%, color-mix(in srgb, var(--person-secondary) var(--person-alpha), var(--surface-2)) 135%);
+  border-color: color-mix(in srgb, var(--person-primary) var(--person-border-alpha), var(--border));
+  box-shadow: 0 16px 34px -26px color-mix(in srgb, var(--person-secondary) var(--person-glow-alpha), transparent), 0 10px 24px -22px rgba(47, 143, 209, 0.35);
+}
+
+.appearance-preview-card.personalized-surface[data-person-style="glass"],
+.titulo-profile-card.personalized-surface[data-person-style="glass"],
+.titulos-king-card.personalized-surface[data-person-style="glass"],
+.king-profile-hero-card.personalized-surface[data-person-style="glass"] {
+  background:
+    linear-gradient(165deg, color-mix(in srgb, var(--person-primary) calc(var(--person-alpha) + 5%), rgba(255, 255, 255, 0.72)) 0%, var(--surface) 64%, color-mix(in srgb, var(--person-secondary) var(--person-alpha), var(--surface-2)) 140%);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.appearance-preview-card.personalized-surface[data-person-style="glow"],
+.titulo-profile-card.personalized-surface[data-person-style="glow"],
+.titulos-king-card.personalized-surface[data-person-style="glow"],
+.king-profile-hero-card.personalized-surface[data-person-style="glow"],
+.king-almost-column.personalized-surface .king-almost-pedestal {
+  box-shadow: 0 16px 34px -24px color-mix(in srgb, var(--person-secondary) calc(var(--person-glow-alpha) + 12%), transparent), 0 0 0 1px color-mix(in srgb, var(--person-primary) 16%, transparent);
+}
+
+.appearance-preview-card.personalized-surface::before,
+.titulo-profile-card.personalized-surface::before,
+.titulos-king-card.personalized-surface::before,
+.king-profile-hero-card.personalized-surface::before {
+  background: linear-gradient(90deg, transparent, var(--person-primary), var(--person-secondary), transparent);
+}
+
+.appearance-preview-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.appearance-preview-avatar {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 850;
+  color: #10233a;
+  overflow: hidden;
+}
+
+.appearance-preview-identity {
+  min-width: 0;
+}
+
+.appearance-preview-identity h2 {
+  color: var(--text);
+  font-size: 21px;
+  line-height: 1.12;
+  overflow-wrap: anywhere;
+}
+
+.appearance-preview-identity span {
+  display: inline-flex;
+  margin-top: 5px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--person-primary, var(--accent-2)) 14%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, var(--person-primary, var(--accent-2)) 24%, var(--border));
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.appearance-preview-line {
+  height: 1px;
+  margin: 16px 0;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--person-primary, var(--accent-2)) 42%, transparent), transparent);
+}
+
+.appearance-preview-mini {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--person-secondary, var(--accent-3)) 9%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, var(--person-secondary, var(--accent-3)) 18%, var(--border));
+}
+
+.appearance-preview-dot {
+  width: 11px;
+  height: 11px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--person-gradient, var(--accent-2));
+  flex-shrink: 0;
+}
+
+.appearance-preview-mini strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.appearance-preview-mini p {
+  margin-top: 2px;
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.appearance-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.appearance-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.appearance-preset,
+.appearance-chip {
+  min-height: 42px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 76%, transparent);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.appearance-preset {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 9px;
+  text-align: left;
+}
+
+.appearance-preset-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, var(--swatch-a, #dbeafe), var(--swatch-b, #7c3aed));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.52);
+}
+
+.appearance-preset-custom .appearance-preset-swatch {
+  background: conic-gradient(from 90deg, #4cc9f0, #c77dff, #22c55e, #ff9f1c, #4cc9f0);
+}
+
+.appearance-preset.selected,
+.appearance-chip.selected {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent-2) 52%, var(--border));
+  background: color-mix(in srgb, var(--accent-2) 14%, var(--surface-2));
+}
+
+.appearance-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.appearance-chip {
+  padding: 0 12px;
+}
+
+.appearance-custom-fields {
+  display: none;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.appearance-custom-fields.visible {
+  display: grid;
+}
+
+.appearance-color-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-2) 76%, transparent);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.appearance-color-field input {
+  width: 44px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+}
+
+.appearance-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.titulo-profile-card.personalized-surface .titulo-profile-header {
+  border-bottom-color: color-mix(in srgb, var(--person-primary) 26%, var(--border));
+}
+
+.titulo-profile-card.personalized-surface .titulo-profile-count,
+.king-profile-hero-card.personalized-surface .king-profile-dominant {
+  background: color-mix(in srgb, var(--person-primary) 14%, var(--surface-2));
+  border-color: color-mix(in srgb, var(--person-primary) 24%, var(--border));
+  color: var(--text);
+}
+
+.titulo-profile-card.personalized-surface .stats-section-heading-line {
+  background: linear-gradient(90deg, transparent, var(--person-primary), var(--person-secondary), transparent);
+}
+
+.king-almost-column.personalized-surface .king-almost-pedestal {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--person-primary) var(--person-alpha), var(--surface)) 0%, color-mix(in srgb, var(--person-secondary) 12%, var(--surface-2)) 100%);
+  border-color: color-mix(in srgb, var(--person-primary) var(--person-border-alpha), var(--border));
+}
+
+.ranking-row.personalized-surface .ranking-bar-fill,
+.ranking-podium.personalized-surface .ranking-bar-fill {
+  background: var(--person-gradient);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--person-secondary) var(--person-glow-alpha), transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .appearance-preview-card {
+    transition: none;
+  }
 }
 
 .admin-participants {
@@ -5312,4 +5623,35 @@ html[data-theme="dark"] .session-message {
   .session-message {
     transition: none !important;
   }
+}
+
+html[data-theme="dark"] .appearance-preview-card.personalized-surface,
+html[data-theme="dark"] .titulo-profile-card.personalized-surface,
+html[data-theme="dark"] .titulos-king-card.personalized-surface,
+html[data-theme="dark"] .king-profile-hero-card.personalized-surface,
+html[data-theme="dark"] .ranking-podium.personalized-surface {
+  background:
+    linear-gradient(165deg, color-mix(in srgb, var(--person-primary) calc(var(--person-alpha) - 3%), var(--surface)) 0%, var(--surface) 62%, color-mix(in srgb, var(--person-secondary) calc(var(--person-alpha) - 2%), var(--surface-2)) 140%);
+  border-color: color-mix(in srgb, var(--person-primary) calc(var(--person-border-alpha) - 8%), var(--border));
+  box-shadow: 0 16px 34px -26px color-mix(in srgb, var(--person-secondary) calc(var(--person-glow-alpha) - 6%), transparent), 0 10px 24px -22px rgba(0, 0, 0, 0.62);
+}
+
+html[data-theme="dark"] .appearance-panel,
+html[data-theme="dark"] .appearance-preview-card {
+  background: color-mix(in srgb, var(--surface) 92%, #071421);
+  border-color: rgba(148, 210, 235, 0.14);
+}
+
+html[data-theme="dark"] .appearance-preset,
+html[data-theme="dark"] .appearance-chip,
+html[data-theme="dark"] .appearance-color-field,
+html[data-theme="dark"] .appearance-preview-mini {
+  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(148, 210, 235, 0.13);
+}
+
+html[data-theme="dark"] .appearance-preset.selected,
+html[data-theme="dark"] .appearance-chip.selected {
+  background: color-mix(in srgb, var(--accent-2) 13%, rgba(255, 255, 255, 0.05));
+  border-color: color-mix(in srgb, var(--accent-2) 42%, rgba(148, 210, 235, 0.16));
 }

@@ -141,10 +141,21 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
         </button>
         <span class="hero-badge">🏔️ Bariloche</span>
-        <button id="btn-theme-toggle" class="icon-btn theme-toggle" type="button" aria-label="Activar modo oscuro" aria-pressed="false">
-          <span class="theme-toggle-icon theme-toggle-snow" aria-hidden="true">❄</span>
-          <span class="theme-toggle-icon theme-toggle-moon" aria-hidden="true">☾</span>
-        </button>
+        <div class="home-hero-actions">
+          <button id="btn-theme-toggle" class="icon-btn theme-toggle" type="button" aria-label="Activar modo oscuro" aria-pressed="false">
+            <span class="theme-toggle-icon theme-toggle-snow" aria-hidden="true">❄</span>
+            <span class="theme-toggle-icon theme-toggle-moon" aria-hidden="true">☾</span>
+          </button>
+          <button id="btn-appearance" class="icon-btn appearance-toggle" type="button" aria-label="Abrir personalización">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="13.5" cy="6.5" r=".5" fill="currentColor"></circle>
+              <circle cx="17.5" cy="10.5" r=".5" fill="currentColor"></circle>
+              <circle cx="8.5" cy="7.5" r=".5" fill="currentColor"></circle>
+              <circle cx="6.5" cy="12.5" r=".5" fill="currentColor"></circle>
+              <path d="M12 3C7.03 3 3 6.58 3 11c0 3.31 2.69 6 6 6h1.5a1.5 1.5 0 0 1 1.5 1.5c0 .83.67 1.5 1.5 1.5H14c3.87 0 7-3.58 7-8s-4.03-9-9-9Z"></path>
+            </svg>
+          </button>
+        </div>
       </div>
       <div class="home-hero-bottom">
         <p class="eyebrow home-greet-hola">Hola,</p>
@@ -203,6 +214,25 @@
           </article>
         </div>
       </div>
+    </main>
+  </section>
+
+  <!-- ===================== PERSONALIZACIÓN ===================== -->
+  <section id="screen-personalizacion" class="screen admin-frost personalization-screen">
+    <header class="admin-hero personalization-hero">
+      <div class="admin-hero-top">
+        <button id="btn-personalizacion-back" class="icon-btn" type="button" aria-label="Volver a home">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="hero-badge">Personalización</span>
+        <span class="icon-btn spacer" aria-hidden="true"></span>
+      </div>
+      <p class="eyebrow">Identidad</p>
+      <h1 class="hero-name">Visual</h1>
+    </header>
+
+    <main class="home-content" id="personalizacion-main">
+      <!-- contenido inyectado por script.js -->
     </main>
   </section>
 
