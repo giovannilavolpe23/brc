@@ -795,6 +795,7 @@ function cachePublicUserAppearance(user) {
 function resolvePlayerAppearance(player) {
   const direct = normalizeAppearance(player && player.appearance);
   if (direct) return direct;
+  if (player && player.forceDefaultAppearance) return null;
   const byName = player && player.name ? PARTICIPANTS.find((participant) => participant.name === player.name) : null;
   const namedAppearance = normalizeAppearance(byName && byName.appearance);
   if (namedAppearance) return namedAppearance;
@@ -1252,7 +1253,8 @@ function renderAppearanceChips(group, options, selected) {
 }
 
 function renderPersonalizationPreview(user, draft) {
-  const previewPlayer = { ...(user || { id: "preview", name: "Usuario" }), appearance: draft };
+  const previewPlayer = { ...(user || { id: "preview", name: "Usuario" }), appearance: draft, forceDefaultAppearance: !draft };
+  const badgeAccentStyle = draft ? "--titulo-accent:var(--person-primary)" : "";
   return `
     <section class="${appearanceClassSuffix(previewPlayer, "appearance-preview-card")}"${appearanceDataAttrs(previewPlayer)}${appearanceStyleAttr(previewPlayer)}>
       <div class="appearance-preview-header">
@@ -1268,6 +1270,13 @@ function renderPersonalizationPreview(user, draft) {
         <div>
           <strong>Mini card</strong>
           <p>Un detalle visual público, sin tocar el color del nombre.</p>
+        </div>
+      </div>
+      <div class="${appearanceClassSuffix(previewPlayer, "titulo-badge appearance-preview-badge")}"${appearanceDataAttrs(previewPlayer)}${appearanceStyleAttr(previewPlayer, badgeAccentStyle)}>
+        <span class="titulo-badge-icon" aria-hidden="true">🏆</span>
+        <div class="titulo-badge-text">
+          <span class="titulo-badge-name">Logro de ejemplo</span>
+          <span class="titulo-badge-caption">Usa tu color de perfil de forma sutil</span>
         </div>
       </div>
     </section>
@@ -1316,20 +1325,20 @@ function renderPersonalizationScreen() {
     </section>
 
     <section class="appearance-panel">
-      <div class="section-label">Dirección</div>
+      <div class="section-label">Dirección del gradiente</div>
       ${renderAppearanceChips("gradientDirection", APPEARANCE_DIRECTIONS, draft ? draft.gradientDirection : DEFAULT_APPEARANCE_DRAFT.gradientDirection)}
-      <div class="section-label">Intensidad</div>
+      <div class="section-label">Intensidad del color</div>
       ${renderAppearanceChips("intensity", APPEARANCE_INTENSITIES, draft ? draft.intensity : DEFAULT_APPEARANCE_DRAFT.intensity)}
-      <div class="section-label">Estilo visual</div>
+      <div class="section-label">Estilo del perfil</div>
       ${renderAppearanceChips("visualStyle", APPEARANCE_VISUAL_STYLES, draft ? draft.visualStyle : DEFAULT_APPEARANCE_DRAFT.visualStyle)}
-      <div class="section-label">Borde de avatar</div>
+      <div class="section-label">Estilo del borde del avatar</div>
       ${renderAppearanceChips("avatarBorderStyle", APPEARANCE_AVATAR_BORDERS, draft ? draft.avatarBorderStyle : DEFAULT_APPEARANCE_DRAFT.avatarBorderStyle)}
     </section>
 
     <div class="appearance-actions">
       <button type="button" id="btn-appearance-save" class="sheet-submit" ${personalizationSaving ? "disabled" : ""}>${personalizationSaving ? "Guardando..." : "Guardar"}</button>
       <button type="button" id="btn-appearance-reset" class="sheet-cancel-link">Restablecer</button>
-      <p class="daily-save-msg${personalizationMessage ? " visible" : ""}" id="appearance-save-msg">${escapeHtml(personalizationMessage)}</p>
+      <p class="daily-save-msg${personalizationMessage && !personalizationError ? " visible" : ""}" id="appearance-save-msg">${escapeHtml(personalizationError ? "" : personalizationMessage)}</p>
       <p class="sheet-error" id="appearance-error">${escapeHtml(personalizationError)}</p>
     </div>
   `;
@@ -1407,6 +1416,7 @@ async function savePersonalizationDraft() {
       ? await apiFetch("/users/me/appearance", { method: "PUT", body: JSON.stringify(draft) })
       : await apiFetch("/users/me/appearance", { method: "DELETE" });
     if (!response.ok) {
+      personalizationMessage = "";
       personalizationError = "No se pudo guardar. Probá de nuevo en un momento.";
       return;
     }
@@ -1418,10 +1428,12 @@ async function savePersonalizationDraft() {
     }
     applySavedAppearanceToLocalUser(savedAppearance);
     personalizationDraft = cloneAppearance(savedAppearance) || null;
+    personalizationError = "";
     personalizationMessage = savedAppearance ? "Personalización guardada." : "Personalización restablecida.";
     renderParticipantGrid();
     refreshAchievementScreens();
   } catch (e) {
+    personalizationMessage = "";
     personalizationError = "No se pudo guardar. La apariencia no quedó persistida.";
   } finally {
     personalizationSaving = false;
@@ -6122,9 +6134,13 @@ function buildTitulosByPlayer(getRows) {
 // ícono + nombre del título + descripción de qué estadística ganó
 // (misma leyenda `caption` que ya usaba la tarjeta por estadística,
 // más el valor puntual con el que lo ganó).
-function renderTituloBadge({ config, winner }) {
+function renderTituloBadge({ config, winner }, participant = null) {
+  const owner = participant || winner;
+  const hasAppearance = !!resolvePlayerAppearance(owner);
+  const badgeClasses = appearanceClassSuffix(owner, "titulo-badge");
+  const badgeAccent = hasAppearance ? "var(--person-primary)" : config.accent;
   return `
-    <div class="titulo-badge" style="--titulo-accent:${config.accent}">
+    <div class="${badgeClasses}"${appearanceDataAttrs(owner)}${appearanceStyleAttr(owner, `--titulo-accent:${badgeAccent}`)}>
       <span class="titulo-badge-icon" aria-hidden="true">${config.icon}</span>
       <div class="titulo-badge-text">
         <span class="titulo-badge-name">${config.title}</span>
@@ -6137,9 +6153,10 @@ function renderTituloBadge({ config, winner }) {
 function renderTituloRachaGroups(titles) {
   const positiveTitles = titles.filter((title) => title.config && title.config.rachaType === "positive");
   const negativeTitles = titles.filter((title) => title.config && title.config.rachaType === "negative");
+  const owner = titles[0] && titles[0].participant ? titles[0].participant : null;
   return `
-    ${positiveTitles.length ? `${renderStatsSectionHeading("Rachas positivas", "left")}${positiveTitles.map(renderTituloBadge).join("")}` : ""}
-    ${negativeTitles.length ? `${renderStatsSectionHeading("Rachas negativas", "right")}${negativeTitles.map(renderTituloBadge).join("")}` : ""}
+    ${positiveTitles.length ? `${renderStatsSectionHeading("Rachas positivas", "left")}${positiveTitles.map((title) => renderTituloBadge(title, owner)).join("")}` : ""}
+    ${negativeTitles.length ? `${renderStatsSectionHeading("Rachas negativas", "right")}${negativeTitles.map((title) => renderTituloBadge(title, owner)).join("")}` : ""}
   `;
 }
 
@@ -6147,7 +6164,10 @@ function renderTituloRachaGroups(titles) {
 // app y, debajo, la lista de títulos que ganó.
 function renderTituloProfileCard({ participant, titles }) {
   const isRachaProfile = titles.length > 0 && titles.every((title) => title.group === "streaks" && title.config && title.config.rachaType);
-  const badgesHtml = isRachaProfile ? renderTituloRachaGroups(titles) : titles.map(renderTituloBadge).join("");
+  const ownedTitles = titles.map((title) => ({ ...title, participant }));
+  const badgesHtml = isRachaProfile
+    ? renderTituloRachaGroups(ownedTitles)
+    : ownedTitles.map((title) => renderTituloBadge(title, participant)).join("");
   return `
     <article class="${appearanceClassSuffix(participant, "titulo-profile-card")}"${appearanceDataAttrs(participant)}${appearanceStyleAttr(participant)}>
       <div class="titulo-profile-header">
@@ -6377,9 +6397,9 @@ function resolveKingProfileWinner(result, preferredUserKey) {
   return result.kings.find((row) => achievementParticipantKey(row.participant) === preferredUserKey) || result.winner;
 }
 
-function renderKingProfileTitleGroups(titles) {
+function renderKingProfileTitleGroups(titles, participant) {
   return groupKingProfileTitles(titles)
-    .map((groupTitles) => `<div class="king-profile-title-group">${groupTitles.map(renderTituloBadge).join("")}</div>`)
+    .map((groupTitles) => `<div class="king-profile-title-group">${groupTitles.map((title) => renderTituloBadge(title, participant)).join("")}</div>`)
     .join("");
 }
 
@@ -6529,7 +6549,7 @@ function renderKingProfileScreen() {
     </section>
 
     <section class="king-profile-achievements">
-      ${renderKingProfileTitleGroups(winner.titles)}
+      ${renderKingProfileTitleGroups(winner.titles, winner.participant)}
     </section>
 
     ${almostKingsHtml}

@@ -1156,9 +1156,11 @@ img, svg {
 }
 
 .appearance-preview-line {
-  height: 1px;
+  height: 3px;
   margin: 16px 0;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--person-primary, var(--accent-2)) 42%, transparent), transparent);
+  border-radius: 999px;
+  background: var(--person-gradient, linear-gradient(90deg, var(--accent-2), transparent));
+  opacity: 0.58;
 }
 
 .appearance-preview-mini {
@@ -1167,8 +1169,20 @@ img, svg {
   align-items: flex-start;
   padding: 12px;
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--person-secondary, var(--accent-3)) 9%, var(--surface-2));
+  background:
+    linear-gradient(var(--person-gradient-direction, 135deg), color-mix(in srgb, var(--person-primary, var(--accent-2)) 10%, transparent), color-mix(in srgb, var(--person-secondary, var(--accent-3)) 8%, transparent)),
+    var(--surface-2);
   border: 1px solid color-mix(in srgb, var(--person-secondary, var(--accent-3)) 18%, var(--border));
+}
+
+.appearance-preview-card.personalized-surface[data-person-style="glass"] .appearance-preview-mini {
+  background:
+    linear-gradient(var(--person-gradient-direction), color-mix(in srgb, var(--person-primary) 16%, rgba(255, 255, 255, 0.62)), color-mix(in srgb, var(--person-secondary) 10%, var(--surface-2)));
+  border-color: color-mix(in srgb, var(--person-primary) 30%, var(--border));
+}
+
+.appearance-preview-card.personalized-surface[data-person-style="glow"] .appearance-preview-mini {
+  box-shadow: 0 10px 22px -18px color-mix(in srgb, var(--person-secondary) calc(var(--person-glow-alpha) + 18%), transparent);
 }
 
 .appearance-preview-dot {
@@ -1294,6 +1308,21 @@ img, svg {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.appearance-preview-badge {
+  margin-top: 13px;
+}
+
+.titulo-badge.personalized-surface {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--person-primary) var(--person-alpha), var(--surface-2)), color-mix(in srgb, var(--person-secondary) 8%, var(--surface-2)));
+  border-color: color-mix(in srgb, var(--person-primary) 30%, var(--border));
+}
+
+.titulo-badge.personalized-surface .titulo-badge-icon {
+  background: var(--person-gradient);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--person-primary) 17%, transparent), 0 4px 10px -5px color-mix(in srgb, var(--person-secondary) var(--person-glow-alpha), transparent);
 }
 
 .titulo-profile-card.personalized-surface .titulo-profile-header {
@@ -3784,6 +3813,9 @@ img, svg {
 
 .password-dots-box .field-input {
   color: transparent;
+  -webkit-text-fill-color: transparent;
+  caret-color: var(--accent-2);
+  text-shadow: none;
 }
 
 .password-dots-box .field-input::placeholder {
@@ -4281,6 +4313,12 @@ img, svg {
 .screen.admin-frost .titulo-badge {
   background: color-mix(in srgb, var(--titulo-accent, #2f8fd1) 10%, #ffffff);
   border-color: color-mix(in srgb, var(--titulo-accent, #2f8fd1) 32%, rgba(76, 201, 240, 0.3));
+}
+
+.screen.admin-frost .titulo-badge.personalized-surface {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--person-primary) var(--person-alpha), #ffffff), color-mix(in srgb, var(--person-secondary) 8%, #ffffff));
+  border-color: color-mix(in srgb, var(--person-primary) 32%, rgba(76, 201, 240, 0.3));
 }
 
 .screen.admin-frost .titulo-badge-caption {
@@ -5447,6 +5485,12 @@ html[data-theme="dark"] .screen.admin-frost .king-almost-pedestal {
 html[data-theme="dark"] .screen.admin-frost .titulo-badge {
   background: color-mix(in srgb, var(--titulo-accent, #5ec7ec) 12%, rgba(17, 43, 63, 0.9));
   border-color: color-mix(in srgb, var(--titulo-accent, #5ec7ec) 32%, rgba(127, 200, 231, 0.24));
+}
+
+html[data-theme="dark"] .screen.admin-frost .titulo-badge.personalized-surface {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--person-primary) calc(var(--person-alpha) - 2%), rgba(17, 43, 63, 0.9)), color-mix(in srgb, var(--person-secondary) 9%, rgba(13, 31, 46, 0.92)));
+  border-color: color-mix(in srgb, var(--person-primary) 28%, rgba(127, 200, 231, 0.24));
 }
 
 html[data-theme="dark"] .screen.admin-frost .titulos-source-note {
