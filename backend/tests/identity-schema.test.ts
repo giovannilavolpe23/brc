@@ -8,6 +8,7 @@ const moneyMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/00
 const dailyMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/003_daily_entries_and_surveys.sql"), "utf8");
 const previasMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/004_previas.sql"), "utf8");
 const userManagementMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/006_user_management.sql"), "utf8");
+const pushMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/008_push_notifications.sql"), "utf8");
 const seed = fs.readFileSync(path.resolve(__dirname, "../src/db/seed.ts"), "utf8");
 
 describe("identity schema", () => {
@@ -135,5 +136,17 @@ describe("previas schema", () => {
     assert.match(previasMigration, /previas_total_amount_positive/);
     assert.match(previasMigration, /previa_products_unit_price_positive/);
     assert.match(previasMigration, /previa_products_quantity_positive/);
+  });
+});
+
+describe("push notification schema", () => {
+  it("creates subscriptions and idempotency tables for reminders and stats-ready pushes", () => {
+    assert.match(pushMigration, /create table if not exists push_subscriptions/);
+    assert.match(pushMigration, /user_id uuid not null references users\(id\) on delete cascade/);
+    assert.match(pushMigration, /endpoint text not null unique/);
+    assert.match(pushMigration, /create table if not exists push_daily_reminders/);
+    assert.match(pushMigration, /primary key \(date_key, user_id\)/);
+    assert.match(pushMigration, /create table if not exists push_stats_ready_notifications/);
+    assert.match(pushMigration, /date_key date primary key/);
   });
 });

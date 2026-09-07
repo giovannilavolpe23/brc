@@ -22,10 +22,14 @@ function readNodeEnv(): NodeEnv {
 }
 
 export const env = {
+  cronSecret: process.env.CRON_SECRET || "",
   databaseUrl: requireEnv("DATABASE_URL"),
   devResetPassword: process.env.DEV_RESET_PASSWORD || "",
   frontendOrigin: requireEnv("FRONTEND_ORIGIN"),
   jwtSecret: requireEnv("JWT_SECRET"),
   nodeEnv: readNodeEnv(),
   port: Number(process.env.PORT || 3000),
+  vapidPrivateKey: process.env.VAPID_PRIVATE_KEY || "",
+  vapidPublicKey: process.env.VAPID_PUBLIC_KEY || "",
+  vapidSubject: process.env.VAPID_SUBJECT || "mailto:admin@example.com",
 };

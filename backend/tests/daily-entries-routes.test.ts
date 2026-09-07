@@ -76,10 +76,10 @@ function makeRepository(seed: DailyEntry[] = []): DailyEntriesRepository & { cal
   };
 }
 
-function makeApp(user: AuthUser, repository: DailyEntriesRepository) {
+function makeApp(user: AuthUser, repository: DailyEntriesRepository, afterUpsert: (dateKey: string) => Promise<unknown> = async () => null) {
   const app = express();
   app.use(express.json());
-  app.use("/daily-entries", createDailyEntriesRouter(repository, authAs(user), now));
+  app.use("/daily-entries", createDailyEntriesRouter(repository, authAs(user), now, afterUpsert));
   return app;
 }
 
@@ -106,6 +106,25 @@ describe("daily entries routes", () => {
     assert.equal(response.body.entry.userId, jere.id);
     assert.equal(response.body.entry.dateKey, "2026-08-28");
     assert.deepEqual(repo.calls, [`upsert:${jere.id}:2026-08-28`]);
+  });
+
+  it("keeps the daily entry saved if the stats-ready push notification fails", async () => {
+    const repo = makeRepository();
+    const app = makeApp(jere, repo, async () => {
+      throw new Error("push failed");
+    });
+    const originalWarn = console.warn;
+    console.warn = () => {};
+
+    try {
+      const response = await request(app).put("/daily-entries/2026-08-28").send(validInput);
+
+      assert.equal(response.status, 200);
+      assert.equal(response.body.entry.userId, jere.id);
+      assert.deepEqual(repo.calls, [`upsert:${jere.id}:2026-08-28`]);
+    } finally {
+      console.warn = originalWarn;
+    }
   });
 
   it("updates the same user/date instead of creating duplicates", async () => {

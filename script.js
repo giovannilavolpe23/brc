@@ -154,6 +154,7 @@ const STORAGE_KEYS = {
   apiAccessToken: "apiAccessToken",
   themePreference: "barilocheThemePreference",
   pendingApiOperations: "pendingApiOperations",
+  pushPromptDismissed: "pushPromptDismissed",
   userData: (id) => `userData:${id}`,
   adminPlayers: "adminPlayers",
   adminPrevias: "adminPrevias",
@@ -194,6 +195,14 @@ let personalizationSaving = false;
 let personalizationMessage = "";
 let personalizationError = "";
 let personalizationColorPickerTarget = null;
+let pushSettingsLoading = false;
+let pushSettingsMessage = "";
+let pushSettingsError = "";
+let pushSettingsSnapshot = null;
+let pushActionSubmitting = false;
+let pushPromptShowing = false;
+let pushPromptCheckRunning = false;
+let statsTargetDateKey = null;
 
 function getSavedThemePreference() {
   const saved = localStorage.getItem(STORAGE_KEYS.themePreference);
@@ -547,6 +556,365 @@ async function applySyncedApiOperation(operation, response) {
   } catch (e) {
     // La operación ya fue aceptada por la API; si no se puede leer el JSON, no se reintenta.
   }
+}
+
+/* -----------------------------------------------------------
+   Web Push: suscripción local + API
+   ----------------------------------------------------------- */
+
+function isStandaloneDisplayMode() {
+  return (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
+}
+
+function isIosDevice() {
+  return /iphone|ipad|ipod/i.test(window.navigator.userAgent || "");
+}
+
+function getPushSupportInfo() {
+  const hasApi = "Notification" in window && "serviceWorker" in navigator && "PushManager" in window;
+  if (!hasApi || !window.isSecureContext) {
+    return {
+      supported: false,
+      reason: isIosDevice() && !isStandaloneDisplayMode() ? "ios-home-screen" : "unsupported",
+      permission: "unsupported",
+    };
+  }
+
+  return {
+    supported: true,
+    reason: null,
+    permission: Notification.permission,
+  };
+}
+
+function base64UrlToUint8Array(value) {
+  const padding = "=".repeat((4 - (value.length % 4)) % 4);
+  const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = window.atob(base64);
+  const output = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i += 1) output[i] = raw.charCodeAt(i);
+  return output;
+}
+
+async function getPushServiceWorkerRegistration() {
+  const existing = await navigator.serviceWorker.getRegistration();
+  return existing || navigator.serviceWorker.register("/sw.js");
+}
+
+async function getCurrentPushSubscription() {
+  const support = getPushSupportInfo();
+  if (!support.supported) return null;
+  const registration = await getPushServiceWorkerRegistration();
+  return registration.pushManager.getSubscription();
+}
+
+function pushSettingsText(snapshot) {
+  if (!snapshot) return { title: "Notificaciones", body: "Revisando el estado de este dispositivo." };
+  if (!snapshot.support.supported) {
+    if (snapshot.support.reason === "ios-home-screen") {
+      return {
+        title: "Activación desde acceso directo",
+        body: "En iPhone, abrí la web desde el icono agregado a la pantalla de inicio para activar notificaciones.",
+      };
+    }
+    return {
+      title: "No disponibles en este navegador",
+      body: "Este navegador o contexto no permite notificaciones web.",
+    };
+  }
+  if (!snapshot.configured) {
+    return {
+      title: "Notificaciones no configuradas",
+      body: "Faltan las claves VAPID del backend. La app sigue funcionando sin notificaciones.",
+    };
+  }
+  if (snapshot.support.permission === "denied") {
+    return {
+      title: "Bloqueadas en el navegador",
+      body: "Para usarlas, habilitalas desde la configuración del navegador.",
+    };
+  }
+  if (snapshot.subscribed) {
+    return {
+      title: "Notificaciones activas",
+      body: "Este dispositivo puede recibir recordatorios y avisos de estadísticas.",
+    };
+  }
+  return {
+    title: "Notificaciones apagadas",
+    body: "Activá recordatorios del registro diario y avisos cuando estén las estadísticas.",
+  };
+}
+
+function renderPushSettingsPanel() {
+  const panel = document.getElementById("push-settings-panel");
+  if (!panel) return;
+  const text = pushSettingsText(pushSettingsSnapshot);
+  const subscribed = !!(pushSettingsSnapshot && pushSettingsSnapshot.subscribed);
+  const canAct =
+    !!pushSettingsSnapshot &&
+    pushSettingsSnapshot.support.supported &&
+    pushSettingsSnapshot.configured &&
+    pushSettingsSnapshot.support.permission !== "denied";
+
+  panel.innerHTML = `
+    <h3 class="daily-section-title">${escapeHtml(text.title)}</h3>
+    <p class="export-hint">${escapeHtml(text.body)}</p>
+    ${pushSettingsLoading ? renderApiLoadingBanner("Revisando notificaciones...") : ""}
+    ${pushSettingsMessage ? `<p class="daily-save-msg visible">${escapeHtml(pushSettingsMessage)}</p>` : ""}
+    ${pushSettingsError ? `<p class="sheet-error">${escapeHtml(pushSettingsError)}</p>` : ""}
+    <div class="push-settings-actions">
+      ${
+        subscribed
+          ? `<button type="button" class="admin-add-btn" id="btn-push-disable" ${pushActionSubmitting ? "disabled" : ""}>Desactivar</button>`
+          : `<button type="button" class="sheet-submit" id="btn-push-enable" ${!canAct || pushActionSubmitting ? "disabled" : ""}>Activar notificaciones</button>`
+      }
+      <button type="button" class="admin-add-btn" id="btn-push-test" ${!subscribed || pushActionSubmitting ? "disabled" : ""}>Enviar prueba</button>
+    </div>
+  `;
+
+  const enableBtn = document.getElementById("btn-push-enable");
+  const disableBtn = document.getElementById("btn-push-disable");
+  const testBtn = document.getElementById("btn-push-test");
+  if (enableBtn) enableBtn.addEventListener("click", () => enablePushNotifications());
+  if (disableBtn) disableBtn.addEventListener("click", disablePushNotifications);
+  if (testBtn) testBtn.addEventListener("click", sendPushTestNotification);
+}
+
+function setPushActionError(message) {
+  pushSettingsError = message;
+  if (currentSheetType === "push-permission") showSheetError(message);
+}
+
+async function refreshPushSettings({ quiet = false } = {}) {
+  const user = getCurrentUser();
+  if (!user || !user.isAdmin) return;
+  pushSettingsLoading = !quiet;
+  pushSettingsError = "";
+  renderPushSettingsPanel();
+
+  const support = getPushSupportInfo();
+  let subscription = null;
+  let configured = false;
+  let subscriptionCount = 0;
+
+  try {
+    if (support.supported) {
+      subscription = await getCurrentPushSubscription();
+      const response = await apiFetch("/push/status");
+      if (response.ok) {
+        const payload = await response.json();
+        configured = !!payload.configured;
+        subscriptionCount = Number(payload.subscriptionCount || 0);
+      } else if (response.status !== 401) {
+        pushSettingsError = "No se pudo revisar el estado de notificaciones.";
+      }
+    }
+    pushSettingsSnapshot = {
+      support,
+      subscribed: !!subscription,
+      configured,
+      subscriptionCount,
+    };
+  } catch (e) {
+    pushSettingsSnapshot = { support, subscribed: false, configured: false, subscriptionCount: 0 };
+    pushSettingsError = "No se pudo revisar el estado de notificaciones.";
+  } finally {
+    pushSettingsLoading = false;
+    renderPushSettingsPanel();
+  }
+}
+
+async function enablePushNotifications({ fromPrompt = false } = {}) {
+  if (pushActionSubmitting) return false;
+  const support = getPushSupportInfo();
+  pushSettingsError = "";
+  pushSettingsMessage = "";
+
+  if (!support.supported) {
+    pushSettingsSnapshot = { support, subscribed: false, configured: false, subscriptionCount: 0 };
+    setPushActionError(
+      support.reason === "ios-home-screen"
+        ? "Para activar notificaciones en iPhone, abrí la app desde el acceso directo de la pantalla de inicio."
+        : "Este navegador no permite activar notificaciones web."
+    );
+    renderPushSettingsPanel();
+    return false;
+  }
+
+  pushActionSubmitting = true;
+  renderPushSettingsPanel();
+  try {
+    let permission = Notification.permission;
+    if (permission === "default") {
+      permission = await Notification.requestPermission();
+    }
+    if (permission !== "granted") {
+      localStorage.setItem(STORAGE_KEYS.pushPromptDismissed, "true");
+      setPushActionError("Las notificaciones no quedaron activadas.");
+      return false;
+    }
+
+    const statusResponse = await apiFetch("/push/status");
+    if (!statusResponse.ok) {
+      setPushActionError(statusResponse.status === 401 ? "Volvé a iniciar sesión para activar notificaciones." : "No se pudo activar notificaciones.");
+      return false;
+    }
+    const status = await statusResponse.json();
+    if (!status.configured || !status.vapidPublicKey) {
+      setPushActionError("Las notificaciones todavía no están configuradas en el servidor.");
+      return false;
+    }
+
+    const registration = await getPushServiceWorkerRegistration();
+    const subscription =
+      (await registration.pushManager.getSubscription()) ||
+      (await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: base64UrlToUint8Array(status.vapidPublicKey),
+      }));
+
+    const response = await apiFetch("/push/subscribe", {
+      method: "POST",
+      body: JSON.stringify(subscription.toJSON()),
+    });
+    if (!response.ok) {
+      setPushActionError("No se pudo guardar la suscripción.");
+      return false;
+    }
+
+    localStorage.setItem(STORAGE_KEYS.pushPromptDismissed, "true");
+    pushSettingsMessage = "Notificaciones activadas.";
+    pushSettingsSnapshot = {
+      support: getPushSupportInfo(),
+      subscribed: true,
+      configured: true,
+      subscriptionCount: 1,
+    };
+    if (fromPrompt) closeSheet();
+    return true;
+  } catch (e) {
+    setPushActionError("No se pudo activar notificaciones.");
+    return false;
+  } finally {
+    pushActionSubmitting = false;
+    pushPromptShowing = false;
+    renderPushSettingsPanel();
+  }
+}
+
+async function disablePushNotifications() {
+  if (pushActionSubmitting) return;
+  pushActionSubmitting = true;
+  pushSettingsError = "";
+  pushSettingsMessage = "";
+  renderPushSettingsPanel();
+  try {
+    const subscription = await getCurrentPushSubscription();
+    if (subscription) {
+      await apiFetch("/push/unsubscribe", {
+        method: "DELETE",
+        body: JSON.stringify(subscription.toJSON()),
+      }).catch(() => null);
+      await subscription.unsubscribe().catch(() => null);
+    }
+    pushSettingsMessage = "Notificaciones desactivadas.";
+    pushSettingsSnapshot = {
+      support: getPushSupportInfo(),
+      subscribed: false,
+      configured: pushSettingsSnapshot ? pushSettingsSnapshot.configured : true,
+      subscriptionCount: 0,
+    };
+  } catch (e) {
+    pushSettingsError = "No se pudo desactivar notificaciones.";
+  } finally {
+    pushActionSubmitting = false;
+    renderPushSettingsPanel();
+  }
+}
+
+async function sendPushTestNotification() {
+  if (pushActionSubmitting) return;
+  pushActionSubmitting = true;
+  pushSettingsError = "";
+  pushSettingsMessage = "";
+  renderPushSettingsPanel();
+  try {
+    const subscription = await getCurrentPushSubscription();
+    if (!subscription) {
+      pushSettingsError = "Primero activá las notificaciones.";
+      return;
+    }
+    const response = await apiFetch("/push/test", {
+      method: "POST",
+      body: JSON.stringify({ endpoint: subscription.endpoint }),
+    });
+    if (response.status === 403) {
+      pushSettingsError = "Solo Gio/Admin puede enviar pruebas.";
+      return;
+    }
+    if (!response.ok) {
+      pushSettingsError = "No se pudo enviar la prueba.";
+      return;
+    }
+    pushSettingsMessage = "Notificación de prueba enviada.";
+  } catch (e) {
+    pushSettingsError = "No se pudo enviar la prueba.";
+  } finally {
+    pushActionSubmitting = false;
+    renderPushSettingsPanel();
+  }
+}
+
+async function maybeShowPushPermissionPrompt() {
+  if (pushPromptShowing) return;
+  if (pushPromptCheckRunning) return;
+  if (localStorage.getItem(STORAGE_KEYS.pushPromptDismissed)) return;
+  if (!getCurrentUser()) return;
+  const support = getPushSupportInfo();
+  if (!support.supported || support.permission !== "default") return;
+  pushPromptCheckRunning = true;
+  try {
+    const response = await apiFetch("/push/status", { skipSessionExpiredHandling: true });
+    if (!response.ok) return;
+    const status = await response.json();
+    if (!status.configured || !status.vapidPublicKey) return;
+    const subscription = await getCurrentPushSubscription();
+    if (subscription) {
+      localStorage.setItem(STORAGE_KEYS.pushPromptDismissed, "true");
+      return;
+    }
+    pushSettingsSnapshot = {
+      support,
+      subscribed: false,
+      configured: true,
+      subscriptionCount: Number(status.subscriptionCount || 0),
+    };
+    pushPromptShowing = true;
+    openSheet("push-permission");
+  } catch (e) {
+    // Si la API no responde al abrir Home, no bloqueamos ni molestamos.
+  } finally {
+    pushPromptCheckRunning = false;
+  }
+}
+
+function dismissPushPermissionPrompt() {
+  localStorage.setItem(STORAGE_KEYS.pushPromptDismissed, "true");
+  pushPromptShowing = false;
+  closeSheet();
+}
+
+function initPushNotificationListeners() {
+  if (!("serviceWorker" in navigator)) return;
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    if (!event.data || event.data.type !== "push:navigate") return;
+    const target = typeof event.data.url === "string" && event.data.url ? event.data.url : "#/home";
+    if (target.startsWith("#/")) {
+      location.hash = target;
+      navigate(routeFromHash());
+    }
+  });
 }
 
 /* -----------------------------------------------------------
@@ -3148,6 +3516,21 @@ function openSheet(type, movement) {
   const user = getCurrentUser();
   const data = user ? ensureMoneyData(user.id) : null;
 
+  if (type === "push-permission") {
+    sheetEl.classList.add("sheet-frost");
+    sheetContent.innerHTML = `
+      <h2 class="sheet-title">¿Activar notificaciones?</h2>
+      <p class="sheet-sub">Podemos avisarte cuando falte tu registro diario y cuando estén listas las estadísticas.</p>
+      <p class="sheet-error" id="sheet-error"></p>
+      <button class="sheet-submit" id="sheet-submit-btn" type="button">Activar</button>
+      <button class="sheet-cancel-link" id="sheet-cancel-btn" type="button">Ahora no</button>
+    `;
+    document.getElementById("sheet-submit-btn").addEventListener("click", () => enablePushNotifications({ fromPrompt: true }));
+    document.getElementById("sheet-cancel-btn").addEventListener("click", dismissPushPermissionPrompt);
+    sheetOverlay.classList.add("visible");
+    return;
+  }
+
   if (type === "admin-delete-player-confirm") {
     const participant = adminDeletePlayerTarget;
     if (!participant) {
@@ -3428,6 +3811,9 @@ function closeSheet() {
   if (currentSheetType === "login-password") {
     loginParticipant = null;
   }
+  if (currentSheetType === "push-permission") {
+    localStorage.setItem(STORAGE_KEYS.pushPromptDismissed, "true");
+  }
   editingMovementId = null;
   activeMovementId = null;
   adminImportTargetId = null;
@@ -3439,6 +3825,7 @@ function closeSheet() {
   backupImportStep = null;
   backupImportPendingPayload = null;
   adminDeletePlayerTarget = null;
+  pushPromptShowing = false;
   currentSheetType = null;
   if (forcingInitial) {
     // No se cargó saldo inicial: volvemos a home en vez de dejar la
@@ -5924,6 +6311,10 @@ function renderStatsPanel() {
   if (!panel) return;
   const localClosedDays = getStatsClosedDays();
   const closedDays = statsApiTotal && Array.isArray(statsApiTotal.closedDays) ? statsApiTotal.closedDays : localClosedDays;
+  if (statsTargetDateKey && closedDays.includes(statsTargetDateKey)) {
+    statsDayIndex = closedDays.indexOf(statsTargetDateKey);
+    statsTargetDateKey = null;
+  }
 
   // Dirección de la transición (solo se usa una vez y se resetea:
   // sirve para que ← anterior deslice desde la izquierda y →
@@ -7521,7 +7912,14 @@ function navigate(route) {
     renderPreviasScreen();
     showScreen("previas");
   } else if (route === "stats") {
-    location.hash = "#/stats";
+    const targetDate = statsDateFromHash();
+    if (targetDate) {
+      statsTab = "dia";
+      statsTargetDateKey = targetDate;
+      location.hash = `#/stats?date=${encodeURIComponent(targetDate)}`;
+    } else {
+      location.hash = "#/stats";
+    }
     renderStatsScreen();
     showScreen("stats");
   } else if (route === "titulos") {
@@ -7550,6 +7948,8 @@ function navigate(route) {
     showScreen("personalizacion");
   } else if (route === "ajustes") {
     location.hash = "#/ajustes";
+    renderPushSettingsPanel();
+    refreshPushSettings();
     showScreen("ajustes");
   } else if (route === "previas-jere") {
     location.hash = "#/previas-jere";
@@ -7572,6 +7972,7 @@ function navigate(route) {
     location.hash = "#/home";
     renderHome(user);
     showScreen("home");
+    setTimeout(maybeShowPushPermissionPrompt, 700);
   }
 
   navAdminBtn.hidden = !user.isAdmin;
@@ -7615,8 +8016,17 @@ function navigate(route) {
   );
 }
 
+function statsDateFromHash() {
+  const raw = location.hash.replace("#/", "");
+  const query = raw.includes("?") ? raw.split("?").slice(1).join("?") : "";
+  if (!query) return null;
+  const params = new URLSearchParams(query);
+  const date = params.get("date");
+  return /^\d{4}-\d{2}-\d{2}$/.test(date || "") ? date : null;
+}
+
 function routeFromHash() {
-  const hash = location.hash.replace("#/", "");
+  const hash = location.hash.replace("#/", "").split("?")[0];
   if (hash === "admin") return "admin";
   if (hash === "previas") return "previas";
   if (hash === "stats") return "stats";
@@ -8220,6 +8630,7 @@ function init() {
   applyThemePreference(getInitialThemePreference());
   renderParticipantGrid();
   initLoginParallax();
+  initPushNotificationListeners();
   updateApiSyncIndicator();
   schedulePendingApiSync(1000);
   refreshParticipantsFromApi();

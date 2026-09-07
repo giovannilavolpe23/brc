@@ -24,6 +24,13 @@ export function todayInArgentina(now = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
+export function dateKeyDaysBeforeArgentina(days: number, now = new Date()): string {
+  const today = todayInArgentina(now);
+  const [year, month, day] = today.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day - days));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+}
+
 export function validatePastDateKey(dateKey: string, now = new Date()): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || !isRealDateKey(dateKey)) {
     throw new DateKeyError("invalid_date_key");

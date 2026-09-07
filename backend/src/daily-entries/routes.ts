@@ -1,13 +1,17 @@
 import { Router, type NextFunction, type RequestHandler, type Response } from "express";
 import { requireAuth } from "../auth/middleware";
 import { DateKeyError, validatePastDateKey } from "../dates/trip-date";
+import { pushService } from "../push/service";
 import { postgresDailyEntriesRepository, type DailyEntriesRepository } from "./repository";
 import { parseDailyEntryInput, DailyEntryValidationError } from "./validation";
+
+type AfterDailyEntryUpsert = (dateKey: string) => Promise<unknown>;
 
 export function createDailyEntriesRouter(
   repository: DailyEntriesRepository = postgresDailyEntriesRepository,
   authMiddleware: RequestHandler = requireAuth,
-  now: () => Date = () => new Date()
+  now: () => Date = () => new Date(),
+  afterUpsert: AfterDailyEntryUpsert = (dateKey) => pushService.notifyStatsReadyIfComplete(dateKey)
 ): Router {
   const router = Router();
 
@@ -41,6 +45,9 @@ export function createDailyEntriesRouter(
       const dateKey = validatePastDateKey(req.params.date, now());
       const input = parseDailyEntryInput(req.body);
       const entry = await repository.upsertEntry(req.user.id, dateKey, input);
+      afterUpsert(dateKey).catch((error) => {
+        console.warn("Daily entry saved but stats-ready push failed.", error);
+      });
       res.json({ entry });
     } catch (error) {
       handleDailyEntriesError(error, res, next);

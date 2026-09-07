@@ -12,6 +12,10 @@ describe("environment examples", () => {
     assert.match(envExample, /^JWT_SECRET=$/m);
     assert.match(envExample, /^FRONTEND_ORIGIN=$/m);
     assert.match(envExample, /^NODE_ENV=$/m);
+    assert.match(envExample, /^VAPID_PUBLIC_KEY=$/m);
+    assert.match(envExample, /^VAPID_PRIVATE_KEY=$/m);
+    assert.match(envExample, /^VAPID_SUBJECT=$/m);
+    assert.match(envExample, /^CRON_SECRET=$/m);
     assert.doesNotMatch(envExample, /postgresql:\/\//);
     assert.doesNotMatch(envExample, /YOUR-PASSWORD/i);
     assert.doesNotMatch(envExample, /supabase\.co/i);

@@ -1605,6 +1605,15 @@ img, svg {
   display: none !important;
 }
 
+.push-settings-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.push-settings-panel .api-loading-banner {
+  margin-top: 2px;
+}
+
 /* ---------------- Estadísticas (DÍA / TOTAL) ----------------
    Pulido visual v0.15.0: la estructura (tabs DÍA/TOTAL, navegación
    de día, tarjetas de ranking con barras horizontales) es la misma
