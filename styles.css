@@ -1280,6 +1280,130 @@ img, svg {
   display: grid;
 }
 
+.appearance-color-card {
+  min-width: 0;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-2) 78%, transparent);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.appearance-color-card.open {
+  border-color: color-mix(in srgb, var(--accent-2) 40%, var(--border));
+  background: color-mix(in srgb, var(--accent-2) 7%, var(--surface));
+  box-shadow: 0 12px 24px -22px rgba(47, 143, 209, 0.45);
+}
+
+.appearance-color-trigger {
+  width: 100%;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.appearance-color-trigger:active {
+  transform: scale(0.99);
+}
+
+.appearance-color-swatch {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--color);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.58), 0 8px 18px -14px color-mix(in srgb, var(--color) 80%, transparent);
+}
+
+.appearance-color-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.appearance-color-copy span {
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.appearance-color-copy strong {
+  color: var(--text);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+.appearance-color-picker {
+  display: grid;
+  gap: 10px;
+  padding: 0 11px 12px;
+  animation: uxFadeUp 0.16s ease both;
+}
+
+.appearance-color-palette {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.appearance-color-dot {
+  aspect-ratio: 1;
+  min-width: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.82);
+  background: var(--color);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color) 28%, var(--border));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.appearance-color-dot.selected {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color) 62%, var(--accent-2)), 0 8px 18px -14px color-mix(in srgb, var(--color) 80%, transparent);
+}
+
+.appearance-hex-field {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
+  border: 1px solid var(--border);
+}
+
+.appearance-hex-field span {
+  color: var(--text-faint);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+}
+
+.appearance-hex-field input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.appearance-hex-field input.error {
+  color: var(--danger);
+}
+
 .appearance-color-field {
   display: flex;
   align-items: center;
@@ -1341,8 +1465,18 @@ img, svg {
 }
 
 .king-almost-column.personalized-surface .king-almost-pedestal {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--person-primary) var(--person-alpha), var(--surface)) 0%, color-mix(in srgb, var(--person-secondary) 12%, var(--surface-2)) 100%);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--person-primary) var(--person-alpha), var(--surface)) 0%, color-mix(in srgb, var(--person-secondary) 12%, var(--surface-2)) 100%);
   border-color: color-mix(in srgb, var(--person-primary) var(--person-border-alpha), var(--border));
+}
+
+.king-almost-column.personalized-surface[data-person-style="glass"] .king-almost-pedestal {
+  background:
+    linear-gradient(var(--person-gradient-direction), color-mix(in srgb, var(--person-primary) calc(var(--person-alpha) + 4%), var(--surface)), color-mix(in srgb, var(--person-secondary) 14%, var(--surface-2)));
+}
+
+.king-almost-column.personalized-surface[data-person-style="glow"] .king-almost-pedestal {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.46), 0 14px 28px -22px color-mix(in srgb, var(--person-secondary) calc(var(--person-glow-alpha) + 12%), transparent);
 }
 
 .ranking-row.personalized-surface .ranking-bar-fill,
@@ -4298,6 +4432,12 @@ img, svg {
   border-color: rgba(76, 201, 240, 0.28);
 }
 
+.screen.admin-frost .king-almost-column.personalized-surface .king-almost-pedestal {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--person-primary) var(--person-alpha), #ffffff) 0%, color-mix(in srgb, var(--person-secondary) 12%, #f5fbff) 100%);
+  border-color: color-mix(in srgb, var(--person-primary) 30%, rgba(76, 201, 240, 0.28));
+}
+
 .screen.admin-frost .king-profile-empty {
   background: #ffffff;
   border-color: rgba(76, 201, 240, 0.3);
@@ -5482,6 +5622,13 @@ html[data-theme="dark"] .screen.admin-frost .king-almost-pedestal {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 13px 26px -24px rgba(0, 0, 0, 0.82);
 }
 
+html[data-theme="dark"] .screen.admin-frost .king-almost-column.personalized-surface .king-almost-pedestal {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--person-primary) calc(var(--person-alpha) - 2%), rgba(19, 52, 74, 0.82)) 0%, color-mix(in srgb, var(--person-secondary) 10%, rgba(11, 30, 48, 0.9)) 100%);
+  border-color: color-mix(in srgb, var(--person-primary) 26%, rgba(127, 200, 231, 0.22));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 13px 26px -24px color-mix(in srgb, var(--person-secondary) 32%, rgba(0, 0, 0, 0.82));
+}
+
 html[data-theme="dark"] .screen.admin-frost .titulo-badge {
   background: color-mix(in srgb, var(--titulo-accent, #5ec7ec) 12%, rgba(17, 43, 63, 0.9));
   border-color: color-mix(in srgb, var(--titulo-accent, #5ec7ec) 32%, rgba(127, 200, 231, 0.24));
@@ -5688,10 +5835,21 @@ html[data-theme="dark"] .appearance-preview-card {
 
 html[data-theme="dark"] .appearance-preset,
 html[data-theme="dark"] .appearance-chip,
+html[data-theme="dark"] .appearance-color-card,
 html[data-theme="dark"] .appearance-color-field,
 html[data-theme="dark"] .appearance-preview-mini {
   background: rgba(255, 255, 255, 0.045);
   border-color: rgba(148, 210, 235, 0.13);
+}
+
+html[data-theme="dark"] .appearance-color-card.open,
+html[data-theme="dark"] .appearance-hex-field {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(148, 210, 235, 0.16);
+}
+
+html[data-theme="dark"] .appearance-color-dot {
+  border-color: rgba(255, 255, 255, 0.72);
 }
 
 html[data-theme="dark"] .appearance-preset.selected,

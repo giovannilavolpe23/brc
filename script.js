@@ -77,6 +77,18 @@ const APPEARANCE_AVATAR_BORDERS = [
   { key: "none", label: "Sin borde" },
 ];
 const APPEARANCE_HEX_RE = /^#[0-9A-F]{6}$/i;
+const APPEARANCE_COLOR_SWATCHES = Array.from(
+  new Set(
+    APPEARANCE_PRESETS.flatMap((preset) => [preset.primaryColor, preset.secondaryColor]).concat([
+      "#4CC9F0",
+      "#7B61FF",
+      "#22C55E",
+      "#EC4899",
+      "#FFD166",
+      "#EF4444",
+    ])
+  )
+);
 
 /* -----------------------------------------------------------
    HERRAMIENTA DE TESTING — simulación de fecha (day())
@@ -181,6 +193,7 @@ let personalizationDraft = null;
 let personalizationSaving = false;
 let personalizationMessage = "";
 let personalizationError = "";
+let personalizationColorPickerTarget = null;
 
 function getSavedThemePreference() {
   const saved = localStorage.getItem(STORAGE_KEYS.themePreference);
@@ -1208,6 +1221,16 @@ function cloneAppearance(appearance) {
   return appearance ? { ...appearance } : null;
 }
 
+function appearanceDraftWithColor(key, value) {
+  const normalizedColor = normalizeHexColor(value);
+  if (!normalizedColor || (key !== "primaryColor" && key !== "secondaryColor")) return null;
+  return {
+    ...(personalizationDraft || DEFAULT_APPEARANCE_DRAFT),
+    preset: "custom",
+    [key]: normalizedColor,
+  };
+}
+
 function currentUserParticipant() {
   const user = getCurrentUser();
   if (!user) return null;
@@ -1248,6 +1271,38 @@ function renderAppearanceChips(group, options, selected) {
           `
         )
         .join("")}
+    </div>
+  `;
+}
+
+function renderAppearanceColorControl(key, label, value) {
+  const active = personalizationColorPickerTarget === key;
+  return `
+    <div class="appearance-color-card${active ? " open" : ""}">
+      <button type="button" class="appearance-color-trigger" data-appearance-color-toggle="${key}" aria-expanded="${active ? "true" : "false"}">
+        <span class="appearance-color-swatch" style="--color:${value}" aria-hidden="true"></span>
+        <span class="appearance-color-copy">
+          <span>${label}</span>
+          <strong>${value}</strong>
+        </span>
+      </button>
+      ${
+        active
+          ? `<div class="appearance-color-picker">
+              <div class="appearance-color-palette" aria-label="Paleta ${label}">
+                ${APPEARANCE_COLOR_SWATCHES.map(
+                  (color) => `
+                    <button type="button" class="appearance-color-dot${color.toUpperCase() === value.toUpperCase() ? " selected" : ""}" data-appearance-color-target="${key}" data-appearance-color="${color}" style="--color:${color}" aria-label="${color}"></button>
+                  `
+                ).join("")}
+              </div>
+              <label class="appearance-hex-field">
+                <span>HEX</span>
+                <input type="text" value="${value}" maxlength="7" inputmode="text" autocapitalize="characters" spellcheck="false" data-appearance-hex-target="${key}">
+              </label>
+            </div>`
+          : ""
+      }
     </div>
   `;
 }
@@ -1313,14 +1368,8 @@ function renderPersonalizationScreen() {
       </div>
 
       <div class="appearance-custom-fields${customSelected ? " visible" : ""}">
-        <label class="appearance-color-field">
-          <span>Color 1</span>
-          <input id="appearance-color-1" type="color" value="${draft ? draft.primaryColor : DEFAULT_APPEARANCE_DRAFT.primaryColor}">
-        </label>
-        <label class="appearance-color-field">
-          <span>Color 2</span>
-          <input id="appearance-color-2" type="color" value="${draft ? draft.secondaryColor : DEFAULT_APPEARANCE_DRAFT.secondaryColor}">
-        </label>
+        ${renderAppearanceColorControl("primaryColor", "Color principal", draft ? draft.primaryColor : DEFAULT_APPEARANCE_DRAFT.primaryColor)}
+        ${renderAppearanceColorControl("secondaryColor", "Color secundario", draft ? draft.secondaryColor : DEFAULT_APPEARANCE_DRAFT.secondaryColor)}
       </div>
     </section>
 
@@ -1354,9 +1403,11 @@ function bindPersonalizationControls() {
     button.addEventListener("click", () => {
       const key = button.dataset.appearancePreset;
       if (key === "custom") {
+        personalizationColorPickerTarget = personalizationColorPickerTarget || "primaryColor";
         setPersonalizationDraft({ ...(personalizationDraft || DEFAULT_APPEARANCE_DRAFT), preset: "custom" });
       } else {
         const preset = presetByKey(key);
+        personalizationColorPickerTarget = null;
         setPersonalizationDraft({
           ...(personalizationDraft || DEFAULT_APPEARANCE_DRAFT),
           preset: preset.key,
@@ -1377,26 +1428,47 @@ function bindPersonalizationControls() {
     });
   });
 
-  const color1 = document.getElementById("appearance-color-1");
-  const color2 = document.getElementById("appearance-color-2");
-  if (color1) {
-    color1.addEventListener("input", () => {
-      setPersonalizationDraft({ ...(personalizationDraft || DEFAULT_APPEARANCE_DRAFT), preset: "custom", primaryColor: color1.value });
+  main.querySelectorAll("[data-appearance-color-toggle]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const target = button.dataset.appearanceColorToggle;
+      const nextOpen = personalizationColorPickerTarget === target ? null : target;
+      personalizationColorPickerTarget = nextOpen;
+      renderPersonalizationScreen();
+      if (nextOpen) {
+        requestAnimationFrame(() => {
+          const input = document.querySelector(`[data-appearance-hex-target="${nextOpen}"]`);
+          if (input) input.focus();
+        });
+      }
+    });
+  });
+
+  main.querySelectorAll("[data-appearance-color-target]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = appearanceDraftWithColor(button.dataset.appearanceColorTarget, button.dataset.appearanceColor);
+      if (!next) return;
+      setPersonalizationDraft(next);
       renderPersonalizationScreen();
     });
-  }
-  if (color2) {
-    color2.addEventListener("input", () => {
-      setPersonalizationDraft({ ...(personalizationDraft || DEFAULT_APPEARANCE_DRAFT), preset: "custom", secondaryColor: color2.value });
+  });
+
+  main.querySelectorAll("[data-appearance-hex-target]").forEach((input) => {
+    input.addEventListener("input", () => {
+      const raw = input.value.trim();
+      input.classList.toggle("error", raw.length > 0 && !normalizeHexColor(raw));
+      const next = appearanceDraftWithColor(input.dataset.appearanceHexTarget, raw);
+      if (!next) return;
+      setPersonalizationDraft(next);
       renderPersonalizationScreen();
     });
-  }
+  });
 
   const saveBtn = document.getElementById("btn-appearance-save");
   if (saveBtn) saveBtn.addEventListener("click", savePersonalizationDraft);
   const resetBtn = document.getElementById("btn-appearance-reset");
   if (resetBtn) {
     resetBtn.addEventListener("click", () => {
+      personalizationColorPickerTarget = null;
       setPersonalizationDraft(null);
       personalizationMessage = "Listo para restablecer. Tocá Guardar para persistirlo.";
       renderPersonalizationScreen();
@@ -1410,33 +1482,47 @@ async function savePersonalizationDraft() {
   personalizationMessage = "";
   personalizationError = "";
   renderPersonalizationScreen();
+  const draft = normalizeAppearance(personalizationDraft);
+  let savedAppearance = null;
   try {
-    const draft = normalizeAppearance(personalizationDraft);
     const response = draft
       ? await apiFetch("/users/me/appearance", { method: "PUT", body: JSON.stringify(draft) })
       : await apiFetch("/users/me/appearance", { method: "DELETE" });
     if (!response.ok) {
       personalizationMessage = "";
       personalizationError = "No se pudo guardar. Probá de nuevo en un momento.";
+      personalizationSaving = false;
+      renderPersonalizationScreen();
       return;
     }
 
-    let savedAppearance = null;
     if (draft && response.status !== 204) {
-      const payload = await response.json();
-      savedAppearance = normalizeAppearance(payload && payload.appearance);
+      const payload = await response.json().catch(() => null);
+      savedAppearance = normalizeAppearance(payload && payload.appearance) || draft;
     }
+  } catch (e) {
+    personalizationMessage = "";
+    personalizationError = "No se pudo guardar. La apariencia no quedó persistida.";
+    personalizationSaving = false;
+    renderPersonalizationScreen();
+    return;
+  } finally {
+    personalizationSaving = false;
+  }
+
+  try {
     applySavedAppearanceToLocalUser(savedAppearance);
     personalizationDraft = cloneAppearance(savedAppearance) || null;
+    personalizationColorPickerTarget = null;
     personalizationError = "";
     personalizationMessage = savedAppearance ? "Personalización guardada." : "Personalización restablecida.";
     renderParticipantGrid();
     refreshAchievementScreens();
   } catch (e) {
-    personalizationMessage = "";
-    personalizationError = "No se pudo guardar. La apariencia no quedó persistida.";
+    console.warn("La apariencia se guardó, pero no se pudo refrescar alguna vista.", e);
+    personalizationError = "";
+    personalizationMessage = savedAppearance ? "Personalización guardada." : "Personalización restablecida.";
   } finally {
-    personalizationSaving = false;
     renderPersonalizationScreen();
   }
 }
