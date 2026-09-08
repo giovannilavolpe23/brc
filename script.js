@@ -1707,7 +1707,7 @@ function renderPersonalizationPreview(user, draft) {
   const badgeAccentStyle = draft ? "--titulo-accent:var(--person-primary)" : "";
   const phrasePreview = validateKingPhraseInput(personalizationKingPhraseInput);
   return `
-    <section class="${appearanceClassSuffix(previewPlayer, "appearance-preview-card")}"${appearanceDataAttrs(previewPlayer)}${appearanceStyleAttr(previewPlayer)}>
+    <section id="appearance-preview-card" class="${appearanceClassSuffix(previewPlayer, "appearance-preview-card")}"${appearanceDataAttrs(previewPlayer)}${appearanceStyleAttr(previewPlayer)}>
       <div class="appearance-preview-header">
         ${renderPlayerAvatarHtml(previewPlayer, "appearance-preview-avatar")}
         <div class="appearance-preview-identity">
@@ -1801,6 +1801,30 @@ function renderPersonalizationScreen() {
   bindPersonalizationControls();
 }
 
+function updatePersonalizationFeedbackUi() {
+  const message = document.getElementById("appearance-save-msg");
+  const error = document.getElementById("appearance-error");
+  if (message) {
+    message.textContent = personalizationError ? "" : personalizationMessage;
+    message.classList.toggle("visible", Boolean(personalizationMessage && !personalizationError));
+  }
+  if (error) error.textContent = personalizationError;
+}
+
+function updatePersonalizationKingPhraseUi() {
+  const input = document.getElementById("appearance-king-phrase");
+  const count = document.getElementById("appearance-king-phrase-count");
+  if (count && input) count.textContent = `${input.value.length} / ${KING_PHRASE_MAX_LENGTH}`;
+
+  const preview = document.getElementById("appearance-preview-card");
+  const user = currentUserParticipant();
+  if (preview && user) {
+    preview.outerHTML = renderPersonalizationPreview(user, personalizationDraft);
+  }
+
+  updatePersonalizationFeedbackUi();
+}
+
 function bindPersonalizationControls() {
   const main = document.getElementById("personalizacion-main");
   if (!main) return;
@@ -1873,9 +1897,6 @@ function bindPersonalizationControls() {
   if (kingPhraseInput) {
     kingPhraseInput.addEventListener("input", () => {
       personalizationKingPhraseInput = kingPhraseInput.value;
-      const cursorPosition = kingPhraseInput.selectionStart;
-      const count = document.getElementById("appearance-king-phrase-count");
-      if (count) count.textContent = `${kingPhraseInput.value.length} / ${KING_PHRASE_MAX_LENGTH}`;
       const validation = validateKingPhraseInput(kingPhraseInput.value);
       personalizationError = validation.valid ? "" : validation.error;
       if (validation.valid) {
@@ -1883,13 +1904,7 @@ function bindPersonalizationControls() {
           ...DEFAULT_APPEARANCE_DRAFT,
         };
       }
-      renderPersonalizationScreen();
-      requestAnimationFrame(() => {
-        const nextInput = document.getElementById("appearance-king-phrase");
-        if (!nextInput) return;
-        nextInput.focus();
-        if (typeof cursorPosition === "number") nextInput.setSelectionRange(cursorPosition, cursorPosition);
-      });
+      updatePersonalizationKingPhraseUi();
     });
   }
 
