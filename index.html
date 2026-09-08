@@ -198,6 +198,14 @@
 
       <p class="home-footnote">Elige la sección a la que te quieras dirigir</p>
 
+      <article class="home-usage-card home-usage-access tappable" id="card-usage" role="button" tabindex="0" aria-label="Abrir Uso de la app">
+        <div class="feature-text">
+          <h3>Uso de la app</h3>
+          <p>Guía rápida de cómo funciona</p>
+        </div>
+        <svg class="feature-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </article>
+
       <!-- Sección adicional, solo visible para usuarios con permiso
            especial para registrar previas (hoy únicamente Jere).
            Se oculta/muestra en renderHome() según canRegisterLocalPrevia(). -->
@@ -214,6 +222,33 @@
           </article>
         </div>
       </div>
+    </main>
+  </section>
+
+  <!-- ===================== USO DE LA APP ===================== -->
+  <section id="screen-usage" class="screen admin-frost usage-screen">
+    <header class="admin-hero">
+      <div class="admin-hero-top">
+        <button id="btn-usage-back" class="icon-btn" type="button" aria-label="Volver a home">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="hero-badge">Uso de la app</span>
+        <span class="icon-btn spacer" aria-hidden="true"></span>
+      </div>
+      <p class="eyebrow">Guía rápida</p>
+      <h1 class="hero-name">Uso de la app</h1>
+    </header>
+
+    <main class="home-content">
+      <section class="home-usage-card home-usage-detail" aria-labelledby="usage-detail-title">
+        <h2 id="usage-detail-title">Uso de la app</h2>
+        <p><span class="home-usage-term">Dinero</span> sirve para llevar tus gastos e ingresos durante el viaje.</p>
+        <p><span class="home-usage-term">Registro diario</span> siempre carga lo que pasó <strong>ayer</strong>. Si te olvidaste de algo, podés volver a enviarlo y reemplaza el registro anterior.</p>
+        <p>Cada estadística puede otorgar títulos. Quien acumule más títulos termina siendo <strong>Rey de Bariloche</strong>. Si hay empate, puede haber más de un Rey.</p>
+        <p>Cuando todos completan el registro de ayer, se habilitan las estadísticas de ese día y llega una notificación.</p>
+        <p><span class="home-usage-term">Envío de datos</span> existe como respaldo: si algún día la web se rompe o hay un problema raro, podés pasarle tus datos a Gio para recuperarlos o revisarlos.</p>
+        <p class="home-usage-note"><strong>Dato innecesario:</strong> Gio gastó tantos prompts haciendo esta web que probablemente ya consumió el equivalente digital a <strong>dejar una canilla abierta durante varios días</strong>. Si estás leyendo esto, más te vale usar la app.</p>
+      </section>
     </main>
   </section>
 

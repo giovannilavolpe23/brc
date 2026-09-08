@@ -7839,6 +7839,7 @@ const screens = {
   "titulos-encuesta": document.getElementById("screen-titulos-encuesta"),
   "titulos-racha": document.getElementById("screen-titulos-racha"),
   personalizacion: document.getElementById("screen-personalizacion"),
+  usage: document.getElementById("screen-usage"),
   ajustes: document.getElementById("screen-ajustes"),
 };
 
@@ -7946,6 +7947,9 @@ function navigate(route) {
     location.hash = "#/personalizacion";
     renderPersonalizationScreen();
     showScreen("personalizacion");
+  } else if (route === "usage") {
+    location.hash = "#/usage";
+    showScreen("usage");
   } else if (route === "ajustes") {
     location.hash = "#/ajustes";
     renderPushSettingsPanel();
@@ -7995,6 +7999,7 @@ function navigate(route) {
       route === "titulos-encuesta" ||
       route === "titulos-racha" ||
       route === "personalizacion" ||
+      route === "usage" ||
       route === "ajustes" ||
       route === "money" ||
       route === "previas-jere" ||
@@ -8007,6 +8012,8 @@ function navigate(route) {
   // rutas históricas "titulos".
   updateNav(
     route === "money" || route === "daily" || route === "export" || route === "previas-jere" || route === "personalizacion"
+      ? "home"
+      : route === "usage"
       ? "home"
       : route === "previas" || route === "ajustes"
       ? "admin"
@@ -8036,6 +8043,7 @@ function routeFromHash() {
   if (hash === "titulos-encuesta") return "titulos-encuesta";
   if (hash === "titulos-racha") return "titulos-racha";
   if (hash === "personalizacion") return "personalizacion";
+  if (hash === "usage") return "usage";
   if (hash === "ajustes") return "ajustes";
   if (hash === "previas-jere") return "previas-jere";
   if (hash === "money") return "money";
@@ -8062,6 +8070,20 @@ document.getElementById("btn-appearance").addEventListener("click", () => {
 
 document.getElementById("btn-personalizacion-back").addEventListener("click", () => {
   navigateScreenToHomeWithTransition("personalizacion");
+});
+
+document.getElementById("card-usage").addEventListener("click", () => {
+  navigateHomeToScreenWithTransition("usage");
+});
+
+document.getElementById("card-usage").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  e.preventDefault();
+  navigateHomeToScreenWithTransition("usage");
+});
+
+document.getElementById("btn-usage-back").addEventListener("click", () => {
+  navigateScreenToHomeWithTransition("usage");
 });
 
 document.getElementById("btn-admin-back").addEventListener("click", () => {
@@ -8219,6 +8241,7 @@ bottomNav.addEventListener("click", (e) => {
       "export",
       "previas-jere",
       "personalizacion",
+      "usage",
       "admin",
       "previas",
       "stats",
@@ -8259,7 +8282,7 @@ bottomNav.addEventListener("click", (e) => {
   }
 
   if (route === "stats") {
-    const activeAnimatedOrigin = ["home", "admin", "titulos", "titulos-rey"].find((r) => screens[r] && screens[r].classList.contains("active"));
+    const activeAnimatedOrigin = ["home", "usage", "admin", "titulos", "titulos-rey"].find((r) => screens[r] && screens[r].classList.contains("active"));
     if (activeAnimatedOrigin) {
       navigateBetweenScreensWithTransition(activeAnimatedOrigin, "stats");
       return;
@@ -8267,7 +8290,7 @@ bottomNav.addEventListener("click", (e) => {
   }
 
   if (route === "titulos") {
-    const activeAnimatedOrigin = ["home", "admin", "stats", "titulos-rey"].find((r) => screens[r] && screens[r].classList.contains("active"));
+    const activeAnimatedOrigin = ["home", "usage", "admin", "stats", "titulos-rey"].find((r) => screens[r] && screens[r].classList.contains("active"));
     if (activeAnimatedOrigin) {
       navigateBetweenScreensWithTransition(activeAnimatedOrigin, "titulos");
       return;

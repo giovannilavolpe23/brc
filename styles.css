@@ -960,6 +960,80 @@ img, svg {
   padding: 0 8px;
 }
 
+.home-usage-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid rgba(76, 201, 240, 0.28);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.64);
+  box-shadow: 0 8px 20px -16px rgba(76, 158, 201, 0.34);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: uxFadeUp 0.18s ease both;
+}
+
+.home-usage-access {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease;
+}
+
+.home-usage-access:active {
+  transform: scale(0.985);
+  border-color: #4cc9f0;
+}
+
+.home-usage-access .feature-text h3 {
+  margin: 0;
+  font-size: 14px;
+  color: #10233a;
+}
+
+.home-usage-access .feature-text p {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #6f8799;
+}
+
+.home-usage-detail {
+  gap: 10px;
+}
+
+.home-usage-card h2 {
+  margin: 0 0 2px;
+  color: #10233a;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.home-usage-card p {
+  margin: 0;
+  color: #466277;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.home-usage-card strong,
+.home-usage-term {
+  color: #2f8fd1;
+  font-weight: 800;
+}
+
+.home-usage-note {
+  margin-top: 6px !important;
+  padding-top: 12px;
+  border-top: 1px solid rgba(76, 201, 240, 0.22);
+  color: #6f8799 !important;
+  font-size: 12px !important;
+}
+
 /* ---------------------------------------------------------
    Home — mismo lenguaje visual del login (fondo claro ya viene de
    `.login-screen`) + tarjetas más grandes para aprovechar mejor el
@@ -4640,6 +4714,7 @@ img, svg {
 
 .feature-card#card-money:active,
 .feature-card.tappable:active,
+.home-usage-access:active,
 .history-row:active,
 .money-action:active,
 .admin-add-btn:active,
@@ -4862,7 +4937,8 @@ img, svg {
   }
   .feature-card,
   .daily-section,
-  .ranking-card {
+  .ranking-card,
+  .home-usage-card {
     padding-left: 14px;
     padding-right: 14px;
   }
@@ -4889,6 +4965,7 @@ img, svg {
   .admin-import-textarea,
   .export-code-box,
   .api-sync-indicator,
+  .home-usage-access,
   .sheet-error,
   .daily-save-msg {
     transition: none !important;
@@ -4896,6 +4973,7 @@ img, svg {
   .api-loading-banner,
   .stats-empty-banner,
   .admin-notice,
+  .home-usage-card,
   .api-loading-dot {
     animation: none !important;
   }
@@ -5335,6 +5413,44 @@ html[data-theme="dark"] #screen-select .admin-pill {
 
 html[data-theme="dark"] #screen-home .home-footnote {
   color: #7f9aaf;
+}
+
+html[data-theme="dark"] #screen-home .home-usage-card,
+html[data-theme="dark"] #screen-usage .home-usage-card {
+  background: rgba(13, 31, 46, 0.62);
+  border-color: rgba(127, 200, 231, 0.22);
+  box-shadow: 0 12px 28px -24px rgba(0, 0, 0, 0.82);
+}
+
+html[data-theme="dark"] #screen-home .home-usage-access .feature-text h3 {
+  color: #edf7ff;
+}
+
+html[data-theme="dark"] #screen-home .home-usage-access .feature-text p {
+  color: #8da8ba;
+}
+
+html[data-theme="dark"] #screen-home .home-usage-card h2,
+html[data-theme="dark"] #screen-usage .home-usage-card h2 {
+  color: #edf7ff;
+}
+
+html[data-theme="dark"] #screen-home .home-usage-card p,
+html[data-theme="dark"] #screen-usage .home-usage-card p {
+  color: #bad0df;
+}
+
+html[data-theme="dark"] #screen-home .home-usage-card strong,
+html[data-theme="dark"] #screen-home .home-usage-term,
+html[data-theme="dark"] #screen-usage .home-usage-card strong,
+html[data-theme="dark"] #screen-usage .home-usage-term {
+  color: #9fe4fb;
+}
+
+html[data-theme="dark"] #screen-home .home-usage-note,
+html[data-theme="dark"] #screen-usage .home-usage-note {
+  border-top-color: rgba(127, 200, 231, 0.18);
+  color: #8da8ba !important;
 }
 
 html[data-theme="dark"] .home-hero .icon-btn,
