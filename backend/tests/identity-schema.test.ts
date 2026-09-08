@@ -10,6 +10,7 @@ const previasMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/
 const userManagementMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/006_user_management.sql"), "utf8");
 const pushMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/008_push_notifications.sql"), "utf8");
 const kingPhraseMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/009_user_king_phrase.sql"), "utf8");
+const demoFlagsMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/010_demo_data_flags.sql"), "utf8");
 const seed = fs.readFileSync(path.resolve(__dirname, "../src/db/seed.ts"), "utf8");
 
 describe("identity schema", () => {
@@ -157,5 +158,14 @@ describe("king phrase schema", () => {
     assert.match(kingPhraseMigration, /add column if not exists king_phrase text/);
     assert.match(kingPhraseMigration, /user_appearances_king_phrase_check/);
     assert.match(kingPhraseMigration, /length\(king_phrase\) between 3 and 80/);
+  });
+});
+
+describe("demo data flags schema", () => {
+  it("marks simulated rows without changing identity tables", () => {
+    assert.match(demoFlagsMigration, /alter table money_movements\s+add column if not exists is_demo boolean not null default false/);
+    assert.match(demoFlagsMigration, /alter table daily_entries\s+add column if not exists is_demo boolean not null default false/);
+    assert.match(demoFlagsMigration, /alter table survey_votes\s+add column if not exists is_demo boolean not null default false/);
+    assert.match(demoFlagsMigration, /alter table previas\s+add column if not exists is_demo boolean not null default false/);
   });
 });

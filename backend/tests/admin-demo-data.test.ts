@@ -128,7 +128,7 @@ describe("admin demo data generation", () => {
       },
     };
 
-    const response = await request(makeApp(user, repository)).post("/admin/dev/generate-demo-data").send({ nights: 7 });
+    const response = await request(makeApp(user, repository)).post("/admin/dev/generate-demo-data").send({ mode: "full_trip" });
 
     assert.equal(response.status, 403);
     assert.equal(called, false);
@@ -136,10 +136,11 @@ describe("admin demo data generation", () => {
 
   it("allows admins and returns a summary", async () => {
     const repository: DemoDataRepository = {
-      async generateDemoData(nights) {
+      async generateDemoData(mode) {
         return {
-          nights,
-          days: ["2026-08-26"],
+          mode,
+          nights: 8,
+          days: ["2026-08-25"],
           users: 4,
           deleted: {
             moneyMovements: 1,
@@ -163,26 +164,34 @@ describe("admin demo data generation", () => {
       },
     };
 
-    const response = await request(makeApp(admin, repository)).post("/admin/dev/generate-demo-data").send({ nights: 7 });
+    const response = await request(makeApp(admin, repository)).post("/admin/dev/generate-demo-data").send({ mode: "full_trip" });
 
     assert.equal(response.status, 201);
     assert.equal(response.body.ok, true);
-    assert.equal(response.body.nights, 7);
+    assert.equal(response.body.mode, "full_trip");
+    assert.equal(response.body.nights, 8);
     assert.equal(response.body.deleted.initialBalances, 0);
     assert.deepEqual(response.body.preserved, ["users", "roles", "permissions", "user_permissions", "survey_questions", "initial_balances"]);
   });
 
-  it("generates the requested amount of closed days", () => {
-    const six = buildDemoDataset(demoUsers, 6, "2026-09-02", constantRng());
-    const seven = buildDemoDataset(demoUsers, 7, "2026-09-02", constantRng());
+  it("generates exactly 8 valid consecutive closed days for the full trip", () => {
+    const dataset = buildDemoDataset(demoUsers, "full_trip", "2026-09-02", constantRng());
 
-    assert.equal(six.days.length, 6);
-    assert.deepEqual(six.days, ["2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31", "2026-09-01"]);
-    assert.equal(seven.days.length, 7);
-    assert.deepEqual(seven.days, ["2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31", "2026-09-01"]);
+    assert.equal(dataset.days.length, 8);
+    assert.deepEqual(dataset.days, ["2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31", "2026-09-01"]);
+    assert.equal(dataset.days.includes("2026-09-02"), false);
   });
 
-  it("rejects invalid nights values", async () => {
+  it("generates only yesterday for the short simulation", () => {
+    const dataset = buildDemoDataset(demoUsers, "yesterday", "2026-09-02", constantRng());
+
+    assert.deepEqual(dataset.days, ["2026-09-01"]);
+    assert.equal(dataset.dailyEntries.length, demoUsers.length);
+    assert.equal(dataset.surveyVotes.length, demoUsers.length);
+    assert.equal(dataset.previas.length, 1);
+  });
+
+  it("rejects invalid simulation modes and old nights values", async () => {
     let called = false;
     const repository: DemoDataRepository = {
       async generateDemoData() {
@@ -191,19 +200,23 @@ describe("admin demo data generation", () => {
       },
     };
 
-    const response = await request(makeApp(admin, repository)).post("/admin/dev/generate-demo-data").send({ nights: 8 });
+    const invalidMode = await request(makeApp(admin, repository)).post("/admin/dev/generate-demo-data").send({ mode: "weekend" });
+    const oldSix = await request(makeApp(admin, repository)).post("/admin/dev/generate-demo-data").send({ nights: 6 });
+    const oldSeven = await request(makeApp(admin, repository)).post("/admin/dev/generate-demo-data").send({ nights: 7 });
 
-    assert.equal(response.status, 400);
-    assert.deepEqual(response.body, { error: "invalid_nights" });
+    assert.equal(invalidMode.status, 400);
+    assert.deepEqual(invalidMode.body, { error: "invalid_simulation_mode" });
+    assert.equal(oldSix.status, 400);
+    assert.equal(oldSeven.status, 400);
     assert.equal(called, false);
   });
 
   it("generates coherent daily entries, votes, money movements, and previas", () => {
-    const dataset = buildDemoDataset(demoUsers, 7, "2026-09-02", sequenceRng([0.04, 0.18, 0.37, 0.62, 0.81, 0.95]));
+    const dataset = buildDemoDataset(demoUsers, "full_trip", "2026-09-02", sequenceRng([0.04, 0.18, 0.37, 0.62, 0.81, 0.95]));
     const userIds = new Set(demoUsers.map((demoUser) => demoUser.id));
     const categories = new Set(["Chocolates", "Alcohol", "Boliche", "Comida", "Bebida", "Actividades", "Otros"]);
 
-    assert.equal(dataset.dailyEntries.length, demoUsers.length * 7);
+    assert.equal(dataset.dailyEntries.length, demoUsers.length * 8);
     assert.equal(new Set(dataset.dailyEntries.map((entry) => `${entry.userId}:${entry.dateKey}`)).size, dataset.dailyEntries.length);
     dataset.dailyEntries.forEach((entry) => {
       assert.equal(userIds.has(entry.userId), true);
@@ -229,7 +242,7 @@ describe("admin demo data generation", () => {
       }
     });
 
-    assert.equal(dataset.surveyVotes.length, demoUsers.length * 7);
+    assert.equal(dataset.surveyVotes.length, demoUsers.length * 8);
     assert.equal(new Set(dataset.surveyVotes.map((vote) => `${vote.surveyKey}:${vote.voterUserId}:${vote.dateKey}`)).size, dataset.surveyVotes.length);
     dataset.surveyVotes.forEach((vote) => {
       assert.equal(vote.surveyKey, "destroyed_vote");
@@ -265,10 +278,10 @@ describe("admin demo data generation", () => {
   });
 
   it("feeds stats and achievements with enough shared data", () => {
-    const dataset = buildDemoDataset(demoUsers, 7, "2026-09-02", sequenceRng([0.02, 0.21, 0.44, 0.67, 0.88]));
+    const dataset = buildDemoDataset(demoUsers, "full_trip", "2026-09-02", sequenceRng([0.02, 0.21, 0.44, 0.67, 0.88]));
     const stats = calculateStats("total", toStatsData(dataset));
 
-    assert.equal(stats.closedDays.length, 7);
+    assert.equal(stats.closedDays.length, 8);
     assert.equal(stats.money.totalSpentGlobal > 0, true);
     assert.equal(stats.money.rankingByCategory.length, 7);
     assert.equal(stats.dailyEntries.sleepMinutes.length > 0, true);
@@ -308,6 +321,7 @@ describe("admin demo data generation", () => {
             })),
           };
         }
+        if (sql.includes("select (")) return { rows: [{ total: 0 }] };
         if (sql.includes("from survey_questions")) return { rows: [{ id: "survey-question-id" }] };
         if (sql.includes("returning id")) {
           previaId += 1;
@@ -321,16 +335,85 @@ describe("admin demo data generation", () => {
     };
     const repository = createPostgresDemoDataRepository(async () => client, () => "2026-09-02");
 
-    const summary = await repository.generateDemoData(6);
+    const summary = await repository.generateDemoData("full_trip");
 
     assert.equal(queries[0], "begin");
     assert.equal(queries.includes("commit"), true);
     assert.equal(queries.includes("rollback"), false);
     assert.equal(queries.at(-1), "release");
-    assert.equal(summary.generated.dailyEntries, 24);
-    assert.equal(summary.generated.surveyVotes, 24);
+    assert.equal(summary.generated.dailyEntries, 32);
+    assert.equal(summary.generated.surveyVotes, 32);
     assert.equal(summary.deleted.initialBalances, 0);
     assert.equal(queries.some((query) => /delete from (users|roles|permissions|user_permissions|initial_balances|survey_questions)/.test(query)), false);
+    assert.equal(queries.some((query) => /delete from daily_entries where is_demo = true/.test(query)), true);
+    assert.equal(queries.some((query) => /delete from daily_entries(?! where is_demo = true)/.test(query)), false);
+    assert.equal(queries.some((query) => /insert into daily_entries[\s\S]*is_demo/.test(query)), true);
+  });
+
+  it("cleans only the simulated date when rerunning yesterday", async () => {
+    const queries: string[] = [];
+    const client = {
+      async query(sql: string) {
+        queries.push(sql);
+        if (sql.includes("from users")) {
+          return {
+            rows: demoUsers.map((demoUser) => ({
+              id: demoUser.id,
+              legacy_id: demoUser.legacyId,
+              display_name: demoUser.displayName,
+              role_key: demoUser.role,
+              permissions: demoUser.permissions,
+            })),
+          };
+        }
+        if (sql.includes("select (")) return { rows: [{ total: 0 }] };
+        if (sql.includes("from survey_questions")) return { rows: [{ id: "survey-question-id" }] };
+        if (sql.includes("returning id")) return { rows: [{ id: "previa-id" }] };
+        return { rowCount: 1, rows: [] };
+      },
+      release() {
+        queries.push("release");
+      },
+    };
+    const repository = createPostgresDemoDataRepository(async () => client, () => "2026-09-02");
+
+    const summary = await repository.generateDemoData("yesterday");
+
+    assert.equal(summary.days.length, 1);
+    assert.deepEqual(summary.days, ["2026-09-01"]);
+    assert.equal(summary.generated.dailyEntries, 4);
+    assert.equal(queries.some((query) => /date_key = any\(\$1::date\[\]\)/.test(query)), true);
+    assert.equal(queries.some((query) => /movement_date = any\(\$1::date\[\]\)/.test(query)), true);
+  });
+
+  it("blocks generation instead of deleting real data in the target days", async () => {
+    const queries: string[] = [];
+    const client = {
+      async query(sql: string) {
+        queries.push(sql);
+        if (sql.includes("from users")) {
+          return {
+            rows: demoUsers.map((demoUser) => ({
+              id: demoUser.id,
+              legacy_id: demoUser.legacyId,
+              display_name: demoUser.displayName,
+              role_key: demoUser.role,
+              permissions: demoUser.permissions,
+            })),
+          };
+        }
+        if (sql.includes("select (")) return { rows: [{ total: 1 }] };
+        return { rowCount: 1, rows: [] };
+      },
+      release() {
+        queries.push("release");
+      },
+    };
+    const repository = createPostgresDemoDataRepository(async () => client, () => "2026-09-02");
+
+    await assert.rejects(() => repository.generateDemoData("full_trip"), /demo_data_conflicts/);
+    assert.equal(queries.includes("rollback"), true);
+    assert.equal(queries.some((query) => /delete from daily_entries/.test(query)), false);
   });
 
   it("rolls back the complete operation if an insert fails", async () => {
@@ -349,6 +432,7 @@ describe("admin demo data generation", () => {
             })),
           };
         }
+        if (sql.includes("select (")) return { rows: [{ total: 0 }] };
         if (sql.includes("from survey_questions")) return { rows: [{ id: "survey-question-id" }] };
         if (sql.includes("insert into money_movements")) throw new Error("boom");
         return { rowCount: 1, rows: [{ id: "previa-id" }] };
@@ -359,7 +443,7 @@ describe("admin demo data generation", () => {
     };
     const repository = createPostgresDemoDataRepository(async () => client, () => "2026-09-02");
 
-    await assert.rejects(() => repository.generateDemoData(6), /boom/);
+    await assert.rejects(() => repository.generateDemoData("full_trip"), /boom/);
     assert.equal(queries.includes("rollback"), true);
     assert.equal(queries.includes("commit"), false);
     assert.equal(queries.at(-1), "release");

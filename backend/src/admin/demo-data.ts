@@ -4,10 +4,11 @@ import type { PoolClient } from "pg";
 import { requireAuth, requireRole } from "../auth/middleware";
 import { pool } from "../db/pool";
 import { todayInArgentina } from "../dates/trip-date";
-import { deleteDevDataWithClient, type DevResetSummary } from "./dev-reset";
+import type { DevResetSummary } from "./dev-reset";
 
 const EXPENSE_CATEGORIES = ["Chocolates", "Alcohol", "Boliche", "Comida", "Bebida", "Actividades", "Otros"] as const;
 const PRESERVED_TABLES = ["users", "roles", "permissions", "user_permissions", "survey_questions", "initial_balances"];
+const FULL_TRIP_NIGHTS = 8;
 
 export type DemoUser = {
   id: string;
@@ -82,8 +83,11 @@ export type GeneratedDemoDataset = {
   previas: DemoPrevia[];
 };
 
+export type DemoSimulationMode = "full_trip" | "yesterday";
+
 export type GeneratedDemoSummary = {
-  nights: 6 | 7;
+  mode: DemoSimulationMode;
+  nights: 1 | 8;
   days: string[];
   users: number;
   deleted: DevResetSummary;
@@ -99,7 +103,7 @@ export type GeneratedDemoSummary = {
 };
 
 export type DemoDataRepository = {
-  generateDemoData(nights: 6 | 7): Promise<GeneratedDemoSummary>;
+  generateDemoData(mode: DemoSimulationMode): Promise<GeneratedDemoSummary>;
 };
 
 type DemoClient = Pick<PoolClient, "query" | "release">;
@@ -111,16 +115,17 @@ export function createPostgresDemoDataRepository(
   todayProvider: () => string = todayInArgentina
 ): DemoDataRepository {
   return {
-    async generateDemoData(nights) {
+    async generateDemoData(mode) {
       const client = await connect();
       try {
         await client.query("begin");
-        const deleted = await deleteDevDataWithClient(client);
         const users = await loadActiveUsers(client);
-        const dataset = buildDemoDataset(users, nights, todayProvider());
+        const dataset = buildDemoDataset(users, mode, todayProvider());
+        await assertNoRealDataConflicts(client, dataset.days);
+        const deleted = await deleteDemoDataWithClient(client, mode, dataset.days);
         await insertDemoDataset(client, dataset);
         await client.query("commit");
-        return summarizeDataset(nights, dataset, deleted);
+        return summarizeDataset(mode, dataset, deleted);
       } catch (error) {
         await client.query("rollback");
         throw error;
@@ -139,8 +144,8 @@ export function createAdminDemoDataRouter(
 
   router.post("/generate-demo-data", authMiddleware, requireRole("admin"), async (req, res, next) => {
     try {
-      const nights = parseNights(req.body);
-      const summary = await repository.generateDemoData(nights);
+      const mode = parseSimulationMode(req.body);
+      const summary = await repository.generateDemoData(mode);
       res.status(201).json({ ok: true, ...summary });
     } catch (error) {
       if (error instanceof DemoDataValidationError) {
@@ -163,8 +168,8 @@ export class DemoDataValidationError extends Error {
   }
 }
 
-export function buildDemoDataset(users: DemoUser[], nights: 6 | 7, todayKey: string, rng: Rng = Math.random): GeneratedDemoDataset {
-  if (nights !== 6 && nights !== 7) throw new DemoDataValidationError("invalid_nights");
+export function buildDemoDataset(users: DemoUser[], mode: DemoSimulationMode, todayKey: string, rng: Rng = Math.random): GeneratedDemoDataset {
+  const nights = nightsForMode(mode);
   if (users.length < 2) throw new DemoDataValidationError("not_enough_active_users");
 
   const days = closedDaysBefore(todayKey, nights);
@@ -197,13 +202,13 @@ export function buildDemoDataset(users: DemoUser[], nights: 6 | 7, todayKey: str
   };
 }
 
-function parseNights(body: unknown): 6 | 7 {
+function parseSimulationMode(body: unknown): DemoSimulationMode {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw new DemoDataValidationError("invalid_body");
   }
-  const nights = (body as { nights?: unknown }).nights;
-  if (nights !== 6 && nights !== 7) throw new DemoDataValidationError("invalid_nights");
-  return nights;
+  const mode = (body as { mode?: unknown }).mode;
+  if (mode !== "full_trip" && mode !== "yesterday") throw new DemoDataValidationError("invalid_simulation_mode");
+  return mode;
 }
 
 async function loadActiveUsers(client: DemoQueryClient): Promise<DemoUser[]> {
@@ -242,9 +247,9 @@ async function insertDemoDataset(client: DemoQueryClient, dataset: GeneratedDemo
       `
         insert into daily_entries (
           user_id, date_key, sleep_did_not_sleep, sleep_bedtime, sleep_wake,
-          nap_start, nap_end, fifth_meal, bathroom_count, boliche_did_not_go, boliche_exit_time
+          nap_start, nap_end, fifth_meal, bathroom_count, boliche_did_not_go, boliche_exit_time, is_demo
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, true)
       `,
       [
         entry.userId,
@@ -265,8 +270,8 @@ async function insertDemoDataset(client: DemoQueryClient, dataset: GeneratedDemo
   for (const vote of dataset.surveyVotes) {
     await client.query(
       `
-        insert into survey_votes (survey_question_id, date_key, voter_user_id, voted_user_id)
-        values ($1, $2, $3, $4)
+        insert into survey_votes (survey_question_id, date_key, voter_user_id, voted_user_id, is_demo)
+        values ($1, $2, $3, $4, true)
       `,
       [surveyQuestionId, vote.dateKey, vote.voterUserId, vote.votedUserId]
     );
@@ -275,8 +280,8 @@ async function insertDemoDataset(client: DemoQueryClient, dataset: GeneratedDemo
   for (const movement of dataset.moneyMovements) {
     await client.query(
       `
-        insert into money_movements (user_id, legacy_id, type, amount_pesos, category, description, movement_date)
-        values ($1, $2, $3, $4, $5, $6, $7)
+        insert into money_movements (user_id, legacy_id, type, amount_pesos, category, description, movement_date, is_demo)
+        values ($1, $2, $3, $4, $5, $6, $7, true)
       `,
       [movement.userId, movement.legacyId, movement.type, movement.amount, movement.category, movement.description, movement.movementDate]
     );
@@ -285,8 +290,8 @@ async function insertDemoDataset(client: DemoQueryClient, dataset: GeneratedDemo
   for (const previa of dataset.previas) {
     const created = await client.query<{ id: string }>(
       `
-        insert into previas (legacy_id, creator_user_id, total_amount_pesos, amount_per_participant_pesos, occurred_at)
-        values ($1, $2, $3, $4, $5)
+        insert into previas (legacy_id, creator_user_id, total_amount_pesos, amount_per_participant_pesos, occurred_at, is_demo)
+        values ($1, $2, $3, $4, $5, true)
         returning id
       `,
       [previa.legacyId, previa.creatorUserId, previa.totalAmount, previa.amountPerParticipant, previa.occurredAt]
@@ -307,9 +312,55 @@ async function insertDemoDataset(client: DemoQueryClient, dataset: GeneratedDemo
   }
 }
 
-function summarizeDataset(nights: 6 | 7, dataset: GeneratedDemoDataset, deleted: DevResetSummary): GeneratedDemoSummary {
+async function assertNoRealDataConflicts(client: DemoQueryClient, days: string[]): Promise<void> {
+  const result = await client.query<{ total: string | number }>(
+    `
+      select (
+        (select count(*) from daily_entries where is_demo = false and date_key = any($1::date[])) +
+        (select count(*) from survey_votes where is_demo = false and date_key = any($1::date[])) +
+        (select count(*) from money_movements where is_demo = false and movement_date = any($1::date[])) +
+        (
+          select count(*)
+          from previas
+          where is_demo = false
+            and ((occurred_at at time zone 'America/Argentina/Buenos_Aires')::date - 1) = any($1::date[])
+        )
+      ) as total
+    `,
+    [days]
+  );
+  if (Number(result.rows[0]?.total ?? 0) > 0) throw new DemoDataValidationError("demo_data_conflicts");
+}
+
+async function deleteDemoDataWithClient(client: DemoQueryClient, mode: DemoSimulationMode, days: string[]): Promise<DevResetSummary> {
+  const dayFilter = mode === "full_trip" ? "" : "and ((occurred_at at time zone 'America/Argentina/Buenos_Aires')::date - 1) = any($1::date[])";
+  const dayParams = mode === "full_trip" ? [] : [days];
+  const datePredicate = mode === "full_trip" ? "is_demo = true" : "is_demo = true and date_key = any($1::date[])";
+  const movementPredicate = mode === "full_trip" ? "is_demo = true" : "is_demo = true and movement_date = any($1::date[])";
+  const previaIdQuery = `select id from previas where is_demo = true ${dayFilter}`;
+
+  const previaParticipants = await client.query(`delete from previa_participants where previa_id in (${previaIdQuery})`, dayParams);
+  const previaProducts = await client.query(`delete from previa_products where previa_id in (${previaIdQuery})`, dayParams);
+  const previas = await client.query(`delete from previas where is_demo = true ${dayFilter}`, dayParams);
+  const surveyVotes = await client.query(`delete from survey_votes where ${datePredicate}`, mode === "full_trip" ? [] : [days]);
+  const dailyEntries = await client.query(`delete from daily_entries where ${datePredicate}`, mode === "full_trip" ? [] : [days]);
+  const moneyMovements = await client.query(`delete from money_movements where ${movementPredicate}`, mode === "full_trip" ? [] : [days]);
+
   return {
-    nights,
+    moneyMovements: moneyMovements.rowCount ?? 0,
+    dailyEntries: dailyEntries.rowCount ?? 0,
+    surveyVotes: surveyVotes.rowCount ?? 0,
+    previas: previas.rowCount ?? 0,
+    previaProducts: previaProducts.rowCount ?? 0,
+    previaParticipants: previaParticipants.rowCount ?? 0,
+    initialBalances: 0,
+  };
+}
+
+function summarizeDataset(mode: DemoSimulationMode, dataset: GeneratedDemoDataset, deleted: DevResetSummary): GeneratedDemoSummary {
+  return {
+    mode,
+    nights: nightsForMode(mode),
     days: dataset.days,
     users: dataset.users.length,
     deleted,
@@ -423,7 +474,7 @@ function generateMoneyMovements(
 
 function generatePrevias(users: DemoUser[], days: string[], creators: DemoUser[], batchId: string, rng: Rng): DemoPrevia[] {
   if (!creators.length) throw new DemoDataValidationError("no_previa_creators_available");
-  const previaCount = Math.max(4, days.length - 1);
+  const previaCount = days.length === 1 ? 1 : Math.max(4, days.length - 1);
   const productNames = ["Fernet", "Coca", "Hielo", "Cerveza", "Vodka", "Jugo", "Snacks"];
 
   return Array.from({ length: previaCount }, (_, index) => {
@@ -467,7 +518,13 @@ function expenseDescription(category: (typeof EXPENSE_CATEGORIES)[number], rng: 
   return pick(rng, descriptions[category]);
 }
 
-function closedDaysBefore(todayKey: string, nights: 6 | 7): string[] {
+function nightsForMode(mode: DemoSimulationMode): 1 | 8 {
+  if (mode === "full_trip") return FULL_TRIP_NIGHTS;
+  if (mode === "yesterday") return 1;
+  throw new DemoDataValidationError("invalid_simulation_mode");
+}
+
+function closedDaysBefore(todayKey: string, nights: 1 | 8): string[] {
   return Array.from({ length: nights }, (_, index) => addDays(todayKey, index - nights));
 }
 

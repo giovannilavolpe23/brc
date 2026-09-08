@@ -2276,12 +2276,12 @@ function handleAdminGenerateDemoDataClick() {
 
 async function handleAdminGenerateDemoDataConfirm() {
   if (adminGenerateDemoSubmitting) return;
-  const select = document.getElementById("admin-demo-nights");
+  const select = document.getElementById("admin-demo-mode");
   const submitBtn = document.getElementById("sheet-submit-btn");
-  const nights = Number(select ? select.value : 7);
+  const mode = select ? select.value : "full_trip";
 
-  if (nights !== 6 && nights !== 7) {
-    showSheetError("Elegí 6 o 7 noches.");
+  if (mode !== "full_trip" && mode !== "yesterday") {
+    showSheetError("Elegí una simulación válida.");
     return;
   }
 
@@ -2294,7 +2294,7 @@ async function handleAdminGenerateDemoDataConfirm() {
   try {
     const response = await apiFetch("/admin/dev/generate-demo-data", {
       method: "POST",
-      body: JSON.stringify({ nights }),
+      body: JSON.stringify({ mode }),
     });
 
     if (response.status === 403) {
@@ -2303,7 +2303,12 @@ async function handleAdminGenerateDemoDataConfirm() {
     }
 
     if (response.status === 400) {
-      showSheetError("Elegí 6 o 7 noches.");
+      const payload = await response.json().catch(() => null);
+      const message =
+        payload && payload.error === "demo_data_conflicts"
+          ? "Ya hay datos reales en esas fechas. La simulación se bloqueó para no pisarlos."
+          : "Elegí una simulación válida.";
+      showSheetError(message);
       return;
     }
 
@@ -2321,7 +2326,7 @@ async function handleAdminGenerateDemoDataConfirm() {
     const msg = document.getElementById("admin-generate-demo-data-msg");
     if (error) error.textContent = "";
     if (msg) {
-      msg.textContent = "✓ Datos de prueba generados";
+      msg.textContent = mode === "full_trip" ? "✓ 8 noches simuladas correctamente" : "✓ Datos de ayer simulados correctamente";
       msg.classList.add("visible");
       setTimeout(() => msg.classList.remove("visible"), 2500);
     }
@@ -3645,11 +3650,12 @@ function openSheet(type, movement) {
   }
 
   if (type === "admin-generate-demo-data-confirm") {
-    const select = document.getElementById("admin-demo-nights");
-    const nights = select ? select.value : "7";
+    const select = document.getElementById("admin-demo-mode");
+    const mode = select ? select.value : "full_trip";
+    const modeLabel = mode === "yesterday" ? "el día de ayer" : "8 noches";
     sheetContent.innerHTML = `
       <h2 class="sheet-title">Generar datos de prueba</h2>
-      <p class="sheet-sub">Esto va a limpiar los datos del viaje y crear datos ficticios para todos los jugadores activos durante ${escapeHtml(nights)} noches. No elimina usuarios, roles, permisos, contraseñas ni saldos iniciales.</p>
+      <p class="sheet-sub">Esto va a limpiar datos simulados previos y crear datos ficticios para ${escapeHtml(modeLabel)} con todos los jugadores activos. No elimina usuarios, roles, permisos, contraseñas ni saldos iniciales.</p>
       <p class="sheet-error" id="sheet-error"></p>
       <button class="sheet-submit danger" id="sheet-submit-btn" type="button">Generar datos</button>
       <button class="sheet-cancel-link" id="sheet-cancel-btn" type="button">Cancelar</button>
