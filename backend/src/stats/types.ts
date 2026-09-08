@@ -32,6 +32,8 @@ export type StatsResponse = {
   };
   surveys: {
     destroyed_vote: RankingRow[];
+    most_flirty: RankingRow[];
+    best_outfit: RankingRow[];
   };
   previas: {
     totalCount: number;

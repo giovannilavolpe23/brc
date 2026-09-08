@@ -30,6 +30,39 @@ const ORIGINAL_PARTICIPANT_IDS = new Set(DEFAULT_PARTICIPANTS.map((participant) 
 
 const AVATAR_COLORS = ["#ff9f1c", "#4cc9f0", "#c77dff", "#ff5470", "#7bdff2", "#ffd166"];
 
+const DAILY_SURVEYS = [
+  {
+    key: "destroyed_vote",
+    field: "destroyedVote",
+    groupId: "destroyed-vote-group",
+    label: "¿Quién estuvo más destruido anoche?",
+    title: "El más destruido",
+    caption: 'Ganó la votación de "¿Quién estuvo más destruido anoche?"',
+    icon: "🥴",
+    accent: "#c77dff",
+  },
+  {
+    key: "most_flirty",
+    field: "mostFlirtyVote",
+    groupId: "most-flirty-vote-group",
+    label: "¿Quién fue el más chamullero anoche?",
+    title: "El más chamullero",
+    caption: "El más votado como chamullero",
+    icon: "💋",
+    accent: "#ff5470",
+  },
+  {
+    key: "best_outfit",
+    field: "bestOutfitVote",
+    groupId: "best-outfit-vote-group",
+    label: "¿Quién tuvo el mejor outfit anoche?",
+    title: "El mejor outfit",
+    caption: "El más votado por su outfit",
+    icon: "🧥",
+    accent: "#4cc9f0",
+  },
+];
+
 const APPEARANCE_PRESETS = [
   { key: "aurora", label: "Aurora", primaryColor: "#4CC9F0", secondaryColor: "#7B61FF" },
   { key: "glaciar", label: "Glaciar", primaryColor: "#38BDF8", secondaryColor: "#A5F3FC" },
@@ -1008,6 +1041,23 @@ function getCurrentUser() {
   } catch (e) {
     return null;
   }
+}
+
+function playerIdentityValues(player) {
+  return [player && player.apiId, player && player.legacyId, player && player.id]
+    .map((value) => String(value || "").toLowerCase())
+    .filter(Boolean);
+}
+
+function isSamePlayer(a, b) {
+  const aValues = playerIdentityValues(a);
+  const bValues = new Set(playerIdentityValues(b));
+  return aValues.some((value) => bValues.has(value));
+}
+
+function isPlayerIdentifierForUser(identifier, user) {
+  const value = String(identifier || "").toLowerCase();
+  return !!value && playerIdentityValues(user).includes(value);
 }
 
 function setCurrentUser(participant) {
@@ -4319,6 +4369,8 @@ function defaultDailyEntry() {
     bathroom: null, // 0-5 | null
     boliche: { didNotGo: false, time: null },
     destroyedVote: null, // id de PARTICIPANTS | null — encuesta "¿Quién estuvo más destruido anoche?"
+    mostFlirtyVote: null, // encuesta "¿Quién fue el más chamullero anoche?"
+    bestOutfitVote: null, // encuesta "¿Quién tuvo el mejor outfit anoche?"
   };
 }
 
@@ -4356,16 +4408,20 @@ function dailyEntryOperation(dateKey, entry) {
   };
 }
 
-function destroyedVoteOperation(dateKey, votedUserId) {
+function dailySurveyVoteOperation(survey, dateKey, votedUserId) {
   const user = getCurrentUser();
   return {
-    id: `survey-vote:destroyed_vote:${dateKey}`,
-    type: "destroyed_vote_put",
+    id: `survey-vote:${survey.key}:${dateKey}`,
+    type: `${survey.key}_vote_put`,
     userId: user && user.id,
     method: "PUT",
-    path: `/surveys/destroyed_vote/${encodeURIComponent(dateKey)}/vote`,
+    path: `/surveys/${encodeURIComponent(survey.key)}/${encodeURIComponent(dateKey)}/vote`,
     payload: { votedUserId },
   };
+}
+
+function hasPendingDailySurveyOperation(dateKey) {
+  return DAILY_SURVEYS.some((survey) => hasPendingApiOperation(`survey-vote:${survey.key}:${dateKey}`));
 }
 
 async function syncDailyEntryToApi(dateKey, entry) {
@@ -4378,8 +4434,10 @@ async function syncDailyEntryToApi(dateKey, entry) {
     enqueuePendingApiOperation(entryOperation);
   }
 
-  if (entry.destroyedVote) {
-    const voteOperation = destroyedVoteOperation(dateKey, entry.destroyedVote);
+  for (const survey of DAILY_SURVEYS) {
+    const votedUserId = entry[survey.field];
+    if (!votedUserId) continue;
+    const voteOperation = dailySurveyVoteOperation(survey, dateKey, votedUserId);
     const voteResult = await tryApiOperation(voteOperation);
     if (voteResult.status === "synced") {
       removePendingApiOperation(voteOperation.id);
@@ -4390,7 +4448,9 @@ async function syncDailyEntryToApi(dateKey, entry) {
   }
 }
 
-function dailyEntryFromApi(entry, destroyedVote) {
+function dailyEntryFromApi(entry, surveyVotes) {
+  const votesBySurvey =
+    typeof surveyVotes === "string" ? { destroyed_vote: surveyVotes } : surveyVotes && typeof surveyVotes === "object" ? surveyVotes : {};
   const local = {
     sleep: {
       didNotSleep: !!entry.sleep.didNotSleep,
@@ -4404,8 +4464,10 @@ function dailyEntryFromApi(entry, destroyedVote) {
       didNotGo: !!entry.boliche.didNotGo,
       time: entry.boliche.time || null,
     },
-    destroyedVote: destroyedVote || null,
   };
+  DAILY_SURVEYS.forEach((survey) => {
+    local[survey.field] = votesBySurvey[survey.key] || null;
+  });
   local.computed = computeDailyDerived(local);
   return local;
 }
@@ -4419,7 +4481,7 @@ async function loadDailyEntryFromApi(userId, dateKey) {
   const key = `${userId}:${dateKey}`;
   if (dailyApiLoadedKeys.has(key)) return;
   if (dailyApiLoadingKeys.has(key) || dailyApiFailedKeys.has(key)) return;
-  if (hasPendingApiOperation(`daily-entry:put:${dateKey}`) || hasPendingApiOperation(`survey-vote:destroyed_vote:${dateKey}`)) return;
+  if (hasPendingApiOperation(`daily-entry:put:${dateKey}`) || hasPendingDailySurveyOperation(dateKey)) return;
 
   dailyApiLoadedKeys.add(key);
   dailyApiLoadingKeys.add(key);
@@ -4436,15 +4498,16 @@ async function loadDailyEntryFromApi(userId, dateKey) {
     }
 
     const entryPayload = await entryResponse.json();
-    let destroyedVote = null;
+    const surveyVotes = {};
     if (votesResponse.ok) {
       const votesPayload = await votesResponse.json();
-      const vote = votesPayload.votes && votesPayload.votes.find((item) => item.surveyKey === "destroyed_vote");
-      if (vote) destroyedVote = legacyIdForApiUserId(vote.votedUserId);
+      (votesPayload.votes || []).forEach((vote) => {
+        surveyVotes[vote.surveyKey] = legacyIdForApiUserId(vote.votedUserId);
+      });
     }
 
     const data = ensureDailyLogData(userId);
-    data.dailyLog.entries[dateKey] = dailyEntryFromApi(entryPayload.entry, destroyedVote);
+    data.dailyLog.entries[dateKey] = dailyEntryFromApi(entryPayload.entry, surveyVotes);
     saveUserData(userId, data);
     if (screens.daily && screens.daily.classList.contains("active") && dailyDateKey === dateKey) dailyState = JSON.parse(JSON.stringify(data.dailyLog.entries[dateKey]));
   } catch (e) {
@@ -4472,6 +4535,23 @@ function scrollSelectedIntoView(containerId) {
   if (!selected) return;
   const target = selected.offsetLeft - container.clientWidth / 2 + selected.clientWidth / 2;
   container.scrollTo({ left: Math.max(0, target), behavior: "auto" });
+}
+
+function renderDailySurveySection(survey, state, user) {
+  return `
+    <div class="daily-section">
+      <div class="section-label">${survey.icon} ${survey.label}</div>
+      <p class="appearance-panel-hint daily-poll-hint">No podés votarte a vos mismo.</p>
+      <div class="chip-group daily-poll-group" id="${survey.groupId}">
+        ${PARTICIPANTS.filter((p) => !isSamePlayer(p, user))
+          .map(
+            (p) =>
+              `<button type="button" class="chip${state[survey.field] === p.id ? " selected" : ""}" data-value="${p.id}">${escapeHtml(p.name)}</button>`
+          )
+          .join("")}
+      </div>
+    </div>
+  `;
 }
 
 function renderDailyScreen() {
@@ -4576,17 +4656,7 @@ function renderDailyScreen() {
       </div>
     </div>
 
-    <div class="daily-section">
-      <div class="section-label">🥴 ¿Quién estuvo más destruido anoche?</div>
-      <div class="chip-group daily-poll-group" id="destroyed-vote-group">
-        ${PARTICIPANTS.filter((p) => p.id !== user.id)
-          .map(
-            (p) =>
-              `<button type="button" class="chip${s.destroyedVote === p.id ? " selected" : ""}" data-value="${p.id}">${escapeHtml(p.name)}</button>`
-          )
-          .join("")}
-      </div>
-    </div>
+    ${DAILY_SURVEYS.map((survey) => renderDailySurveySection(survey, s, user)).join("")}
 
     <button type="button" id="btn-save-daily" class="sheet-submit daily-save-btn" ${dailySaveSubmitting ? "disabled" : ""}>${
       dailySaveSubmitting ? "Guardando..." : "Guardar registro"
@@ -4687,15 +4757,16 @@ function attachDailyListeners() {
     });
   }
 
-  const destroyedVoteGroup = document.getElementById("destroyed-vote-group");
-  if (destroyedVoteGroup) {
-    destroyedVoteGroup.addEventListener("click", (e) => {
+  DAILY_SURVEYS.forEach((survey) => {
+    const group = document.getElementById(survey.groupId);
+    if (!group) return;
+    group.addEventListener("click", (e) => {
       const btn = e.target.closest(".chip");
       if (!btn) return;
-      dailyState.destroyedVote = btn.dataset.value;
+      dailyState[survey.field] = btn.dataset.value;
       renderDailyScreen();
     });
-  }
+  });
 
   const noBolicheBtn = document.getElementById("btn-no-boliche");
   if (noBolicheBtn) {
@@ -4738,9 +4809,10 @@ async function saveDailyEntry() {
   // Defensa extra: la UI ya excluye al propio usuario de las opciones,
   // pero si por algún motivo quedó un voto a sí mismo en el estado, se
   // descarta antes de guardar (nunca se persiste un autovoto).
-  if (dailyState.destroyedVote === user.id) {
-    dailyState.destroyedVote = null;
-  }
+  DAILY_SURVEYS.forEach((survey) => {
+    const voted = PARTICIPANTS.find((participant) => participant.id === dailyState[survey.field]);
+    if (isSamePlayer(voted, user) || isPlayerIdentifierForUser(dailyState[survey.field], user)) dailyState[survey.field] = null;
+  });
 
   const data = ensureDailyLogData(user.id);
   const entryToSave = JSON.parse(JSON.stringify(dailyState));
@@ -6301,6 +6373,30 @@ function animateRankingBars(root) {
   });
 }
 
+function surveyVoteDisplay(value) {
+  return value === 1 ? "1 voto" : `${value} votos`;
+}
+
+function renderApiSurveyRankingCards(stats, emptyMsg) {
+  const surveys = stats.surveys || {};
+  return DAILY_SURVEYS.map((survey) =>
+    renderRankingCard(
+      survey.icon,
+      survey.accent,
+      survey.title,
+      survey.caption,
+      apiRankingRows(stats, surveys[survey.key] || [], surveyVoteDisplay),
+      emptyMsg
+    )
+  ).join("");
+}
+
+function renderLocalSurveyRankingCards(getRows, emptyMsg) {
+  return DAILY_SURVEYS.map((survey) =>
+    renderRankingCard(survey.icon, survey.accent, survey.title, survey.caption, getRows(survey), emptyMsg)
+  ).join("");
+}
+
 function renderDayStatsReal(dateKey) {
   return `
     <div class="card-list stats-real-list">
@@ -6312,6 +6408,8 @@ function renderDayStatsReal(dateKey) {
       ${renderRankingCard("🚽", "#ffd166", "¿Detonaron el retrete?", "No requiere explicación. Ger no participa, anunciado el 1/09.", dayRankingBanio(dateKey))}
       ${renderRankingCard("🕺", "#ff5470", "Resistencia en el baile", "Horas en el baile", dayRankingBoliche(dateKey))}
       ${renderRankingCard("💸", "#ff9f1c", "¿Quién tuvo más ganas de gastar?", "Gasto total por persona", dayRankingDineroTotal(dateKey))}
+      ${renderStatsSectionHeading("-Encuestas-", "right")}
+      ${renderLocalSurveyRankingCards((survey) => votesToRankingRows(tallyVotesForDay(dateKey, survey.field)))}
       ${renderStatsSectionHeading("-Pulso del viaje-", "right")}
       ${renderRankingCard("🧾", "#ff9f1c", "¿En qué categoría se derrochó más billete?", "Gastos por categoría", dayRankingDineroPorCategoria(dateKey))}
       ${renderStatsSectionHeading("-Gastos por categoría-", "left")}
@@ -6334,6 +6432,8 @@ function renderTotalStatsReal(closedDays) {
       ${renderRankingCard("🚽", "#ffd166", "¿Quién fue el minigun de mierdas?", "No requiere explicación. Ger no participa, anunciado el 1/09.", totalRankingBanio(closedDays), msg)}
       ${renderRankingCard("🕺", "#ff5470", "Resistencia en el baile", "Horas en el baile (trolazo el último)", totalRankingBoliche(closedDays), msg)}
       ${renderRankingCard("💸", "#ff9f1c", "¿Quién tuvo más ganas de gastar?", "Gasto total por persona", totalRankingDineroTotal(closedDays), msg)}
+      ${renderStatsSectionHeading("-Encuestas-", "right")}
+      ${renderLocalSurveyRankingCards((survey) => votesToRankingRows(tallyVotesForDays(closedDays, survey.field)), msg)}
       ${renderStatsSectionHeading("-Pulso del viaje-", "right")}
       ${renderRankingCard("🧾", "#ff9f1c", "¿En qué categoría se derrochó más billete?", "Gastos por categoría totales", totalRankingDineroPorCategoria(closedDays), msg)}
       ${renderStatsSectionHeading("-Gastos por categoría-", "left")}
@@ -6365,6 +6465,8 @@ function renderDayStatsFromApi(stats) {
       ${renderRankingCard("🚽", "#ffd166", "¿Detonaron el retrete?", "No requiere explicación. Ger no participa, anunciado el 1/09.", apiRankingRows(stats, stats.dailyEntries.bathroom, (value) => (value === 1 ? "1 vez" : `${value} veces`)))}
       ${renderRankingCard("🕺", "#ff5470", "Resistencia en el baile", "Horas en el baile", apiRankingRows(stats, stats.dailyEntries.bolicheMinutes, formatDuration))}
       ${renderRankingCard("💸", "#ff9f1c", "¿Quién tuvo más ganas de gastar?", "Gasto total por persona", apiRankingRows(stats, stats.money.totalSpentByUser, formatMoney))}
+      ${renderStatsSectionHeading("-Encuestas-", "right")}
+      ${renderApiSurveyRankingCards(stats)}
       ${renderStatsSectionHeading("-Pulso del viaje-", "right")}
       ${renderRankingCard("🧾", "#ff9f1c", "¿En qué categoría se derrochó más billete?", "Gastos por categoría", apiCategoryRows(stats.money.rankingByCategory))}
       ${renderStatsSectionHeading("-Gastos por categoría-", "left")}
@@ -6387,6 +6489,8 @@ function renderTotalStatsFromApi(stats) {
       ${renderRankingCard("🚽", "#ffd166", "¿Quién fue el minigun de mierdas?", "No requiere explicación. Ger no participa, anunciado el 1/09.", apiRankingRows(stats, stats.dailyEntries.bathroom, (value) => (value === 1 ? "1 vez" : `${value} veces`)), msg)}
       ${renderRankingCard("🕺", "#ff5470", "Resistencia en el baile", "Horas en el baile (trolazo el último)", apiRankingRows(stats, stats.dailyEntries.bolicheMinutes, formatDuration), msg)}
       ${renderRankingCard("💸", "#ff9f1c", "¿Quién tuvo más ganas de gastar?", "Gasto total por persona", apiRankingRows(stats, stats.money.totalSpentByUser, formatMoney), msg)}
+      ${renderStatsSectionHeading("-Encuestas-", "right")}
+      ${renderApiSurveyRankingCards(stats, msg)}
       ${renderStatsSectionHeading("-Pulso del viaje-", "right")}
       ${renderRankingCard("🧾", "#ff9f1c", "¿En qué categoría se derrochó más billete?", "Gastos por categoría totales", apiCategoryRows(stats.money.rankingByCategory), msg)}
       ${renderStatsSectionHeading("-Gastos por categoría-", "left")}
@@ -6780,6 +6884,8 @@ function titulosApiRows(stats, config) {
     money: [money.totalSpentByUser, formatMoney],
     previas: [previas.byParticipant, displayCount("previa")],
     destroyedVote: [(stats.surveys || {}).destroyed_vote, displayCount("voto")],
+    mostFlirtyVote: [(stats.surveys || {}).most_flirty, displayCount("voto")],
+    bestOutfitVote: [(stats.surveys || {}).best_outfit, displayCount("voto")],
     streakBoliche: [(stats.streaks || {}).boliche, displayCount("día")],
     streakFifthMeal: [(stats.streaks || {}).fifthMeal, displayCount("día")],
     streakBathroom: [(stats.streaks || {}).bathroom, displayCount("día")],
@@ -6875,6 +6981,8 @@ function titleDominanceLabel(title) {
     money: "Gasto",
     previas: "Previas",
     destroyedVote: "Encuestas",
+    mostFlirtyVote: "Encuestas",
+    bestOutfitVote: "Encuestas",
     streakBoliche: "Boliche",
     streakFifthMeal: "Quinta comida",
     streakBathroom: "Baño",
@@ -7291,13 +7399,8 @@ function renderTitulosEstadisticaScreen() {
    -------------------------------------------------------------
    Títulos que se otorgan a partir de encuestas votadas por los
    participantes (no de una estadística medida por la app). Por
-   ahora hay una sola encuesta implementada — "¿Quién estuvo más
-   destruido anoche?" (el voto ya se captura y persiste dentro de
-   Registro diario, ver `destroyedVote` en `defaultDailyEntry()`) —
-   pero la estructura (`ENCUESTAS_CONFIG`) está preparada para sumar
-   encuestas futuras de la misma forma en que `TITULOS_CONFIG` ya
-   permite sumar estadísticas nuevas: una entrada nueva, sin tocar
-   el resto del render.
+   ahora comparten la configuración central de `DAILY_SURVEYS`, de la
+   captura del Registro diario hasta los títulos dinámicos.
 
    Misma separación DÍA/TOTAL que "Por estadística": propio estado
    (`titulosEncuestaTab`/`titulosEncuestaDayIndex`), propia barra
@@ -7316,9 +7419,7 @@ let titulosEncuestaNavDir = 0; // -1 anterior / 0 sin dirección / 1 siguiente (
 // registro diario de ese día de cada jugador importado y suma 1 al
 // id votado en `field` (ignora a quien no votó ese día — no se
 // inventa ningún voto). `field` es el nombre del campo dentro de
-// `dailyEntries[dateKey]` (hoy solo existe "destroyedVote", pero
-// cualquier encuesta futura que se guarde del mismo modo dentro del
-// registro diario puede reutilizar esta misma función).
+// `dailyEntries[dateKey]`.
 function tallyVotesForDay(dateKey, field) {
   const tally = {}; // id del votado -> cantidad de votos
   getAdminPlayersArray().forEach((player) => {
@@ -7373,17 +7474,15 @@ function votesToRankingRows(tally) {
    `totalFn` armados sobre `tallyVotesForDay`/`tallyVotesForDays` +
    `votesToRankingRows`) — no hace falta tocar el resto del render.
    ----------------------------------------------------------- */
-const ENCUESTAS_CONFIG = [
-  {
-    key: "destroyedVote",
-    icon: "🥴",
-    accent: "#c77dff",
-    title: "El más destruido",
-    caption: 'Ganó la votación de "¿Quién estuvo más destruido anoche?"',
-    dayFn: (dateKey) => votesToRankingRows(tallyVotesForDay(dateKey, "destroyedVote")),
-    totalFn: (closedDays) => votesToRankingRows(tallyVotesForDays(closedDays, "destroyedVote")),
-  },
-];
+const ENCUESTAS_CONFIG = DAILY_SURVEYS.map((survey) => ({
+  key: survey.field,
+  icon: survey.icon,
+  accent: survey.accent,
+  title: survey.title,
+  caption: survey.caption,
+  dayFn: (dateKey) => votesToRankingRows(tallyVotesForDay(dateKey, survey.field)),
+  totalFn: (closedDays) => votesToRankingRows(tallyVotesForDays(closedDays, survey.field)),
+}));
 
 // Agrupa por jugador los títulos que resultan de un conjunto de
 // "configs" (cada uno con su propio `getRows(config)` ya resuelto
@@ -7557,7 +7656,7 @@ function renderTitulosEncuestaPanel() {
 function renderTitulosEncuestaScreen() {
   const main = document.getElementById("titulos-encuesta-main");
   main.innerHTML = `
-    ${renderTitulosSourceNote("🗳️", "#c77dff", "Estos títulos salen de las <strong>encuestas votadas por los participantes</strong> en Registro diario (ej. \"¿Quién estuvo más destruido anoche?\"): se lo lleva quien reciba más votos.")}
+    ${renderTitulosSourceNote("🗳️", "#c77dff", "Estos títulos salen de las <strong>encuestas votadas por los participantes</strong> en Registro diario: destruido, chamullero y outfit. Se lo lleva quien reciba más votos.")}
     <div class="stats-tabs" role="tablist">
       <button type="button" class="stats-tab${titulosEncuestaTab === "dia" ? " active" : ""}" data-tab="dia" role="tab" aria-selected="${titulosEncuestaTab === "dia"}">Día</button>
       <button type="button" class="stats-tab${titulosEncuestaTab === "total" ? " active" : ""}" data-tab="total" role="tab" aria-selected="${titulosEncuestaTab === "total"}">Total</button>
@@ -8566,7 +8665,9 @@ function generateTestDailyEntry(otherIds) {
     entry.boliche.didNotGo = true;
   }
 
-  entry.destroyedVote = otherIds.length && Math.random() < 0.7 ? tdPick(otherIds) : null;
+  DAILY_SURVEYS.forEach((survey) => {
+    entry[survey.field] = otherIds.length && Math.random() < 0.7 ? tdPick(otherIds) : null;
+  });
   return entry;
 }
 

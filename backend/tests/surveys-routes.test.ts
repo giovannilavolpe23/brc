@@ -25,11 +25,33 @@ const jere: AuthUser = {
   permissions: ["create_previa"],
 };
 
+const lara: AuthUser = {
+  id: "44444444-4444-4444-8444-444444444444",
+  legacyId: "lara",
+  displayName: "Lara",
+  role: "user",
+  permissions: [],
+};
+
 const destroyedVote: SurveyQuestion = {
   id: "33333333-3333-4333-8333-333333333333",
   key: "destroyed_vote",
   title: "Quien estuvo mas destruido anoche",
 };
+
+const mostFlirty: SurveyQuestion = {
+  id: "55555555-5555-4555-8555-555555555555",
+  key: "most_flirty",
+  title: "¿Quién fue el más chamullero anoche?",
+};
+
+const bestOutfit: SurveyQuestion = {
+  id: "66666666-6666-4666-8666-666666666666",
+  key: "best_outfit",
+  title: "¿Quién tuvo el mejor outfit anoche?",
+};
+
+const questions = [destroyedVote, mostFlirty, bestOutfit];
 
 function authAs(user: AuthUser): RequestHandler {
   return (req, _res, next) => {
@@ -38,10 +60,10 @@ function authAs(user: AuthUser): RequestHandler {
   };
 }
 
-function makeVote(voterUserId: string, votedUserId: string): SurveyVote {
+function makeVote(surveyKey: string, voterUserId: string, votedUserId: string): SurveyVote {
   return {
-    id: `${voterUserId}-2026-08-28`,
-    surveyKey: "destroyed_vote",
+    id: `${surveyKey}-${voterUserId}-2026-08-28`,
+    surveyKey,
     dateKey: "2026-08-28",
     voterUserId,
     votedUserId,
@@ -58,6 +80,8 @@ function makeRepository(): SurveysRepository & { calls: string[]; votes: SurveyV
     [gio.legacyId, gio.id],
     [jere.id, jere.id],
     [jere.legacyId, jere.id],
+    [lara.id, lara.id],
+    [lara.legacyId, lara.id],
   ]);
 
   return {
@@ -65,11 +89,11 @@ function makeRepository(): SurveysRepository & { calls: string[]; votes: SurveyV
     votes,
     async listQuestions() {
       calls.push("list");
-      return [destroyedVote];
+      return questions;
     },
     async findQuestionByKey(surveyKey) {
       calls.push(`question:${surveyKey}`);
-      return surveyKey === destroyedVote.key ? destroyedVote : null;
+      return questions.find((question) => question.key === surveyKey) ?? null;
     },
     async findActiveUserId(identifier) {
       calls.push(`user:${identifier}`);
@@ -84,7 +108,7 @@ function makeRepository(): SurveysRepository & { calls: string[]; votes: SurveyV
       const index = votes.findIndex(
         (vote) => vote.surveyKey === surveyKey && vote.dateKey === dateKey && vote.voterUserId === voterUserId
       );
-      const vote = makeVote(voterUserId, votedUserId);
+      const vote = makeVote(surveyKey, voterUserId, votedUserId);
       if (index === -1) votes.push(vote);
       else votes[index] = vote;
       return vote;
@@ -100,14 +124,17 @@ function makeApp(user: AuthUser, repository: SurveysRepository) {
 }
 
 describe("survey routes", () => {
-  it("lists the initial destroyed_vote survey", async () => {
+  it("lists the daily surveys", async () => {
     const repo = makeRepository();
     const app = makeApp(jere, repo);
 
     const response = await request(app).get("/surveys");
 
     assert.equal(response.status, 200);
-    assert.equal(response.body.surveys[0].key, "destroyed_vote");
+    assert.deepEqual(
+      response.body.surveys.map((survey) => survey.key),
+      ["destroyed_vote", "most_flirty", "best_outfit"]
+    );
   });
 
   it("stores votes using the authenticated voter and ignores body voter ids", async () => {
@@ -136,6 +163,30 @@ describe("survey routes", () => {
     assert.equal(response.body.vote.votedUserId, gio.id);
   });
 
+  it("stores most_flirty and best_outfit votes", async () => {
+    const repo = makeRepository();
+    const app = makeApp(jere, repo);
+
+    const flirty = await request(app).put("/surveys/most_flirty/2026-08-28/vote").send({ votedUserId: gio.id });
+    const outfit = await request(app).put("/surveys/best_outfit/2026-08-28/vote").send({ votedUserId: lara.id });
+
+    assert.equal(flirty.status, 200);
+    assert.equal(flirty.body.vote.surveyKey, "most_flirty");
+    assert.equal(outfit.status, 200);
+    assert.equal(outfit.body.vote.surveyKey, "best_outfit");
+    assert.equal(repo.votes.length, 2);
+  });
+
+  it("supports dynamically created active users as vote targets", async () => {
+    const repo = makeRepository();
+    const app = makeApp(jere, repo);
+
+    const response = await request(app).put("/surveys/best_outfit/2026-08-28/vote").send({ votedUserId: "lara" });
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.vote.votedUserId, lara.id);
+  });
+
   it("rejects self votes", async () => {
     const repo = makeRepository();
     const app = makeApp(jere, repo);
@@ -146,6 +197,19 @@ describe("survey routes", () => {
 
     assert.equal(response.status, 400);
     assert.equal(response.body.error, "self_vote_not_allowed");
+  });
+
+  it("rejects self votes in the new daily surveys", async () => {
+    const repo = makeRepository();
+    const app = makeApp(jere, repo);
+
+    const flirty = await request(app).put("/surveys/most_flirty/2026-08-28/vote").send({ votedUserId: jere.id });
+    const outfit = await request(app).put("/surveys/best_outfit/2026-08-28/vote").send({ votedUserId: jere.id });
+
+    assert.equal(flirty.status, 400);
+    assert.equal(flirty.body.error, "self_vote_not_allowed");
+    assert.equal(outfit.status, 400);
+    assert.equal(outfit.body.error, "self_vote_not_allowed");
   });
 
   it("rejects votes to missing users", async () => {

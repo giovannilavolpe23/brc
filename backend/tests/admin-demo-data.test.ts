@@ -187,7 +187,7 @@ describe("admin demo data generation", () => {
 
     assert.deepEqual(dataset.days, ["2026-09-01"]);
     assert.equal(dataset.dailyEntries.length, demoUsers.length);
-    assert.equal(dataset.surveyVotes.length, demoUsers.length);
+    assert.equal(dataset.surveyVotes.length, demoUsers.length * 3);
     assert.equal(dataset.previas.length, 1);
   });
 
@@ -242,10 +242,10 @@ describe("admin demo data generation", () => {
       }
     });
 
-    assert.equal(dataset.surveyVotes.length, demoUsers.length * 8);
+    assert.equal(dataset.surveyVotes.length, demoUsers.length * 8 * 3);
     assert.equal(new Set(dataset.surveyVotes.map((vote) => `${vote.surveyKey}:${vote.voterUserId}:${vote.dateKey}`)).size, dataset.surveyVotes.length);
+    assert.deepEqual(new Set(dataset.surveyVotes.map((vote) => vote.surveyKey)), new Set(["destroyed_vote", "most_flirty", "best_outfit"]));
     dataset.surveyVotes.forEach((vote) => {
-      assert.equal(vote.surveyKey, "destroyed_vote");
       assert.notEqual(vote.voterUserId, vote.votedUserId);
       assert.equal(userIds.has(vote.voterUserId), true);
       assert.equal(userIds.has(vote.votedUserId), true);
@@ -287,6 +287,8 @@ describe("admin demo data generation", () => {
     assert.equal(stats.dailyEntries.sleepMinutes.length > 0, true);
     assert.equal(stats.dailyEntries.leastSleepMinutes.length > 0, true);
     assert.equal(stats.surveys.destroyed_vote.length > 0, true);
+    assert.equal(stats.surveys.most_flirty.length > 0, true);
+    assert.equal(stats.surveys.best_outfit.length > 0, true);
     assert.equal(stats.previas.totalCount, dataset.previas.length);
     assert.equal(stats.previas.byParticipant.length > 0, true);
     assert.equal(stats.streaks.zombie.some((row) => row.value >= 2), true);
@@ -298,6 +300,8 @@ describe("admin demo data generation", () => {
       ...stats.money.totalSpentByUser.slice(0, 3).map((row) => row.userId),
       ...stats.dailyEntries.leastSleepMinutes.slice(0, 3).map((row) => row.userId),
       ...stats.surveys.destroyed_vote.slice(0, 3).map((row) => row.userId),
+      ...stats.surveys.most_flirty.slice(0, 3).map((row) => row.userId),
+      ...stats.surveys.best_outfit.slice(0, 3).map((row) => row.userId),
       ...stats.previas.byParticipant.slice(0, 3).map((row) => row.userId),
       ...stats.streaks.zombie.slice(0, 3).map((row) => row.userId),
     ]);
@@ -322,7 +326,15 @@ describe("admin demo data generation", () => {
           };
         }
         if (sql.includes("select (")) return { rows: [{ total: 0 }] };
-        if (sql.includes("from survey_questions")) return { rows: [{ id: "survey-question-id" }] };
+        if (sql.includes("from survey_questions")) {
+          return {
+            rows: [
+              { id: "survey-question-destroyed", key: "destroyed_vote" },
+              { id: "survey-question-flirty", key: "most_flirty" },
+              { id: "survey-question-outfit", key: "best_outfit" },
+            ],
+          };
+        }
         if (sql.includes("returning id")) {
           previaId += 1;
           return { rows: [{ id: `previa-id-${previaId}` }] };
@@ -342,7 +354,7 @@ describe("admin demo data generation", () => {
     assert.equal(queries.includes("rollback"), false);
     assert.equal(queries.at(-1), "release");
     assert.equal(summary.generated.dailyEntries, 32);
-    assert.equal(summary.generated.surveyVotes, 32);
+    assert.equal(summary.generated.surveyVotes, 96);
     assert.equal(summary.deleted.initialBalances, 0);
     assert.equal(queries.some((query) => /delete from (users|roles|permissions|user_permissions|initial_balances|survey_questions)/.test(query)), false);
     assert.equal(queries.some((query) => /delete from daily_entries where is_demo = true/.test(query)), true);
@@ -367,7 +379,15 @@ describe("admin demo data generation", () => {
           };
         }
         if (sql.includes("select (")) return { rows: [{ total: 0 }] };
-        if (sql.includes("from survey_questions")) return { rows: [{ id: "survey-question-id" }] };
+        if (sql.includes("from survey_questions")) {
+          return {
+            rows: [
+              { id: "survey-question-destroyed", key: "destroyed_vote" },
+              { id: "survey-question-flirty", key: "most_flirty" },
+              { id: "survey-question-outfit", key: "best_outfit" },
+            ],
+          };
+        }
         if (sql.includes("returning id")) return { rows: [{ id: "previa-id" }] };
         return { rowCount: 1, rows: [] };
       },
@@ -433,7 +453,15 @@ describe("admin demo data generation", () => {
           };
         }
         if (sql.includes("select (")) return { rows: [{ total: 0 }] };
-        if (sql.includes("from survey_questions")) return { rows: [{ id: "survey-question-id" }] };
+        if (sql.includes("from survey_questions")) {
+          return {
+            rows: [
+              { id: "survey-question-destroyed", key: "destroyed_vote" },
+              { id: "survey-question-flirty", key: "most_flirty" },
+              { id: "survey-question-outfit", key: "best_outfit" },
+            ],
+          };
+        }
         if (sql.includes("insert into money_movements")) throw new Error("boom");
         return { rowCount: 1, rows: [{ id: "previa-id" }] };
       },

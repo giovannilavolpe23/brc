@@ -27,6 +27,8 @@ export function calculateStats(scope: "day" | "total", data: StatsData, dateKey?
     dailyEntries: dailyEntryStats(entries),
     surveys: {
       destroyed_vote: rankingFromCounts(countBy(votes.filter((vote) => vote.surveyKey === "destroyed_vote"), "votedUserId")),
+      most_flirty: rankingFromCounts(countBy(votes.filter((vote) => vote.surveyKey === "most_flirty"), "votedUserId")),
+      best_outfit: rankingFromCounts(countBy(votes.filter((vote) => vote.surveyKey === "best_outfit"), "votedUserId")),
     },
     previas: previaStats(previaParticipants),
     streaks: scope === "total" ? streakStats(closedDays, data) : emptyStreakStats(),

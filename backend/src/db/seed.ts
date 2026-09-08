@@ -17,6 +17,12 @@ const permissions = [
   { key: "create_previa", description: "Can create previas outside the admin panel." },
 ];
 
+const surveyQuestions = [
+  { key: "destroyed_vote", title: "Quien estuvo mas destruido anoche" },
+  { key: "most_flirty", title: "¿Quién fue el más chamullero anoche?" },
+  { key: "best_outfit", title: "¿Quién tuvo el mejor outfit anoche?" },
+];
+
 const users: SeedUser[] = [
   { legacyId: "gio", displayName: "Gio", roleKey: "admin", passwordHash: "$2a$12$ErRI6zdXcekHh1vGuYPmmu5Uf/S4iqp6MPg17/OHAUdCOxk1M/RVi" },
   { legacyId: "marto", displayName: "Marto", roleKey: "user", passwordHash: "$2a$12$T2k8XT/xfE9/ko9iaTMpS.Rg9AmLNcnrwK4rdcbkVtVNYJQl1HL0a" },
@@ -95,12 +101,29 @@ async function seedUserPermissions(): Promise<void> {
   }
 }
 
+async function seedSurveyQuestions(): Promise<void> {
+  for (const question of surveyQuestions) {
+    await pool.query(
+      `
+        insert into survey_questions (key, title)
+        values ($1, $2)
+        on conflict (key) do update
+        set title = excluded.title,
+            is_active = true,
+            updated_at = now()
+      `,
+      [question.key, question.title]
+    );
+  }
+}
+
 async function main(): Promise<void> {
   await seedRoles();
   await seedPermissions();
   await seedUsers();
   await seedUserPermissions();
-  console.log(`Seeded ${roles.length} roles, ${permissions.length} permissions, and ${users.length} users.`);
+  await seedSurveyQuestions();
+  console.log(`Seeded ${roles.length} roles, ${permissions.length} permissions, ${users.length} users, and ${surveyQuestions.length} surveys.`);
 }
 
 main()

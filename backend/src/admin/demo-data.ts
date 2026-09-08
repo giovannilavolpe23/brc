@@ -7,6 +7,7 @@ import { todayInArgentina } from "../dates/trip-date";
 import type { DevResetSummary } from "./dev-reset";
 
 const EXPENSE_CATEGORIES = ["Chocolates", "Alcohol", "Boliche", "Comida", "Bebida", "Actividades", "Otros"] as const;
+const DEMO_SURVEY_KEYS = ["destroyed_vote", "most_flirty", "best_outfit"] as const;
 const PRESERVED_TABLES = ["users", "roles", "permissions", "user_permissions", "survey_questions", "initial_balances"];
 const FULL_TRIP_NIGHTS = 8;
 
@@ -41,7 +42,7 @@ type DemoDailyEntry = {
 };
 
 type DemoSurveyVote = {
-  surveyKey: "destroyed_vote";
+  surveyKey: (typeof DEMO_SURVEY_KEYS)[number];
   dateKey: string;
   voterUserId: string;
   votedUserId: string;
@@ -176,7 +177,11 @@ export function buildDemoDataset(users: DemoUser[], mode: DemoSimulationMode, to
   const orderedUsers = shuffle(users, rng);
   const zombieUser = orderedUsers[0];
   const alcoholUser = orderedUsers[1 % orderedUsers.length];
-  const destroyedUser = orderedUsers[2 % orderedUsers.length];
+  const surveyFavorites = {
+    destroyed_vote: orderedUsers[2 % orderedUsers.length],
+    most_flirty: orderedUsers[3 % orderedUsers.length],
+    best_outfit: orderedUsers[4 % orderedUsers.length],
+  };
   const spenderUser = orderedUsers[3 % orderedUsers.length];
   const batchId = randomUUID();
 
@@ -187,7 +192,9 @@ export function buildDemoDataset(users: DemoUser[], mode: DemoSimulationMode, to
   days.forEach((dateKey, dayIndex) => {
     users.forEach((user, userIndex) => {
       dailyEntries.push(generateDailyEntry(user, dateKey, dayIndex, zombieUser, rng));
-      surveyVotes.push(generateDestroyedVote(user, users, dateKey, dayIndex, destroyedUser, rng));
+      DEMO_SURVEY_KEYS.forEach((surveyKey) => {
+        surveyVotes.push(generateSurveyVote(surveyKey, user, users, dateKey, dayIndex, surveyFavorites[surveyKey], rng));
+      });
       moneyMovements.push(...generateMoneyMovements(user, dateKey, dayIndex, userIndex, { alcoholUser, spenderUser, batchId }, rng));
     });
   });
@@ -238,9 +245,9 @@ async function loadActiveUsers(client: DemoQueryClient): Promise<DemoUser[]> {
 }
 
 async function insertDemoDataset(client: DemoQueryClient, dataset: GeneratedDemoDataset): Promise<void> {
-  const surveyQuestion = await client.query<{ id: string }>("select id from survey_questions where key = 'destroyed_vote' and is_active = true");
-  const surveyQuestionId = surveyQuestion.rows[0]?.id;
-  if (!surveyQuestionId) throw new Error("destroyed_vote_survey_not_found");
+  const surveyQuestion = await client.query<{ id: string; key: string }>("select id, key from survey_questions where key = any($1::text[]) and is_active = true", [DEMO_SURVEY_KEYS]);
+  const surveyQuestionIds = new Map(surveyQuestion.rows.map((row) => [row.key, row.id]));
+  if (DEMO_SURVEY_KEYS.some((key) => !surveyQuestionIds.has(key))) throw new Error("daily_surveys_not_found");
 
   for (const entry of dataset.dailyEntries) {
     await client.query(
@@ -268,6 +275,8 @@ async function insertDemoDataset(client: DemoQueryClient, dataset: GeneratedDemo
   }
 
   for (const vote of dataset.surveyVotes) {
+    const surveyQuestionId = surveyQuestionIds.get(vote.surveyKey);
+    if (!surveyQuestionId) throw new Error("daily_surveys_not_found");
     await client.query(
       `
         insert into survey_votes (survey_question_id, date_key, voter_user_id, voted_user_id, is_demo)
@@ -411,15 +420,23 @@ function generateDailyEntry(user: DemoUser, dateKey: string, dayIndex: number, z
   };
 }
 
-function generateDestroyedVote(user: DemoUser, users: DemoUser[], dateKey: string, dayIndex: number, destroyedUser: DemoUser, rng: Rng): DemoSurveyVote {
-  let votedUser = dayIndex < 4 && user.id !== destroyedUser.id && rng() < 0.78
-    ? destroyedUser
+function generateSurveyVote(
+  surveyKey: (typeof DEMO_SURVEY_KEYS)[number],
+  user: DemoUser,
+  users: DemoUser[],
+  dateKey: string,
+  dayIndex: number,
+  favoriteUser: DemoUser,
+  rng: Rng
+): DemoSurveyVote {
+  let votedUser = dayIndex < 4 && user.id !== favoriteUser.id && rng() < 0.72
+    ? favoriteUser
     : pick(rng, users.filter((candidate) => candidate.id !== user.id));
   if (votedUser.id === user.id) {
     votedUser = users.find((candidate) => candidate.id !== user.id) ?? votedUser;
   }
   return {
-    surveyKey: "destroyed_vote",
+    surveyKey,
     dateKey,
     voterUserId: user.id,
     votedUserId: votedUser.id,

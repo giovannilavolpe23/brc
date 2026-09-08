@@ -61,6 +61,10 @@ function baseData(): StatsData {
       { surveyKey: "destroyed_vote", dateKey: "2026-08-28", votedUserId: gioId },
       { surveyKey: "destroyed_vote", dateKey: "2026-08-28", votedUserId: gioId },
       { surveyKey: "destroyed_vote", dateKey: "2026-08-27", votedUserId: jereId },
+      { surveyKey: "most_flirty", dateKey: "2026-08-28", votedUserId: jereId },
+      { surveyKey: "most_flirty", dateKey: "2026-08-28", votedUserId: jereId },
+      { surveyKey: "best_outfit", dateKey: "2026-08-28", votedUserId: gioId },
+      { surveyKey: "best_outfit", dateKey: "2026-08-28", votedUserId: jereId },
     ],
     previaParticipants: [
       { previaId: "previa-1", userId: gioId, dateKey: "2026-08-28" },
@@ -191,11 +195,16 @@ describe("stats calculations", () => {
     ]);
   });
 
-  it("aggregates destroyed_vote surveys", () => {
+  it("aggregates all daily surveys", () => {
     const stats = calculateStats("total", baseData());
 
     assert.deepEqual(stats.surveys.destroyed_vote, [
       { userId: gioId, value: 2 },
+      { userId: jereId, value: 1 },
+    ]);
+    assert.deepEqual(stats.surveys.most_flirty, [{ userId: jereId, value: 2 }]);
+    assert.deepEqual(stats.surveys.best_outfit, [
+      { userId: gioId, value: 1 },
       { userId: jereId, value: 1 },
     ]);
   });
@@ -390,6 +399,8 @@ describe("stats calculations", () => {
     assert.deepEqual(stats.money.totalSpentByUser, []);
     assert.deepEqual(stats.dailyEntries.sleepMinutes, []);
     assert.deepEqual(stats.surveys.destroyed_vote, []);
+    assert.deepEqual(stats.surveys.most_flirty, []);
+    assert.deepEqual(stats.surveys.best_outfit, []);
     assert.deepEqual(stats.previas.byParticipant, []);
   });
 });

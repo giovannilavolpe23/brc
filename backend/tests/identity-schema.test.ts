@@ -11,6 +11,7 @@ const userManagementMigration = fs.readFileSync(path.resolve(__dirname, "../migr
 const pushMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/008_push_notifications.sql"), "utf8");
 const kingPhraseMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/009_user_king_phrase.sql"), "utf8");
 const demoFlagsMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/010_demo_data_flags.sql"), "utf8");
+const dailySurveyQuestionsMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/011_add_daily_survey_questions.sql"), "utf8");
 const seed = fs.readFileSync(path.resolve(__dirname, "../src/db/seed.ts"), "utf8");
 
 describe("identity schema", () => {
@@ -81,6 +82,12 @@ describe("identity seed", () => {
       assert.doesNotMatch(seed, new RegExp(`password: "${password}"`));
     }
   });
+
+  it("seeds all daily surveys", () => {
+    assert.match(seed, /key: "destroyed_vote"/);
+    assert.match(seed, /key: "most_flirty"/);
+    assert.match(seed, /key: "best_outfit"/);
+  });
 });
 
 describe("daily entries and surveys schema", () => {
@@ -117,6 +124,13 @@ describe("daily entries and surveys schema", () => {
     assert.match(dailyMigration, /unique \(survey_question_id, date_key, voter_user_id\)/);
     assert.match(dailyMigration, /survey_votes_no_self_vote/);
     assert.match(dailyMigration, /'destroyed_vote'/);
+  });
+
+  it("adds the chamuyo and outfit survey questions", () => {
+    assert.match(dailySurveyQuestionsMigration, /'most_flirty'/);
+    assert.match(dailySurveyQuestionsMigration, /'best_outfit'/);
+    assert.match(dailySurveyQuestionsMigration, /¿Quién fue el más chamullero anoche\?/);
+    assert.match(dailySurveyQuestionsMigration, /¿Quién tuvo el mejor outfit anoche\?/);
   });
 });
 
