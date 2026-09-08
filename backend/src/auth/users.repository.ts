@@ -17,6 +17,7 @@ type UserRow = {
   intensity: UserAppearance["intensity"] | null;
   visual_style: UserAppearance["visualStyle"] | null;
   avatar_border_style: UserAppearance["avatarBorderStyle"] | null;
+  king_phrase: string | null;
 };
 
 function mapAuthUser(row: UserRow): AuthUser {
@@ -35,6 +36,7 @@ function mapAuthUser(row: UserRow): AuthUser {
           intensity: row.intensity || "normal",
           visual_style: row.visual_style || "gradient",
           avatar_border_style: row.avatar_border_style || "gradient",
+          king_phrase: row.king_phrase,
         })
       : null,
   };
@@ -56,7 +58,8 @@ export async function findUserCredentialsByLegacyId(legacyId: string): Promise<U
         user_appearances.gradient_direction,
         user_appearances.intensity,
         user_appearances.visual_style,
-        user_appearances.avatar_border_style
+        user_appearances.avatar_border_style,
+        user_appearances.king_phrase
       from users
       join roles on roles.id = users.role_id
       left join user_permissions on user_permissions.user_id = users.id
@@ -93,7 +96,8 @@ export async function findAuthUserById(id: string): Promise<AuthUser | null> {
         user_appearances.gradient_direction,
         user_appearances.intensity,
         user_appearances.visual_style,
-        user_appearances.avatar_border_style
+        user_appearances.avatar_border_style,
+        user_appearances.king_phrase
       from users
       join roles on roles.id = users.role_id
       left join user_permissions on user_permissions.user_id = users.id
@@ -125,7 +129,8 @@ export async function listActiveAuthUsers(): Promise<AuthUser[]> {
         user_appearances.gradient_direction,
         user_appearances.intensity,
         user_appearances.visual_style,
-        user_appearances.avatar_border_style
+        user_appearances.avatar_border_style,
+        user_appearances.king_phrase
       from users
       join roles on roles.id = users.role_id
       left join user_permissions on user_permissions.user_id = users.id

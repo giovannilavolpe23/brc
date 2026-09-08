@@ -53,6 +53,7 @@ const DEFAULT_APPEARANCE_DRAFT = {
   intensity: "normal",
   visualStyle: "gradient",
   avatarBorderStyle: "gradient",
+  kingPhrase: null,
 };
 
 const APPEARANCE_DIRECTIONS = [
@@ -77,6 +78,7 @@ const APPEARANCE_AVATAR_BORDERS = [
   { key: "none", label: "Sin borde" },
 ];
 const APPEARANCE_HEX_RE = /^#[0-9A-F]{6}$/i;
+const KING_PHRASE_MAX_LENGTH = 80;
 const APPEARANCE_COLOR_SWATCHES = Array.from(
   new Set(
     APPEARANCE_PRESETS.flatMap((preset) => [preset.primaryColor, preset.secondaryColor]).concat([
@@ -195,6 +197,7 @@ let personalizationSaving = false;
 let personalizationMessage = "";
 let personalizationError = "";
 let personalizationColorPickerTarget = null;
+let personalizationKingPhraseInput = "";
 let pushSettingsLoading = false;
 let pushSettingsMessage = "";
 let pushSettingsError = "";
@@ -1122,6 +1125,27 @@ function normalizeHexColor(value) {
   return value.trim().toUpperCase();
 }
 
+function normalizeKingPhrase(value) {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length < 3 || trimmed.length > KING_PHRASE_MAX_LENGTH) return null;
+  return trimmed;
+}
+
+function rawKingPhraseValue(value) {
+  return typeof value === "string" ? value : "";
+}
+
+function validateKingPhraseInput(value) {
+  if (value === "") return { valid: true, phrase: null, error: "" };
+  const trimmed = value.trim();
+  if (!trimmed) return { valid: false, phrase: null, error: "La frase no puede ser solo espacios." };
+  if (trimmed.length < 3) return { valid: false, phrase: null, error: "La frase necesita al menos 3 caracteres." };
+  if (trimmed.length > KING_PHRASE_MAX_LENGTH) return { valid: false, phrase: null, error: "La frase no puede superar 80 caracteres." };
+  return { valid: true, phrase: trimmed, error: "" };
+}
+
 function normalizeAppearance(appearance) {
   if (!appearance || typeof appearance !== "object") return null;
   const presetKeys = new Set([...APPEARANCE_PRESETS.map((preset) => preset.key), "custom"]);
@@ -1141,6 +1165,7 @@ function normalizeAppearance(appearance) {
     intensity: intensityKeys.has(appearance.intensity) ? appearance.intensity : "normal",
     visualStyle: styleKeys.has(appearance.visualStyle) ? appearance.visualStyle : "gradient",
     avatarBorderStyle: borderKeys.has(appearance.avatarBorderStyle) ? appearance.avatarBorderStyle : "gradient",
+    kingPhrase: normalizeKingPhrase(appearance.kingPhrase),
   };
 }
 
@@ -1607,7 +1632,9 @@ function currentUserParticipant() {
 
 function startPersonalizationDraft() {
   const participant = currentUserParticipant();
-  personalizationDraft = cloneAppearance(resolvePlayerAppearance(participant));
+  const appearance = resolvePlayerAppearance(participant);
+  personalizationDraft = cloneAppearance(appearance);
+  personalizationKingPhraseInput = appearance && appearance.kingPhrase ? appearance.kingPhrase : "";
   personalizationMessage = "";
   personalizationError = "";
 }
@@ -1678,6 +1705,7 @@ function renderAppearanceColorControl(key, label, value) {
 function renderPersonalizationPreview(user, draft) {
   const previewPlayer = { ...(user || { id: "preview", name: "Usuario" }), appearance: draft, forceDefaultAppearance: !draft };
   const badgeAccentStyle = draft ? "--titulo-accent:var(--person-primary)" : "";
+  const phrasePreview = validateKingPhraseInput(personalizationKingPhraseInput);
   return `
     <section class="${appearanceClassSuffix(previewPlayer, "appearance-preview-card")}"${appearanceDataAttrs(previewPlayer)}${appearanceStyleAttr(previewPlayer)}>
       <div class="appearance-preview-header">
@@ -1702,6 +1730,7 @@ function renderPersonalizationPreview(user, draft) {
           <span class="titulo-badge-caption">Usa tu color de perfil de forma sutil</span>
         </div>
       </div>
+      ${phrasePreview.valid && phrasePreview.phrase ? `<p class="appearance-preview-king-phrase">“${escapeHtml(phrasePreview.phrase)}”</p>` : ""}
     </section>
   `;
 }
@@ -1750,6 +1779,15 @@ function renderPersonalizationScreen() {
       ${renderAppearanceChips("visualStyle", APPEARANCE_VISUAL_STYLES, draft ? draft.visualStyle : DEFAULT_APPEARANCE_DRAFT.visualStyle)}
       <div class="section-label">Estilo del borde del avatar</div>
       ${renderAppearanceChips("avatarBorderStyle", APPEARANCE_AVATAR_BORDERS, draft ? draft.avatarBorderStyle : DEFAULT_APPEARANCE_DRAFT.avatarBorderStyle)}
+    </section>
+
+    <section class="appearance-panel">
+      <div class="section-label">Frase del Rey</div>
+      <p class="appearance-panel-hint">Se mostrará en tu perfil si terminás siendo Rey de Bariloche.</p>
+      <label class="appearance-king-phrase-field">
+        <input id="appearance-king-phrase" class="field-input" type="text" maxlength="${KING_PHRASE_MAX_LENGTH}" value="${escapeHtml(rawKingPhraseValue(personalizationKingPhraseInput))}" placeholder="Chupenme la verga todos, les dije que iba a ganar">
+        <span id="appearance-king-phrase-count">${rawKingPhraseValue(personalizationKingPhraseInput).length} / ${KING_PHRASE_MAX_LENGTH}</span>
+      </label>
     </section>
 
     <div class="appearance-actions">
@@ -1831,12 +1869,37 @@ function bindPersonalizationControls() {
     });
   });
 
+  const kingPhraseInput = document.getElementById("appearance-king-phrase");
+  if (kingPhraseInput) {
+    kingPhraseInput.addEventListener("input", () => {
+      personalizationKingPhraseInput = kingPhraseInput.value;
+      const cursorPosition = kingPhraseInput.selectionStart;
+      const count = document.getElementById("appearance-king-phrase-count");
+      if (count) count.textContent = `${kingPhraseInput.value.length} / ${KING_PHRASE_MAX_LENGTH}`;
+      const validation = validateKingPhraseInput(kingPhraseInput.value);
+      personalizationError = validation.valid ? "" : validation.error;
+      if (validation.valid) {
+        personalizationDraft = normalizeAppearance({ ...(personalizationDraft || DEFAULT_APPEARANCE_DRAFT), kingPhrase: validation.phrase }) || {
+          ...DEFAULT_APPEARANCE_DRAFT,
+        };
+      }
+      renderPersonalizationScreen();
+      requestAnimationFrame(() => {
+        const nextInput = document.getElementById("appearance-king-phrase");
+        if (!nextInput) return;
+        nextInput.focus();
+        if (typeof cursorPosition === "number") nextInput.setSelectionRange(cursorPosition, cursorPosition);
+      });
+    });
+  }
+
   const saveBtn = document.getElementById("btn-appearance-save");
   if (saveBtn) saveBtn.addEventListener("click", savePersonalizationDraft);
   const resetBtn = document.getElementById("btn-appearance-reset");
   if (resetBtn) {
     resetBtn.addEventListener("click", () => {
       personalizationColorPickerTarget = null;
+      personalizationKingPhraseInput = "";
       setPersonalizationDraft(null);
       personalizationMessage = "Listo para restablecer. Tocá Guardar para persistirlo.";
       renderPersonalizationScreen();
@@ -1846,11 +1909,18 @@ function bindPersonalizationControls() {
 
 async function savePersonalizationDraft() {
   if (personalizationSaving) return;
+  const phraseValidation = validateKingPhraseInput(personalizationKingPhraseInput);
+  if (!phraseValidation.valid) {
+    personalizationMessage = "";
+    personalizationError = phraseValidation.error;
+    renderPersonalizationScreen();
+    return;
+  }
   personalizationSaving = true;
   personalizationMessage = "";
   personalizationError = "";
   renderPersonalizationScreen();
-  const draft = normalizeAppearance(personalizationDraft);
+  const draft = personalizationDraft || phraseValidation.phrase ? normalizeAppearance({ ...(personalizationDraft || DEFAULT_APPEARANCE_DRAFT), kingPhrase: phraseValidation.phrase }) : null;
   let savedAppearance = null;
   try {
     const response = draft
@@ -6880,6 +6950,16 @@ function renderKingProfileTitleGroups(titles, participant) {
     .join("");
 }
 
+function isFinalKingPhraseUnlocked() {
+  return getSharedStatsClosedDays().length >= 8;
+}
+
+function kingPhraseForParticipant(participant) {
+  if (!isFinalKingPhraseUnlocked()) return null;
+  const appearance = resolvePlayerAppearance(participant);
+  return appearance ? normalizeKingPhrase(appearance.kingPhrase) : null;
+}
+
 function renderAlmostKings(rows) {
   if (!rows.length) {
     return `
@@ -7012,6 +7092,7 @@ function renderKingProfileScreen() {
 
   const titleCountText = `${winner.count} logro${winner.count === 1 ? "" : "s"}`;
   const dominantStat = dominantKingStatText(winner.titles);
+  const kingPhrase = kingPhraseForParticipant(winner.participant);
   const almostKingsHtml = renderAlmostKings(sortedAlmostKings(profiles, result));
 
   main.innerHTML = `
@@ -7023,6 +7104,7 @@ function renderKingProfileScreen() {
       <h2>${escapeHtml(winner.participant.name)}</h2>
       <p>${titleCountText}</p>
       ${dominantStat ? `<span class="king-profile-dominant">${escapeHtml(dominantStat)}</span>` : ""}
+      ${kingPhrase ? `<p class="king-profile-phrase">“${escapeHtml(kingPhrase)}”</p>` : ""}
     </section>
 
     <section class="king-profile-achievements">

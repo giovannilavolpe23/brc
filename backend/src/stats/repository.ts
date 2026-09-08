@@ -21,6 +21,7 @@ type UserDbRow = {
   intensity: UserAppearance["intensity"] | null;
   visual_style: UserAppearance["visualStyle"] | null;
   avatar_border_style: UserAppearance["avatarBorderStyle"] | null;
+  king_phrase: string | null;
 };
 
 type ExpenseDbRow = {
@@ -74,7 +75,8 @@ export const postgresStatsRepository: StatsRepository = {
                  user_appearances.gradient_direction,
                  user_appearances.intensity,
                  user_appearances.visual_style,
-                 user_appearances.avatar_border_style
+                 user_appearances.avatar_border_style,
+                 user_appearances.king_phrase
           from users
           left join user_appearances on user_appearances.user_id = users.id
           where users.is_active = true
@@ -147,6 +149,7 @@ function toStatsUser(row: UserDbRow): StatsUser {
           intensity: row.intensity || "normal",
           visual_style: row.visual_style || "gradient",
           avatar_border_style: row.avatar_border_style || "gradient",
+          king_phrase: row.king_phrase,
         })
       : null,
   };

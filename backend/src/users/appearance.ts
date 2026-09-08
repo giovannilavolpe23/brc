@@ -26,6 +26,7 @@ export type UserAppearance = {
   intensity: AppearanceIntensity;
   visualStyle: VisualStyle;
   avatarBorderStyle: AvatarBorderStyle;
+  kingPhrase: string | null;
 };
 
 export const APPEARANCE_PRESETS: Record<Exclude<AppearancePreset, "custom">, Pick<UserAppearance, "primaryColor" | "secondaryColor">> = {
@@ -63,7 +64,7 @@ export function parseAppearanceInput(body: unknown): UserAppearance {
   }
 
   const raw = body as Record<string, unknown>;
-  if (JSON.stringify(raw).length > 1200) throw new AppearanceValidationError("payload_too_large");
+  if (JSON.stringify(raw).length > 1600) throw new AppearanceValidationError("payload_too_large");
 
   const preset = parseEnum(raw.preset, PRESETS, "invalid_preset");
   const gradientDirection = parseEnum(raw.gradientDirection, DIRECTIONS, "invalid_gradient_direction");
@@ -72,6 +73,7 @@ export function parseAppearanceInput(body: unknown): UserAppearance {
   const avatarBorderStyle = parseEnum(raw.avatarBorderStyle, AVATAR_BORDER_STYLES, "invalid_avatar_border_style");
   const primaryColor = parseHexColor(raw.primaryColor, "invalid_primary_color");
   const secondaryColor = parseHexColor(raw.secondaryColor, "invalid_secondary_color");
+  const kingPhrase = parseKingPhrase(raw.kingPhrase);
 
   if (preset !== "custom") {
     const presetColors = APPEARANCE_PRESETS[preset];
@@ -88,6 +90,7 @@ export function parseAppearanceInput(body: unknown): UserAppearance {
     intensity,
     visualStyle,
     avatarBorderStyle,
+    kingPhrase,
   };
 }
 
@@ -103,4 +106,14 @@ function parseHexColor(value: unknown, error: string): string {
     throw new AppearanceValidationError(error);
   }
   return value.trim().toUpperCase();
+}
+
+function parseKingPhrase(value: unknown): string | null {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value !== "string") throw new AppearanceValidationError("invalid_king_phrase");
+  const trimmed = value.trim();
+  if (!trimmed) throw new AppearanceValidationError("invalid_king_phrase");
+  if (trimmed.length < 3) throw new AppearanceValidationError("king_phrase_too_short");
+  if (trimmed.length > 80) throw new AppearanceValidationError("king_phrase_too_long");
+  return trimmed;
 }

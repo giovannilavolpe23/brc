@@ -1280,11 +1280,40 @@ img, svg {
   line-height: 1.35;
 }
 
+.appearance-preview-king-phrase {
+  margin: 14px 2px 0;
+  color: var(--text-dim);
+  font-size: 14px;
+  font-style: italic;
+  line-height: 1.45;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
 .appearance-panel {
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 16px;
+}
+
+.appearance-panel-hint {
+  margin: -4px 0 0;
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.appearance-king-phrase-field {
+  display: grid;
+  gap: 7px;
+}
+
+.appearance-king-phrase-field span {
+  justify-self: end;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .appearance-preset-grid {
@@ -2226,6 +2255,19 @@ img, svg {
   line-height: 1.25;
   font-weight: 800;
   text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.king-profile-phrase {
+  max-width: 28rem;
+  margin: 12px auto 0 !important;
+  color: var(--text-dim);
+  font-size: 15px !important;
+  font-style: italic;
+  line-height: 1.45 !important;
+  font-weight: 600 !important;
+  text-align: center;
+  opacity: 0.88;
   overflow-wrap: anywhere;
 }
 

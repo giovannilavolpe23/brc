@@ -9,6 +9,7 @@ export type AppearanceRow = {
   intensity: UserAppearance["intensity"];
   visual_style: UserAppearance["visualStyle"];
   avatar_border_style: UserAppearance["avatarBorderStyle"];
+  king_phrase: string | null;
 };
 
 export type AppearanceRepository = {
@@ -27,7 +28,8 @@ export const postgresAppearanceRepository: AppearanceRepository = {
                gradient_direction,
                intensity,
                visual_style,
-               avatar_border_style
+               avatar_border_style,
+               king_phrase
         from user_appearances
         where user_id = $1
         limit 1
@@ -48,9 +50,10 @@ export const postgresAppearanceRepository: AppearanceRepository = {
           gradient_direction,
           intensity,
           visual_style,
-          avatar_border_style
+          avatar_border_style,
+          king_phrase
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         on conflict (user_id) do update
         set preset = excluded.preset,
             primary_color = excluded.primary_color,
@@ -59,6 +62,7 @@ export const postgresAppearanceRepository: AppearanceRepository = {
             intensity = excluded.intensity,
             visual_style = excluded.visual_style,
             avatar_border_style = excluded.avatar_border_style,
+            king_phrase = excluded.king_phrase,
             updated_at = now()
         returning preset,
                   primary_color,
@@ -66,7 +70,8 @@ export const postgresAppearanceRepository: AppearanceRepository = {
                   gradient_direction,
                   intensity,
                   visual_style,
-                  avatar_border_style
+                  avatar_border_style,
+                  king_phrase
       `,
       [
         userId,
@@ -77,6 +82,7 @@ export const postgresAppearanceRepository: AppearanceRepository = {
         appearance.intensity,
         appearance.visualStyle,
         appearance.avatarBorderStyle,
+        appearance.kingPhrase,
       ]
     );
     const saved = toAppearance(result.rows[0]);
@@ -99,5 +105,6 @@ export function toAppearance(row: AppearanceRow | null | undefined): UserAppeara
     intensity: row.intensity,
     visualStyle: row.visual_style,
     avatarBorderStyle: row.avatar_border_style,
+    kingPhrase: row.king_phrase ?? null,
   };
 }

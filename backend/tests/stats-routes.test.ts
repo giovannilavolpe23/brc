@@ -31,6 +31,7 @@ const jereAppearance = {
   intensity: "normal" as const,
   visualStyle: "gradient" as const,
   avatarBorderStyle: "gradient" as const,
+  kingPhrase: "Les dije que iba a pasar",
 };
 
 const statsData: StatsData = {

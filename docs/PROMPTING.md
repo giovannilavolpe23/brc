@@ -1,584 +1,313 @@
-Quiero implementar WEB PUSH NOTIFICATIONS completas en la app.
+Quiero implementar una nueva personalización llamada:
 
-Esta feature debe sentirse como parte nativa de la aplicación y funcionar con la arquitectura actual:
+`Frase del Rey`
 
-- Frontend: Vercel
-- Backend: Node + TypeScript + Express en Render
-- PostgreSQL: Supabase
-- Auth: Bearer token
-- Mobile-first / acceso directo tipo app
-- Usuarios dinámicos y originales
-- Zona horaria del viaje: America/Argentina/Buenos_Aires
+Es una frase personal que cada usuario puede configurar anticipadamente y que SOLO se mostrará en su perfil si termina siendo Rey de Bariloche una vez completadas las 8 noches del viaje.
 
 IMPORTANTE:
-- no romper auth;
-- no romper offline queue;
-- no romper daily entries;
-- no romper stats;
-- no hacer commit todavía;
-- no agregar servicios pagos innecesarios;
-- usar Web Push estándar.
+- el viaje tiene 9 días y 8 noches;
+- la frase NO debe aparecer antes de completar las 8 noches;
+- no modificar todavía la función de Simular datos;
+- eso se hará en otro cambio.
 
-# 1. OBJETIVO
+# 1. CAMPO EN PERSONALIZACIÓN
 
-Quiero implementar inicialmente SOLO dos notificaciones automáticas:
+En la sección actual de `Personalización`, agregar AL FINAL ABSOLUTO un nuevo bloque:
 
-1. Recordatorio de registro:
-`¡No olvides de hacer tu registro!`
+`Frase del Rey`
 
-2. Estadísticas disponibles:
-`¡Ya están disponibles las estadisticas de ayer!`
+Debe estar después de todas las opciones visuales actuales.
 
-Además quiero una notificación manual de prueba desde mis Ajustes.
+Agregar una explicación breve:
 
-# 2. FUNCIONAMIENTO DEL REGISTRO
+`Se mostrará en tu perfil si terminás siendo Rey de Bariloche.`
 
-Recordar el concepto actual de la aplicación:
+Debajo, un campo de texto.
 
-El Registro diario se realiza al día siguiente.
+Ejemplo de lo que puede escribir el usuario:
 
-Ejemplo:
-
-Hoy es 21/09.
-El registro que completa el usuario corresponde al 20/09.
-
-Un mismo usuario puede enviar/modificar ese registro varias veces.
-Eso actualiza el registro de esa fecha y NO crea duplicados.
-
-Por lo tanto, para notificaciones:
-“registro pendiente” significa que el usuario todavía NO tiene daily entry correspondiente a AYER.
-
-Usar siempre zona horaria:
-
-America/Argentina/Buenos_Aires
-
-No depender de UTC de forma que pueda cambiar de fecha incorrectamente.
-
-# 3. RECORDATORIO DE LAS 10:00
-
-Todos los días a las 10:00 AM hora Argentina:
-
-comprobar qué usuarios activos todavía NO tienen un registro del día anterior.
-
-Enviar push SOLO a esos usuarios:
-
-Título:
-`¡No olvides de hacer tu registro!`
-
-Texto secundario:
-puede ser breve y coherente con la app, por ejemplo:
-`Completá lo de ayer cuando puedas.`
-
-No mandar nada a quienes ya hicieron su registro.
+`Ja, pedazos de bots`
 
 IMPORTANTE:
-- no duplicar el recordatorio varias veces el mismo día;
-- un usuario con varios dispositivos puede recibirlo en sus dispositivos suscritos;
-- usuarios sin suscripción simplemente se ignoran.
+el usuario escribe SOLO la frase.
 
-# 4. PROGRAMACIÓN DE LAS 10:00
+NO debe escribir comillas manualmente.
+Las comillas se agregan únicamente al renderizarla en el perfil del Rey.
 
-Auditar primero qué mecanismo de scheduling encaja con la infraestructura actual.
+# 2. LÍMITES
 
-El backend Render puede dormir, por lo que NO asumir que un setInterval dentro del servidor es suficiente.
+La frase debe:
 
-Elegir una solución confiable y simple compatible con el proyecto.
+- tener mínimo 3 caracteres;
+- tener máximo 80 caracteres;
+- aplicar trim al inicio/final;
+- no aceptar únicamente espacios;
+- permitir:
+  - letras;
+  - números;
+  - signos;
+  - emojis;
+  - acentos;
+- no interpretar HTML.
 
-Preferir una opción gratuita/existente si es posible.
+Si supera el máximo:
+- impedir guardar o mostrar validación elegante dentro de la app;
+- no usar alert().
 
-Puede ser:
-- scheduler externo que invoque un endpoint protegido;
-- cron compatible con la infraestructura;
-- mecanismo equivalente seguro.
+Agregar contador discreto:
 
-NO implementar un timer en memoria que dependa de que Render permanezca despierto.
+`23 / 80`
 
-El endpoint de cron, si existe:
-- debe estar protegido;
-- no debe ser accesible libremente;
-- debe ser idempotente.
+No debe sentirse como un formulario pesado.
 
-Al final explicarme qué configuración externa necesito hacer yo.
+# 3. DISEÑO DEL CAMPO
 
-# 5. ESTADÍSTICAS DE AYER DISPONIBLES
+Mantener exactamente el lenguaje visual actual de Personalización:
 
-Cada vez que se guarda correctamente un daily entry:
-
-después del PUT exitoso, comprobar si TODOS los usuarios activos que deben participar ya tienen registro para esa fecha.
-
-Ejemplo:
-
-Faltaba únicamente Marto.
-Marto envía el registro del 20/09.
-Ahora todos tienen el 20/09 completo.
-
-=> mandar a todos los usuarios suscritos:
-
-Título:
-`¡Ya están disponibles las estadisticas de ayer!`
-
-IMPORTANTE:
-esta push debe salir UNA SOLA VEZ por fecha.
-
-Si después Marto edita nuevamente su registro:
-NO volver a notificar.
-
-Persistir en DB que la notificación de stats-ready de esa fecha ya fue enviada.
-
-Debe ser idempotente incluso con requests simultáneas.
-
-# 6. QUÉ USUARIOS CUENTAN PARA “TODOS”
-
-Usar participantes/usuarios activos reales de la app.
-
-No contar:
-- usuarios desactivados;
-- usuarios eliminados;
-- elementos locales que no representen usuarios API reales.
-
-Reutilizar la misma fuente de participantes válida que ya usa el backend.
-
-No hardcodear los 11 originales.
-
-Lara, Mati y cualquier jugador dinámico futuro deben entrar automáticamente si están activos.
-
-# 7. WEB PUSH
-
-Implementar Web Push estándar mediante Service Worker.
-
-Necesidades:
-
-- service worker;
-- Push API;
-- Notification API;
-- claves VAPID;
-- almacenamiento de PushSubscription;
-- backend capaz de enviar pushes.
-
-Usar una librería backend liviana y estándar si corresponde.
-
-NO meter frameworks PWA pesados.
-
-# 8. VAPID
-
-Preparar soporte VAPID correctamente.
-
-Las claves:
-- nunca deben hardcodearse;
-- nunca deben entrar al repo;
-- privadas solo backend;
-- public key puede llegar al frontend.
-
-Usar variables de entorno apropiadas.
-
-Al finalizar decirme:
-- qué variables debo crear en Render;
-- cómo generar las claves;
-- cuáles son secretas;
-- cuáles pueden ser públicas.
-
-NO imprimir secretos reales.
-
-# 9. BASE DE DATOS
-
-Crear migración nueva.
-
-Guardar suscripciones push asociadas a:
-
-- user_id
-- endpoint
-- keys necesarias
-- dispositivo/subscription identifier si corresponde
-- created_at
-- updated_at
-
-Un usuario puede tener MÁS DE UNA suscripción porque puede usar:
-- celular;
-- otro celular;
-- PC.
-
-No modelarlo como una sola subscription por user.
-
-También guardar el estado necesario para evitar duplicados de:
-
-`stats ready`
-
-por fecha.
-
-Si hace falta otra tabla para delivery/eventos, mantenerla simple.
-
-# 10. ENDPOINTS
-
-Diseñar endpoints autenticados coherentes.
-
-Ejemplo conceptual:
-
-GET /push/status
-POST /push/subscribe
-DELETE /push/unsubscribe
-POST /push/test
-
-No tienen que llamarse exactamente así si la arquitectura existente pide otra cosa.
-
-Reglas:
-- subscribe asocia subscription al usuario autenticado;
-- unsubscribe elimina únicamente esa suscripción/dispositivo;
-- test envía únicamente al usuario/dispositivo correspondiente;
-- un usuario normal no puede enviar pushes a otros.
-
-# 11. ACTIVACIÓN INICIAL
-
-Todos los usuarios están avisados de que deben activar las notificaciones.
-
-La primera vez que un usuario entra a Home en un dispositivo compatible y todavía no existe decisión/suscripción:
-
-mostrar inmediatamente un modal propio de la app.
-
-Texto aproximado:
-
-`Activá las notificaciones`
-
-`Recibí el recordatorio del registro y enterate cuando estén listas las estadísticas.`
-
-Botón:
-
-`Activar notificaciones`
-
-Al pulsarlo:
-=> recién ahí llamar Notification.requestPermission().
-
-No intentar pedir el permiso del sistema automáticamente sin interacción.
-
-# 12. SI ACEPTA
-
-Si permission === granted:
-
-- registrar service worker;
-- obtener PushSubscription;
-- enviarla al backend;
-- asociarla al usuario;
-- cerrar modal;
-- mostrar confirmación sutil.
-
-No volver a mostrar modal en ese dispositivo mientras siga correctamente configurado.
-
-# 13. SI RECHAZA
-
-Si permission === denied:
-
-- cerrar el modal;
-- no acosar al usuario cada vez que abre Home;
-- no mostrar repetidamente requestPermission.
-
-Debe poder consultar posteriormente el estado desde configuración/control correspondiente.
-
-# 14. IPHONE / IOS
-
-Implementar detección razonable para iOS.
-
-Web Push en iPhone debe contemplar que la web se use como aplicación agregada a pantalla de inicio.
-
-Si un usuario iPhone intenta activar notificaciones desde un contexto donde Web Push no está disponible correctamente:
-
-mostrar dentro de la app instrucciones breves y claras para:
-
-1. compartir;
-2. Agregar a pantalla de inicio;
-3. abrir la app desde el icono;
-4. volver a activar notificaciones.
-
-No mostrar instrucciones Android a iPhone.
-
-No intentar hacks para saltarse restricciones de iOS.
-
-# 15. ANDROID
-
-En Android/Chrome compatible:
-
-el proceso debe funcionar normalmente desde la web/PWA.
-
-Las notificaciones deben integrarse con el sistema operativo de forma normal.
-
-# 16. CLICK EN NOTIFICACIÓN
-
-El service worker debe manejar notificationclick.
-
-Recordatorio:
-
-`¡No olvides de hacer tu registro!`
-
-=> abrir/enfocar la aplicación y llevar directamente a Registro diario.
-
-Stats:
-
-`¡Ya están disponibles las estadisticas de ayer!`
-
-=> abrir/enfocar aplicación y navegar a:
-Estadísticas > Día > ayer
-
-Si ya existe una ventana abierta:
-preferir enfocarla/navegarla antes que abrir copias innecesarias.
-
-Mantener navegación/hash routing actual.
-
-# 17. AJUSTES DE GIO
-
-En MIS Ajustes actuales de Admin/Gio agregar una sección:
-
-`Notificaciones`
-
-IMPORTANTE:
-esto es un panel de control para mi dispositivo/usuario, NO una herramienta para manipular las notificaciones de otros usuarios.
-
-Mostrar:
-
-Estado actual, por ejemplo:
-- Activadas
-- Desactivadas
-- Bloqueadas por navegador
-- No compatibles
-
-Acciones:
-
-`Activar notificaciones`
-`Desactivar notificaciones`
-`Enviar notificación de prueba`
-
-Mostrar únicamente las acciones que tengan sentido según estado.
-
-# 18. ACTIVAR DESDE AJUSTES
-
-Al tocar Activar:
-
-- pedir permiso si corresponde;
-- registrar subscription;
-- persistir backend;
-- actualizar estado.
-
-# 19. DESACTIVAR DESDE AJUSTES
-
-Al tocar Desactivar:
-
-- unsubscribe() en navegador;
-- eliminar esa subscription del backend;
-- actualizar UI.
-
-No pretender modificar el permiso global del navegador, porque eso pertenece al SO/browser.
-
-Si el navegador sigue diciendo permission=granted pero no existe subscription:
-mostrar estado real correctamente.
-
-# 20. NOTIFICACIÓN DE PRUEBA
-
-Agregar botón:
-
-`Enviar notificación de prueba`
-
-Debe mandar una push REAL a mi dispositivo mediante el mismo pipeline de producción.
-
-Ejemplo:
-
-Título:
-`Notificaciones funcionando`
-
-Texto:
-`Bariloche ya puede mandarte notificaciones.`
-
-No simularla con un toast.
-Quiero probar service worker + backend + Web Push realmente.
-
-Debe estar limitado al usuario/dispositivo autenticado.
-
-# 21. SUSCRIPCIONES INVÁLIDAS
-
-Cuando el proveedor Web Push responda que una subscription ya no existe / expiró:
-
-- eliminarla automáticamente de PostgreSQL;
-- no seguir intentando enviarla para siempre.
-
-Una subscription rota no debe impedir mandar al resto.
-
-# 22. FALLOS
-
-Las notificaciones son una feature secundaria.
-
-Si Web Push falla:
-- NO romper daily entry;
-- NO romper login;
-- NO romper stats;
-- NO devolver error al guardado diario solo porque no pudo enviarse una push.
-
-Ejemplo:
-
-daily entry se guardó OK
-push falló
-
-=> daily entry sigue devolviendo éxito.
-
-Registrar/loguear el fallo push de forma segura.
-
-# 23. IDEMPOTENCIA / CONCURRENCIA
-
-Muy importante con stats-ready.
-
-Dos usuarios podrían mandar su registro casi simultáneamente.
-
-Evitar:
-- dos pushes globales;
-- race conditions;
-- marcar dos veces el mismo día.
-
-Resolver mediante DB/constraint/transacción/upsert o mecanismo robusto equivalente.
-
-# 24. SEGURIDAD
-
-- validar PushSubscription;
-- limitar payload;
-- auth obligatoria para suscribirse;
-- test únicamente propio;
-- endpoint scheduler protegido;
-- secrets fuera del repo;
-- no exponer private VAPID key;
-- no permitir envío arbitrario de texto desde cliente.
-
-# 25. SERVICE WORKER Y CACHE
-
-La app actualmente tiene comportamiento offline/cache.
-
-Auditar cuidadosamente antes de agregar service worker.
-
-NO romper:
-- carga de nuevas versiones;
-- script.js/styles.css actualizados;
-- offline queue existente.
-
-Evitar crear caching agresivo que vuelva a provocar versiones viejas de la web.
-
-Si ya existe service worker, extenderlo en vez de registrar otro que compita.
-
-Web Push es la prioridad; NO necesitamos convertir toda la app en una PWA offline avanzada.
-
-# 26. UX
-
-Mantener estética actual:
 - light mode;
 - dark mode;
+- colores personalizados;
 - glass;
 - mobile-first;
-- transiciones suaves.
+- bordes suaves;
+- transiciones actuales.
 
-El modal inicial y la sección de Ajustes deben parecer partes reales de la app.
+El campo debe sentirse moderno y coherente con el selector de personalización.
+
+No usar un textarea enorme.
+
+Como son máximo 80 caracteres, puede ser:
+- input;
+o
+- textarea compacto de 2 líneas si mejora UX.
+
+# 4. PREVIEW
+
+Si la Personalización ya tiene preview en vivo, agregar también la frase a esa preview.
+
+Debe verse como después aparecerá en el perfil:
+
+`“Ja, pedazos de bots”`
+
+En cursiva.
+
+La preview sí puede mostrarla inmediatamente mientras se edita.
+
+Esto NO significa que sea visible públicamente antes de terminar el viaje.
+
+# 5. PERSISTENCIA API
+
+La frase es parte del perfil público del usuario.
+
+Debe guardarse por API/PostgreSQL, igual que su appearance.
+
+No usar solamente localStorage.
+
+Puede:
+- extender la configuración/perfil actual;
+- o almacenarse de la forma más coherente con la arquitectura existente.
+
+No crear una arquitectura enorme solo por un string.
+
+Cada usuario únicamente puede modificar SU propia frase.
+
+# 6. VISIBILIDAD PÚBLICA
+
+La frase NO debe mostrarse:
+
+- en Home;
+- en rankings;
+- en Logros normales;
+- en Rachas;
+- en Casi Reyes;
+- en cards normales de usuario;
+- durante las primeras 7 noches del viaje.
+
+Su único destino público es:
+
+`Perfil del Rey de Bariloche`
+
+# 7. CUÁNDO SE DESBLOQUEA
+
+Regla fundamental:
+
+La frase del Rey solamente aparece cuando estén completadas las 8 noches del viaje.
+
+Antes de eso:
+
+aunque exista un Rey provisional,
+NO mostrar su frase.
+
+No mostrar:
+- placeholder;
+- frase oculta gris;
+- `Próximamente`;
+- espacio vacío reservado.
+
+Simplemente no existe visualmente todavía.
+
+Una vez que el viaje tenga las 8 noches cerradas/registradas y se determine el Rey final:
+
+=> mostrar la frase.
+
+# 8. PERFIL DEL REY
+
+Actualmente el perfil muestra aproximadamente:
+
+[FOTO]
+
+[NOMBRE]
+
+[SU FUERTE]
+
+Quiero agregar inmediatamente DEBAJO de `Su fuerte`:
+
+`“Frase configurada por esa persona”`
+
+Ejemplo:
+
+[FOTO]
+
+Gio
+
+Su fuerte: Boliche
+
+“Ja, pedazos de bots”
+
+# 9. ESTILO DE LA FRASE
+
+Debe sentirse como una pequeña nota/declaración personal del Rey.
+
+Usar:
+
+- comillas visuales;
+- cursiva;
+- centrada;
+- tamaño ligeramente menor que el nombre;
+- color de texto legible del tema;
+- opacidad un poco más suave que el texto principal;
+- espacio agradable respecto a `Su fuerte`.
+
+NO usar el color personalizado como color principal del texto si compromete legibilidad.
+
+El entorno/accent puede seguir usando los colores personales del Rey.
+
+No agregar:
+- icono de comentario;
+- globito de chat;
+- card extra;
+- encabezado `Frase del Rey`.
+
+Debe sentirse integrada naturalmente al perfil.
+
+# 10. MÚLTIPLES REYES
+
+La app soporta múltiples Reyes por empate.
+
+Si hay dos o más Reyes finales:
+
+cada Rey muestra SU propia frase en SU perfil.
+
+Ejemplo:
+
+Gio:
+`“Ja, pedazos de bots”`
+
+Marto:
+`“Les dije que iba a pasar”`
+
+No compartir frases ni usar la del primer Rey.
+
+# 11. USUARIO SIN FRASE
+
+Si un Rey no configuró frase:
+
+NO mostrar nada.
 
 No usar:
-- alert()
-- confirm()
-- prompt()
+- `Sin frase`
+- `No configurada`
+- placeholder.
 
-Usar UI interna existente.
+El perfil simplemente continúa normalmente.
 
-# 27. NO HACER
+# 12. CAMBIOS POSTERIORES
 
-No agregar todavía:
-- push por cambio de Rey;
-- push por logros;
-- push por rachas;
-- marketing;
-- mensajes manuales a otros usuarios;
-- chat;
-- notificaciones constantes.
+Si después de las 8 noches el usuario modifica su frase desde Personalización:
 
-Solo:
-1. recordatorio 10:00;
-2. estadísticas disponibles;
-3. prueba manual propia.
+la nueva frase debe persistir y reflejarse en su perfil de Rey.
 
-# 28. TESTS
+No congelar permanentemente el texto salvo que la arquitectura actual requiera otra cosa.
 
-Cubrir al menos:
+# 13. NO TOCAR
 
-SUBSCRIPTIONS
-- subscribe;
-- unsubscribe;
-- múltiples dispositivos por usuario;
-- usuario A no modifica subscription de B;
-- subscription inválida.
+No modificar:
 
-RECORDATORIO
-- usuario sin registro de ayer => recibe;
-- usuario con registro => no recibe;
-- usuario inactivo => no cuenta/recibe;
-- no duplicar recordatorio.
+- cálculo del Rey;
+- múltiples Reyes;
+- Casi Reyes;
+- estadísticas;
+- títulos;
+- rachas;
+- encuestas;
+- notificaciones;
+- auth;
+- sync;
+- dark mode;
+- sistema de colores;
+- fotos;
+- navegación;
+- Simular datos.
 
-STATS READY
-- falta una persona => no enviar;
-- entra último registro => enviar;
-- editar después => no repetir;
-- requests concurrentes => una sola notificación global;
-- usuarios dinámicos activos cuentan.
+IMPORTANTE:
+NO tocar todavía `Simular datos`.
 
-PUSH FAILURE
-- subscription muerta se limpia;
-- fallo push no rompe daily entry.
+Más adelante se modificará para tener:
+- `Simular 8 noches`
+- `Simular el día de ayer`
 
-FRONTEND
-- permission default;
-- granted;
-- denied;
-- unsupported;
-- subscribe/unsubscribe;
-- iOS instructions;
-- notificationclick routing.
+Eso pertenece a otro prompt.
 
-# 29. VALIDACIÓN
+# 14. VALIDACIÓN
+
+Probar:
+
+1. frase de menos de 3 caracteres -> rechazada;
+2. frase de 3 caracteres -> válida;
+3. frase de 80 -> válida;
+4. más de 80 -> rechazada;
+5. emojis -> válidos;
+6. espacios solamente -> inválido;
+7. guardar y recargar -> persiste;
+8. otro usuario puede recibir la frase pública pero no editarla;
+9. antes de completar 8 noches -> NO aparece en perfil Rey;
+10. después de completar 8 noches -> aparece;
+11. Rey sin frase -> no aparece nada;
+12. dos Reyes -> cada uno muestra su propia frase;
+13. light mode;
+14. dark mode;
+15. mobile;
+16. texto largo no genera overflow.
 
 Ejecutar:
 
-- migraciones
+- node --check script.js
 - npm test
 - npm run typecheck
 - npm run build
-- node --check script.js
 - npm run db:health
 
-Revisar manualmente:
-- Android;
-- Home modal;
-- activar;
-- desactivar;
-- test push;
-- click en push;
-- dark/light;
-- Ajustes Gio;
-- reload;
-- logout/login;
-- múltiples usuarios.
-
-IMPORTANTE:
-si creás una nueva migración, APLICARLA también a la base de datos real utilizada por producción antes de considerar terminada la implementación.
-
-No repetir el problema anterior donde backend esperaba una tabla cuya migración todavía no estaba aplicada.
-
-Antes de ejecutar una migración:
-- revisar que sea segura;
-- no borrar datos;
-- no truncar;
-- no resetear usuarios.
+Si hace falta una nueva migración:
+- revisarla;
+- aplicarla también a Supabase real;
+- no dejar producción esperando una migración pendiente.
 
 No hacer commit.
 
-# 30. INFORME FINAL
-
-Quiero que me devuelvas:
-
-1. arquitectura Web Push elegida;
-2. migraciones creadas Y si fueron aplicadas;
-3. endpoints;
-4. variables de entorno necesarias;
-5. mecanismo usado para ejecutar las 10:00;
-6. lógica exacta para detectar “todos registraron ayer”;
-7. cómo evitaste duplicados;
-8. cómo funciona Android;
-9. cómo se maneja iPhone/iOS;
-10. cómo funcionan activar/desactivar/test desde Ajustes;
-11. tests;
-12. pasos manuales que tengo que hacer en Render/Vercel/Supabase u otro servicio.
+Al final reportar:
+1. dónde guardaste la frase;
+2. endpoints/cambios API;
+3. cómo determinás que ya terminaron las 8 noches;
+4. cómo evitás mostrarla antes;
+5. comportamiento con múltiples Reyes;
+6. tests realizados.

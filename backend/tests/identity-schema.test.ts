@@ -9,6 +9,7 @@ const dailyMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/00
 const previasMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/004_previas.sql"), "utf8");
 const userManagementMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/006_user_management.sql"), "utf8");
 const pushMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/008_push_notifications.sql"), "utf8");
+const kingPhraseMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/009_user_king_phrase.sql"), "utf8");
 const seed = fs.readFileSync(path.resolve(__dirname, "../src/db/seed.ts"), "utf8");
 
 describe("identity schema", () => {
@@ -148,5 +149,13 @@ describe("push notification schema", () => {
     assert.match(pushMigration, /primary key \(date_key, user_id\)/);
     assert.match(pushMigration, /create table if not exists push_stats_ready_notifications/);
     assert.match(pushMigration, /date_key date primary key/);
+  });
+});
+
+describe("king phrase schema", () => {
+  it("adds a bounded optional king phrase to user appearances", () => {
+    assert.match(kingPhraseMigration, /add column if not exists king_phrase text/);
+    assert.match(kingPhraseMigration, /user_appearances_king_phrase_check/);
+    assert.match(kingPhraseMigration, /length\(king_phrase\) between 3 and 80/);
   });
 });

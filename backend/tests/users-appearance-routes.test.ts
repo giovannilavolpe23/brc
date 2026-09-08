@@ -31,6 +31,7 @@ const aurora: UserAppearance = {
   intensity: "normal",
   visualStyle: "gradient",
   avatarBorderStyle: "gradient",
+  kingPhrase: null,
 };
 
 const custom: UserAppearance = {
@@ -41,6 +42,7 @@ const custom: UserAppearance = {
   intensity: "soft",
   visualStyle: "glass",
   avatarBorderStyle: "solid",
+  kingPhrase: "Ja, pedazos de bots",
 };
 
 function authAs(user: AuthUser): RequestHandler {
@@ -103,6 +105,37 @@ describe("users appearance routes", () => {
 
     assert.equal(response.status, 200);
     assert.deepEqual(response.body.appearance, custom);
+  });
+
+  it("validates king phrases while allowing emojis and clearing empty phrases", async () => {
+    const { repository } = makeRepository();
+
+    const tooShort = await request(makeApp(gio, repository)).put("/users/me/appearance").send({ ...custom, kingPhrase: "ab" });
+    const spaces = await request(makeApp(gio, repository)).put("/users/me/appearance").send({ ...custom, kingPhrase: "   " });
+    const eightyChars = await request(makeApp(gio, repository))
+      .put("/users/me/appearance")
+      .send({ ...custom, kingPhrase: "a".repeat(80) });
+    const tooLong = await request(makeApp(gio, repository))
+      .put("/users/me/appearance")
+      .send({ ...custom, kingPhrase: "a".repeat(81) });
+    const emoji = await request(makeApp(gio, repository)).put("/users/me/appearance").send({ ...custom, kingPhrase: "Rey helado 🧊" });
+    const htmlText = await request(makeApp(gio, repository)).put("/users/me/appearance").send({ ...custom, kingPhrase: "<b>Rey</b>" });
+    const cleared = await request(makeApp(gio, repository)).put("/users/me/appearance").send({ ...custom, kingPhrase: "" });
+
+    assert.equal(tooShort.status, 400);
+    assert.equal(tooShort.body.error, "king_phrase_too_short");
+    assert.equal(spaces.status, 400);
+    assert.equal(spaces.body.error, "invalid_king_phrase");
+    assert.equal(eightyChars.status, 200);
+    assert.equal(eightyChars.body.appearance.kingPhrase.length, 80);
+    assert.equal(tooLong.status, 400);
+    assert.equal(tooLong.body.error, "king_phrase_too_long");
+    assert.equal(emoji.status, 200);
+    assert.equal(emoji.body.appearance.kingPhrase, "Rey helado 🧊");
+    assert.equal(htmlText.status, 200);
+    assert.equal(htmlText.body.appearance.kingPhrase, "<b>Rey</b>");
+    assert.equal(cleared.status, 200);
+    assert.equal(cleared.body.appearance.kingPhrase, null);
   });
 
   it("ignores body user ids and only writes to the authenticated user", async () => {
