@@ -12,6 +12,7 @@ const pushMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/008
 const kingPhraseMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/009_user_king_phrase.sql"), "utf8");
 const demoFlagsMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/010_demo_data_flags.sql"), "utf8");
 const dailySurveyQuestionsMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/011_add_daily_survey_questions.sql"), "utf8");
+const achievementsMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/012_persistent_achievements.sql"), "utf8");
 const seed = fs.readFileSync(path.resolve(__dirname, "../src/db/seed.ts"), "utf8");
 
 describe("identity schema", () => {
@@ -181,5 +182,18 @@ describe("demo data flags schema", () => {
     assert.match(demoFlagsMigration, /alter table daily_entries\s+add column if not exists is_demo boolean not null default false/);
     assert.match(demoFlagsMigration, /alter table survey_votes\s+add column if not exists is_demo boolean not null default false/);
     assert.match(demoFlagsMigration, /alter table previas\s+add column if not exists is_demo boolean not null default false/);
+  });
+});
+
+describe("persistent achievements schema", () => {
+  it("stores permanent resolutions and per-user unlocks idempotently", () => {
+    assert.match(achievementsMigration, /create table if not exists achievement_resolutions/);
+    assert.match(achievementsMigration, /achievement_key text primary key/);
+    assert.match(achievementsMigration, /achievement_type text not null check \(achievement_type in \('unique', 'secret'\)\)/);
+    assert.match(achievementsMigration, /create table if not exists achievement_unlocks/);
+    assert.match(achievementsMigration, /primary key \(achievement_key, user_id\)/);
+    assert.match(achievementsMigration, /revealed_at timestamptz/);
+    assert.match(achievementsMigration, /is_duplicate boolean not null default false/);
+    assert.match(achievementsMigration, /is_demo boolean not null default false/);
   });
 });

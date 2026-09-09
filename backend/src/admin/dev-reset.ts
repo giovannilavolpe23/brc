@@ -5,6 +5,8 @@ import { env } from "../config/env";
 import { pool } from "../db/pool";
 
 export type DevResetSummary = {
+  achievementUnlocks: number;
+  achievementResolutions: number;
   moneyMovements: number;
   dailyEntries: number;
   surveyVotes: number;
@@ -22,6 +24,8 @@ type ResetClient = Pick<PoolClient, "query" | "release">;
 type ResetQueryClient = Pick<PoolClient, "query">;
 
 export async function deleteDevDataWithClient(client: ResetQueryClient): Promise<DevResetSummary> {
+  const achievementUnlocks = await client.query("delete from achievement_unlocks");
+  const achievementResolutions = await client.query("delete from achievement_resolutions");
   const surveyVotes = await client.query("delete from survey_votes");
   const previaParticipants = await client.query("delete from previa_participants");
   const previaProducts = await client.query("delete from previa_products");
@@ -30,6 +34,8 @@ export async function deleteDevDataWithClient(client: ResetQueryClient): Promise
   const moneyMovements = await client.query("delete from money_movements");
 
   return {
+    achievementUnlocks: achievementUnlocks.rowCount ?? 0,
+    achievementResolutions: achievementResolutions.rowCount ?? 0,
     moneyMovements: moneyMovements.rowCount ?? 0,
     dailyEntries: dailyEntries.rowCount ?? 0,
     surveyVotes: surveyVotes.rowCount ?? 0,

@@ -22,6 +22,8 @@ const user: AuthUser = {
 };
 
 const emptySummary: DevResetSummary = {
+  achievementUnlocks: 0,
+  achievementResolutions: 0,
   moneyMovements: 0,
   dailyEntries: 0,
   surveyVotes: 0,
@@ -80,6 +82,8 @@ describe("admin development data reset", () => {
 
   it("allows admins with the correct password and reports deleted rows", async () => {
     const summary: DevResetSummary = {
+      achievementUnlocks: 7,
+      achievementResolutions: 2,
       moneyMovements: 2,
       dailyEntries: 3,
       surveyVotes: 4,
@@ -122,6 +126,8 @@ describe("admin development data reset", () => {
 
     assert.deepEqual(queries, [
       "begin",
+      "delete from achievement_unlocks",
+      "delete from achievement_resolutions",
       "delete from survey_votes",
       "delete from previa_participants",
       "delete from previa_products",
@@ -132,7 +138,9 @@ describe("admin development data reset", () => {
       "release",
     ]);
     assert.equal(summary.initialBalances, 0);
-    assert.equal(queries.some((query) => /users|roles|permissions|initial_balances|survey_questions/.test(query)), false);
+    assert.equal(summary.achievementUnlocks, 1);
+    assert.equal(summary.achievementResolutions, 1);
+    assert.equal(queries.some((query) => /delete from (users|roles|permissions|initial_balances|survey_questions)/.test(query)), false);
   });
 
   it("rolls back and releases the connection if the reset fails", async () => {

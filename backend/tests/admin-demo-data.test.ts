@@ -144,6 +144,8 @@ describe("admin demo data generation", () => {
           days: ["2026-08-25"],
           users: 4,
           deleted: {
+            achievementUnlocks: 0,
+            achievementResolutions: 0,
             moneyMovements: 1,
             dailyEntries: 2,
             surveyVotes: 3,
@@ -359,7 +361,7 @@ describe("admin demo data generation", () => {
         queries.push("release");
       },
     };
-    const repository = createPostgresDemoDataRepository(async () => client, () => "2026-09-02");
+    const repository = createPostgresDemoDataRepository(async () => client, () => "2026-09-02", async () => undefined);
 
     const summary = await repository.generateDemoData("full_trip");
 
@@ -409,7 +411,7 @@ describe("admin demo data generation", () => {
         queries.push("release");
       },
     };
-    const repository = createPostgresDemoDataRepository(async () => client, () => "2026-09-02");
+    const repository = createPostgresDemoDataRepository(async () => client, () => "2026-09-02", async () => undefined);
 
     const summary = await repository.generateDemoData("yesterday");
 
@@ -443,7 +445,7 @@ describe("admin demo data generation", () => {
         queries.push("release");
       },
     };
-    const repository = createPostgresDemoDataRepository(async () => client, () => "2026-09-02");
+    const repository = createPostgresDemoDataRepository(async () => client, () => "2026-09-02", async () => undefined);
 
     await assert.rejects(() => repository.generateDemoData("full_trip"), /demo_data_conflicts/);
     assert.equal(queries.includes("rollback"), true);
@@ -476,7 +478,7 @@ describe("admin demo data generation", () => {
         queries.push("release");
       },
     };
-    const repository = createPostgresDemoDataRepository(async () => client, () => "2026-09-02");
+    const repository = createPostgresDemoDataRepository(async () => client, () => "2026-09-02", async () => undefined);
 
     await assert.rejects(() => repository.generateDemoData("full_trip"), (error) => {
       assert.equal(error instanceof DemoDataConfigurationError, true);
@@ -522,7 +524,7 @@ describe("admin demo data generation", () => {
         queries.push("release");
       },
     };
-    const repository = createPostgresDemoDataRepository(async () => client, () => "2026-09-02");
+    const repository = createPostgresDemoDataRepository(async () => client, () => "2026-09-02", async () => undefined);
 
     await assert.rejects(() => repository.generateDemoData("full_trip"), /boom/);
     assert.equal(queries.includes("rollback"), true);

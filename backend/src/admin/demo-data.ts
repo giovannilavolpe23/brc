@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Router, type RequestHandler } from "express";
 import type { PoolClient } from "pg";
+import { evaluateAchievementsThroughDate } from "../achievements/evaluation";
 import { requireAuth, requireRole } from "../auth/middleware";
 import { pool } from "../db/pool";
 import { todayInArgentina } from "../dates/trip-date";
@@ -109,11 +110,13 @@ export type DemoDataRepository = {
 
 type DemoClient = Pick<PoolClient, "query" | "release">;
 type DemoQueryClient = Pick<PoolClient, "query">;
+type DemoAchievementEvaluator = (dateKey: string, client: DemoQueryClient) => Promise<unknown>;
 type Rng = () => number;
 
 export function createPostgresDemoDataRepository(
   connect: () => Promise<DemoClient> = () => pool.connect(),
-  todayProvider: () => string = todayInArgentina
+  todayProvider: () => string = todayInArgentina,
+  achievementEvaluator: DemoAchievementEvaluator = (dateKey, client) => evaluateAchievementsThroughDate(dateKey, client, { isDemo: true })
 ): DemoDataRepository {
   return {
     async generateDemoData(mode) {
@@ -125,6 +128,9 @@ export function createPostgresDemoDataRepository(
         await assertNoRealDataConflicts(client, dataset.days);
         const deleted = await deleteDemoDataWithClient(client, mode, dataset.days);
         await insertDemoDataset(client, dataset);
+        for (const day of dataset.days) {
+          await achievementEvaluator(day, client);
+        }
         await client.query("commit");
         return summarizeDataset(mode, dataset, deleted);
       } catch (error) {
@@ -360,6 +366,18 @@ async function deleteDemoDataWithClient(client: DemoQueryClient, mode: DemoSimul
   const movementPredicate = mode === "full_trip" ? "is_demo = true" : "is_demo = true and movement_date = any($1::date[])";
   const previaIdQuery = `select id from previas where is_demo = true ${dayFilter}`;
 
+  const achievementUnlocks = await client.query(
+    mode === "full_trip"
+      ? "delete from achievement_unlocks where is_demo = true"
+      : "delete from achievement_unlocks where is_demo = true and unlocked_date = any($1::date[])",
+    mode === "full_trip" ? [] : [days]
+  );
+  const achievementResolutions = await client.query(
+    mode === "full_trip"
+      ? "delete from achievement_resolutions where is_demo = true"
+      : "delete from achievement_resolutions where is_demo = true and unlocked_date = any($1::date[])",
+    mode === "full_trip" ? [] : [days]
+  );
   const previaParticipants = await client.query(`delete from previa_participants where previa_id in (${previaIdQuery})`, dayParams);
   const previaProducts = await client.query(`delete from previa_products where previa_id in (${previaIdQuery})`, dayParams);
   const previas = await client.query(`delete from previas where is_demo = true ${dayFilter}`, dayParams);
@@ -368,6 +386,8 @@ async function deleteDemoDataWithClient(client: DemoQueryClient, mode: DemoSimul
   const moneyMovements = await client.query(`delete from money_movements where ${movementPredicate}`, mode === "full_trip" ? [] : [days]);
 
   return {
+    achievementUnlocks: achievementUnlocks.rowCount ?? 0,
+    achievementResolutions: achievementResolutions.rowCount ?? 0,
     moneyMovements: moneyMovements.rowCount ?? 0,
     dailyEntries: dailyEntries.rowCount ?? 0,
     surveyVotes: surveyVotes.rowCount ?? 0,

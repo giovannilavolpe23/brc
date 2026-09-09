@@ -1,5 +1,6 @@
 import { Router, type NextFunction, type RequestHandler, type Response } from "express";
 import { requireAuth } from "../auth/middleware";
+import { evaluateAchievementsThroughDate } from "../achievements/evaluation";
 import { DateKeyError, validatePastDateKey } from "../dates/trip-date";
 import { pushService } from "../push/service";
 import { postgresDailyEntriesRepository, type DailyEntriesRepository } from "./repository";
@@ -11,7 +12,15 @@ export function createDailyEntriesRouter(
   repository: DailyEntriesRepository = postgresDailyEntriesRepository,
   authMiddleware: RequestHandler = requireAuth,
   now: () => Date = () => new Date(),
-  afterUpsert: AfterDailyEntryUpsert = (dateKey) => pushService.notifyStatsReadyIfComplete(dateKey)
+  afterUpsert: AfterDailyEntryUpsert = async (dateKey) => {
+    const results = await Promise.allSettled([
+      pushService.notifyStatsReadyIfComplete(dateKey),
+      evaluateAchievementsThroughDate(dateKey),
+    ]);
+    results.forEach((result) => {
+      if (result.status === "rejected") throw result.reason;
+    });
+  }
 ): Router {
   const router = Router();
 
@@ -46,7 +55,7 @@ export function createDailyEntriesRouter(
       const input = parseDailyEntryInput(req.body);
       const entry = await repository.upsertEntry(req.user.id, dateKey, input);
       afterUpsert(dateKey).catch((error) => {
-        console.warn("Daily entry saved but stats-ready push failed.", error);
+        console.warn("Daily entry saved but follow-up processing failed.", error);
       });
       res.json({ entry });
     } catch (error) {

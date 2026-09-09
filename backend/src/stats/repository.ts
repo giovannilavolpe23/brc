@@ -1,3 +1,4 @@
+import type { PoolClient } from "pg";
 import { pool } from "../db/pool";
 import type { UserAppearance } from "../users/appearance";
 import { toAppearance } from "../users/appearance.repository";
@@ -61,10 +62,17 @@ export type StatsRepository = {
   loadStatsData(todayKey: string): Promise<StatsData>;
 };
 
+type StatsQueryClient = Pick<PoolClient, "query">;
+
 export const postgresStatsRepository: StatsRepository = {
   async loadStatsData(todayKey) {
+    return loadStatsData(todayKey);
+  },
+};
+
+export async function loadStatsData(todayKey: string, client: StatsQueryClient = pool): Promise<StatsData> {
     const [users, expenses, dailyEntries, surveyVotes, previaParticipants] = await Promise.all([
-      pool.query<UserDbRow>(
+      client.query<UserDbRow>(
         `
           select users.id,
                  users.legacy_id,
@@ -83,7 +91,7 @@ export const postgresStatsRepository: StatsRepository = {
           order by users.display_name
         `
       ),
-      pool.query<ExpenseDbRow>(
+      client.query<ExpenseDbRow>(
         `
           select user_id, category, amount_pesos, movement_date as date_key
           from money_movements
@@ -93,7 +101,7 @@ export const postgresStatsRepository: StatsRepository = {
         `,
         [todayKey]
       ),
-      pool.query<DailyEntryDbRow>(
+      client.query<DailyEntryDbRow>(
         `
           select user_id, date_key, sleep_did_not_sleep, sleep_bedtime, sleep_wake,
                  nap_start, nap_end, fifth_meal, bathroom_count,
@@ -103,7 +111,7 @@ export const postgresStatsRepository: StatsRepository = {
         `,
         [todayKey]
       ),
-      pool.query<SurveyVoteDbRow>(
+      client.query<SurveyVoteDbRow>(
         `
           select survey_questions.key as survey_key, survey_votes.date_key, survey_votes.voted_user_id
           from survey_votes
@@ -112,7 +120,7 @@ export const postgresStatsRepository: StatsRepository = {
         `,
         [todayKey]
       ),
-      pool.query<PreviaParticipantDbRow>(
+      client.query<PreviaParticipantDbRow>(
         `
           select previas.id as previa_id,
                  previa_participants.user_id,
@@ -132,8 +140,7 @@ export const postgresStatsRepository: StatsRepository = {
       surveyVotes: surveyVotes.rows.map(toSurveyVoteStatsRow),
       previaParticipants: previaParticipants.rows.map(toPreviaParticipantStatsRow),
     };
-  },
-};
+}
 
 function toStatsUser(row: UserDbRow): StatsUser {
   return {

@@ -218,6 +218,15 @@ const dailyApiFailedKeys = new Set();
 const previasApiLoadingKeys = new Set();
 const previasApiFailedKeys = new Set();
 const statsApiFailed = {};
+let achievementsApiSnapshot = null;
+let achievementsApiLoading = false;
+let achievementsApiFailed = false;
+let adminAchievementsApiSnapshot = null;
+let adminAchievementsApiLoading = false;
+let adminAchievementsApiFailed = false;
+let secretRevealQueue = [];
+let secretRevealLoading = false;
+let secretRevealShowing = false;
 let participantsApiLoading = false;
 let sessionExpiredHandled = false;
 let dailySaveSubmitting = false;
@@ -1684,6 +1693,54 @@ function renderHome(user) {
     previasSection.hidden = !canRegisterLocalPrevia(user.id);
   }
   playHomeGreetingAnimation();
+  queueSecretAchievementReveals();
+}
+
+function queueSecretAchievementReveals() {
+  if (secretRevealLoading || secretRevealShowing) return;
+  if (!getCurrentUser() || !localStorage.getItem(STORAGE_KEYS.apiAccessToken)) return;
+
+  secretRevealLoading = true;
+  apiFetch("/achievements/secret-reveals")
+    .then(async (response) => {
+      if (!response.ok) return null;
+      return response.json();
+    })
+    .then((payload) => {
+      const achievements = payload && Array.isArray(payload.achievements) ? payload.achievements : [];
+      if (!achievements.length) return;
+      secretRevealQueue = achievements;
+      showNextSecretAchievementReveal();
+    })
+    .catch(() => {
+      // Si la API no está disponible, Home sigue funcionando y se volverá a intentar más adelante.
+    })
+    .finally(() => {
+      secretRevealLoading = false;
+    });
+}
+
+function showNextSecretAchievementReveal() {
+  if (secretRevealShowing || !secretRevealQueue.length) return;
+  secretRevealShowing = true;
+  openSheet("secret-achievement-reveal");
+}
+
+async function closeSecretAchievementReveal() {
+  const achievement = secretRevealQueue.shift();
+  const submitBtn = document.getElementById("sheet-submit-btn");
+  if (submitBtn) submitBtn.disabled = true;
+  if (achievement && achievement.key) {
+    await apiFetch(`/achievements/${encodeURIComponent(achievement.key)}/revealed`, {
+      method: "POST",
+      skipSessionExpiredHandling: true,
+    }).catch(() => null);
+  }
+  secretRevealShowing = false;
+  closeSheet();
+  if (secretRevealQueue.length) {
+    setTimeout(showNextSecretAchievementReveal, 220);
+  }
 }
 
 // Reinicia la animación de entrada del saludo ("Hola," / nombre /
@@ -2149,6 +2206,69 @@ function renderAdmin() {
   });
 }
 
+function renderAdminAchievementsPanel() {
+  const panel = document.getElementById("admin-achievements-panel");
+  if (!panel) return;
+
+  if (adminAchievementsApiLoading && !adminAchievementsApiSnapshot) {
+    panel.innerHTML = renderApiLoadingBanner("Cargando logros...");
+    return;
+  }
+
+  if (adminAchievementsApiFailed) {
+    panel.innerHTML = `<p class="admin-achievement-empty">No se pudieron cargar los logros permanentes.</p>`;
+    return;
+  }
+
+  const achievements = adminAchievementsApiSnapshot && Array.isArray(adminAchievementsApiSnapshot.achievements)
+    ? adminAchievementsApiSnapshot.achievements
+    : [];
+  if (!achievements.length) {
+    panel.innerHTML = `<p class="admin-achievement-empty">Todavía no hay logros configurados.</p>`;
+    return;
+  }
+
+  const groups = [
+    { type: "secret", title: "Secretos" },
+    { type: "unique", title: "Únicos" },
+  ];
+
+  panel.innerHTML = groups
+    .map((group) => {
+      const rows = achievements.filter((achievement) => achievement.type === group.type);
+      if (!rows.length) return "";
+      return `
+        <div class="admin-achievement-group">
+          <span class="admin-achievement-group-title">${group.title}</span>
+          ${rows.map(renderAdminAchievementRow).join("")}
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function renderAdminAchievementRow(achievement) {
+  const winners = Array.isArray(achievement.winners) ? achievement.winners : [];
+  const unlocked = achievement.status === "unlocked";
+  const winnerNames = winners.map((winner) => winner.displayName || winner.legacyId || winner.id).join(", ");
+  return `
+    <article class="admin-achievement-row ${unlocked ? "unlocked" : "blocked"}">
+      <div>
+        <div class="admin-achievement-row-title">
+          <strong>${escapeHtml(achievement.name)}</strong>
+          ${achievement.isDuplicate ? `<span>DUPLICADO</span>` : ""}
+        </div>
+        <p>${escapeHtml(achievement.description)}</p>
+        <small>Condición: ${escapeHtml(achievement.condition)}</small>
+      </div>
+      <div class="admin-achievement-status">
+        <span>${unlocked ? "Desbloqueado" : "Bloqueado"}</span>
+        ${unlocked ? `<small>${escapeHtml(winnerNames || "Sin ganador")} · ${formatDailyDate(achievement.unlockedDate)}</small>` : ""}
+      </div>
+    </article>
+  `;
+}
+
 function hasPendingApiOperation(operationId) {
   return getPendingApiOperations().some((op) => op.id === operationId);
 }
@@ -2346,6 +2466,7 @@ async function handleAdminResetDataConfirm() {
     }
 
     clearStatsApiCache();
+    requestAdminAchievementsRefresh(true);
     closeSheet();
     const error = document.getElementById("admin-reset-data-error");
     const msg = document.getElementById("admin-reset-data-msg");
@@ -2453,6 +2574,8 @@ async function handleAdminGenerateDemoDataConfirm() {
     }
 
     refreshParticipantsFromApi();
+    requestAchievementsRefresh(true);
+    requestAdminAchievementsRefresh(true);
     requestStatsPanelRefresh("total");
     if (screens.stats && screens.stats.classList.contains("active")) renderStatsScreen();
     refreshActiveTitulosPanel();
@@ -2468,6 +2591,7 @@ async function handleAdminGenerateDemoDataConfirm() {
 }
 
 function clearApiBackedLocalCaches() {
+  clearAchievementsApiCache();
   moneyApiLoadedUsers.clear();
   dailyApiLoadedKeys.clear();
   previasApiLoadedKeys.clear();
@@ -3742,6 +3866,29 @@ function openSheet(type, movement) {
     return;
   }
 
+  if (type === "secret-achievement-reveal") {
+    const achievement = secretRevealQueue[0];
+    if (!achievement) {
+      secretRevealShowing = false;
+      closeSheet();
+      return;
+    }
+    sheetEl.classList.add("sheet-frost");
+    sheetContent.innerHTML = `
+      <div class="secret-achievement-reveal">
+        <span class="secret-achievement-kicker">LOGRO SECRETO DESBLOQUEADO</span>
+        <h2 class="sheet-title">${escapeHtml(achievement.name)}</h2>
+        <p class="sheet-sub">${escapeHtml(achievement.description)}</p>
+        ${achievement.isDuplicate ? `<span class="permanent-achievement-tag secret">SECRETO · DUPLICADO</span>` : `<span class="permanent-achievement-tag secret">SECRETO</span>`}
+      </div>
+      <p class="sheet-error" id="sheet-error"></p>
+      <button class="sheet-submit" id="sheet-submit-btn" type="button">Entendido</button>
+    `;
+    document.getElementById("sheet-submit-btn").addEventListener("click", closeSecretAchievementReveal);
+    sheetOverlay.classList.add("visible");
+    return;
+  }
+
   if (type === "admin-delete-player-confirm") {
     const participant = adminDeletePlayerTarget;
     if (!participant) {
@@ -4025,6 +4172,9 @@ function closeSheet() {
   }
   if (currentSheetType === "push-permission") {
     localStorage.setItem(STORAGE_KEYS.pushPromptDismissed, "true");
+  }
+  if (currentSheetType === "secret-achievement-reveal") {
+    secretRevealShowing = false;
   }
   editingMovementId = null;
   activeMovementId = null;
@@ -5677,6 +5827,63 @@ function clearStatsApiCache() {
   statsApiTotal = null;
   Object.keys(statsApiDays).forEach((key) => delete statsApiDays[key]);
   Object.keys(statsApiFailed).forEach((key) => delete statsApiFailed[key]);
+  clearAchievementsApiCache();
+}
+
+function clearAchievementsApiCache() {
+  achievementsApiSnapshot = null;
+  achievementsApiFailed = false;
+  adminAchievementsApiSnapshot = null;
+  adminAchievementsApiFailed = false;
+}
+
+async function fetchAchievementsFromApi() {
+  const response = await apiFetch("/achievements");
+  if (!response.ok) throw new Error("achievements_api_failed");
+  return response.json();
+}
+
+function requestAchievementsRefresh(force = false) {
+  if (achievementsApiLoading) return;
+  if (achievementsApiFailed && !force) return;
+  achievementsApiLoading = true;
+  achievementsApiFailed = false;
+  fetchAchievementsFromApi()
+    .then((payload) => {
+      achievementsApiSnapshot = payload && Array.isArray(payload.achievements) ? payload : { achievements: [] };
+      renderTitulosHub();
+    })
+    .catch(() => {
+      achievementsApiFailed = true;
+    })
+    .finally(() => {
+      achievementsApiLoading = false;
+      if (screens.titulos && screens.titulos.classList.contains("active")) renderTitulosHub();
+    });
+}
+
+async function fetchAdminAchievementsFromApi() {
+  const response = await apiFetch("/admin/achievements");
+  if (!response.ok) throw new Error("admin_achievements_api_failed");
+  return response.json();
+}
+
+function requestAdminAchievementsRefresh(force = false) {
+  if (adminAchievementsApiLoading) return;
+  if (adminAchievementsApiFailed && !force) return;
+  adminAchievementsApiLoading = true;
+  adminAchievementsApiFailed = false;
+  fetchAdminAchievementsFromApi()
+    .then((payload) => {
+      adminAchievementsApiSnapshot = payload && Array.isArray(payload.achievements) ? payload : { achievements: [] };
+    })
+    .catch(() => {
+      adminAchievementsApiFailed = true;
+    })
+    .finally(() => {
+      adminAchievementsApiLoading = false;
+      renderAdminAchievementsPanel();
+    });
 }
 
 function statsUserName(stats, userId) {
@@ -7239,14 +7446,89 @@ function openKingProfileFromCard(kingKey) {
   navigateBetweenScreensWithTransition("titulos", "titulos-rey");
 }
 
+function renderPermanentAchievementTag(achievement) {
+  const label = `${achievement.type === "secret" ? "SECRETO" : "ÚNICO"}${achievement.isDuplicate ? " · DUPLICADO" : ""}`;
+  return `<span class="permanent-achievement-tag ${achievement.type}">${escapeHtml(label)}</span>`;
+}
+
+function renderPermanentAchievementCard(achievement) {
+  const participant = participantFromAchievementUser(achievement.user);
+  return `
+    <article class="permanent-achievement-card ${achievement.type}">
+      <div class="permanent-achievement-header">
+        ${renderPlayerAvatarHtml(participant, "permanent-achievement-avatar")}
+        <div class="permanent-achievement-title">
+          ${renderPermanentAchievementTag(achievement)}
+          <h3>${escapeHtml(achievement.name)}</h3>
+          <p>${escapeHtml(achievement.description)}</p>
+        </div>
+      </div>
+      <div class="permanent-achievement-meta">
+        <span>${escapeHtml(participant.name)}</span>
+        <span>${formatDailyDate(achievement.unlockedDate)}</span>
+      </div>
+    </article>
+  `;
+}
+
+function participantFromAchievementUser(user) {
+  const participant = PARTICIPANTS.find((p) => p.apiId === user.id || p.id === user.legacyId || p.id === user.id);
+  return participant || {
+    id: user.legacyId || user.id,
+    apiId: user.id,
+    name: user.displayName || user.legacyId || user.id,
+  };
+}
+
+function renderPermanentAchievementsSection() {
+  if (achievementsApiLoading && !achievementsApiSnapshot) {
+    return `
+      <section class="permanent-achievements-section">
+        <div class="section-label">Únicos y secretos</div>
+        ${renderApiLoadingBanner("Cargando logros permanentes...")}
+      </section>
+    `;
+  }
+
+  const achievements = achievementsApiSnapshot && Array.isArray(achievementsApiSnapshot.achievements)
+    ? achievementsApiSnapshot.achievements
+    : [];
+
+  if (!achievements.length) {
+    return `
+      <section class="permanent-achievements-section">
+        <div class="section-label">Únicos y secretos</div>
+        <div class="stats-empty-banner">
+          <span class="stats-empty-banner-icon" aria-hidden="true">🏅</span>
+          <p>Todavía no se desbloqueó ningún logro único o secreto.</p>
+        </div>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="permanent-achievements-section">
+      <div class="section-label">Únicos y secretos</div>
+      <div class="permanent-achievement-list">
+        ${achievements.map(renderPermanentAchievementCard).join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderTitulosHub() {
   if (!statsApiTotal) requestStatsPanelRefresh("total");
+  if (!achievementsApiSnapshot && !achievementsApiFailed) requestAchievementsRefresh();
   const main = document.querySelector("#screen-titulos .home-content");
   if (!main) return;
   const existing = main.querySelector(".titulos-king-section");
   if (existing) existing.remove();
+  const permanent = main.querySelector(".permanent-achievements-section");
+  if (permanent) permanent.remove();
   displayedKingOfBariloche = buildKingOfBariloche();
   main.insertAdjacentHTML("afterbegin", renderKingOfBarilocheSection(displayedKingOfBariloche));
+  const kingSection = main.querySelector(".titulos-king-section");
+  if (kingSection) kingSection.insertAdjacentHTML("afterend", renderPermanentAchievementsSection());
   const kingCards = main.querySelectorAll(".titulos-king-section .titulos-king-card:not(.titulos-king-card-empty)");
   kingCards.forEach((kingCard) => {
     if (!displayedKingOfBariloche) return;
@@ -8226,6 +8508,8 @@ function navigate(route) {
   } else if (route === "ajustes") {
     location.hash = "#/ajustes";
     renderPushSettingsPanel();
+    renderAdminAchievementsPanel();
+    requestAdminAchievementsRefresh();
     refreshPushSettings();
     showScreen("ajustes");
   } else if (route === "previas-jere") {
