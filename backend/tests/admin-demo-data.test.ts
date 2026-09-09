@@ -6,6 +6,7 @@ import {
   buildDemoDataset,
   createAdminDemoDataRouter,
   createPostgresDemoDataRepository,
+  DemoDataConfigurationError,
   type DemoDataRepository,
   type DemoUser,
   type GeneratedDemoDataset,
@@ -209,6 +210,19 @@ describe("admin demo data generation", () => {
     assert.equal(oldSix.status, 400);
     assert.equal(oldSeven.status, 400);
     assert.equal(called, false);
+  });
+
+  it("returns a clear configuration error when daily surveys are missing", async () => {
+    const repository: DemoDataRepository = {
+      async generateDemoData() {
+        throw new DemoDataConfigurationError("daily_surveys_not_found", ["most_flirty", "best_outfit"]);
+      },
+    };
+
+    const response = await request(makeApp(admin, repository)).post("/admin/dev/generate-demo-data").send({ mode: "full_trip" });
+
+    assert.equal(response.status, 503);
+    assert.deepEqual(response.body, { error: "daily_surveys_not_found", missingSurveys: ["most_flirty", "best_outfit"] });
   });
 
   it("generates coherent daily entries, votes, money movements, and previas", () => {
@@ -434,6 +448,45 @@ describe("admin demo data generation", () => {
     await assert.rejects(() => repository.generateDemoData("full_trip"), /demo_data_conflicts/);
     assert.equal(queries.includes("rollback"), true);
     assert.equal(queries.some((query) => /delete from daily_entries/.test(query)), false);
+  });
+
+  it("rolls back clearly when a required daily survey question is missing", async () => {
+    const queries: string[] = [];
+    const client = {
+      async query(sql: string) {
+        queries.push(sql);
+        if (sql.includes("from users")) {
+          return {
+            rows: demoUsers.map((demoUser) => ({
+              id: demoUser.id,
+              legacy_id: demoUser.legacyId,
+              display_name: demoUser.displayName,
+              role_key: demoUser.role,
+              permissions: demoUser.permissions,
+            })),
+          };
+        }
+        if (sql.includes("select (")) return { rows: [{ total: 0 }] };
+        if (sql.includes("from survey_questions")) {
+          return { rows: [{ id: "survey-question-destroyed", key: "destroyed_vote" }] };
+        }
+        return { rowCount: 1, rows: [] };
+      },
+      release() {
+        queries.push("release");
+      },
+    };
+    const repository = createPostgresDemoDataRepository(async () => client, () => "2026-09-02");
+
+    await assert.rejects(() => repository.generateDemoData("full_trip"), (error) => {
+      assert.equal(error instanceof DemoDataConfigurationError, true);
+      assert.deepEqual((error as DemoDataConfigurationError).missingSurveys, ["most_flirty", "best_outfit"]);
+      return true;
+    });
+    assert.equal(queries.includes("rollback"), true);
+    assert.equal(queries.includes("commit"), false);
+    assert.equal(queries.some((query) => /insert into daily_entries/.test(query)), false);
+    assert.equal(queries.at(-1), "release");
   });
 
   it("rolls back the complete operation if an insert fails", async () => {

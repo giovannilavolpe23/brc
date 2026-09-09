@@ -45,7 +45,7 @@ const DAILY_SURVEYS = [
     key: "most_flirty",
     field: "mostFlirtyVote",
     groupId: "most-flirty-vote-group",
-    label: "¿Quién fue el más chamullero anoche?",
+    label: "¿Quién fue el más chamuyero anoche?",
     title: "El más chamullero",
     caption: "El más votado como chamullero",
     icon: "💋",
@@ -2378,6 +2378,13 @@ async function handleAdminGenerateDemoDataConfirm() {
     }
 
     if (!response.ok) {
+      if (response.status === 503) {
+        const payload = await response.json().catch(() => null);
+        if (payload && payload.error === "daily_surveys_not_found") {
+          showSheetError("Faltan encuestas diarias en la base de datos. Ejecutá las migraciones antes de simular.");
+          return;
+        }
+      }
       showSheetError("No se pudieron generar los datos de prueba.");
       return;
     }

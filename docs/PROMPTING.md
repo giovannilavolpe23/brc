@@ -1,339 +1,455 @@
-Quiero modificar la herramienta actual de `Simular datos`.
+Quiero actualizar por completo el sistema de generación de datos de prueba para que use la lógica ACTUAL de la aplicación.
 
-Contexto real del viaje:
+Contexto:
 
-- El viaje dura 9 días.
-- Hay 8 noches.
-- El Registro diario siempre corresponde al día anterior.
-- Si hoy es 21/09, el registro que se carga corresponde al 20/09.
-- Las estadísticas por día deben trabajar solamente con días cerrados/pasados.
-- El objetivo de esta simulación es poder probar la app completa antes del viaje.
+Al ejecutar el generador actualmente recibo:
 
-Actualmente la herramienta permite elegir algo equivalente a simular 6 o 7 días/noches.
+`500 Internal Server Error`
 
-Quiero reemplazar eso por SOLO estas dos opciones:
+y en Render aparece:
 
-1. `Simular 8 noches`
-2. `Simular el día de ayer`
+`Error: daily_surveys_not_found`
 
-No quiero mantener las opciones antiguas de 6/7.
+La app cambió bastante desde que se creó originalmente el generador:
+- cambiaron estadísticas;
+- cambiaron títulos/logros;
+- existen nuevas encuestas;
+- existen rachas;
+- existen múltiples Reyes;
+- existen usuarios dinámicos;
+- cambió la lógica de 8 noches / 9 días;
+- el sistema de Stats API es ahora más completo.
 
-# 1. SIMULAR 8 NOCHES
+Mi sospecha es que el generador sigue intentando crear datos según una estructura antigua.
 
-Esta opción debe generar un escenario completo equivalente al viaje terminado.
+NO quiero simplemente atrapar `daily_surveys_not_found`.
 
-Debe crear datos coherentes para las 8 noches del viaje.
+Quiero que revises cómo funciona HOY la app real y adaptes la generación de datos de prueba a esa arquitectura.
 
-Como son 9 días de viaje:
-- Día 1 ocurre.
-- A partir del Día 2 se registra lo ocurrido el Día 1.
-- ...
-- En el Día 9 se registra lo ocurrido en la noche/día anterior.
-- Resultado final: 8 registros diarios cerrados disponibles.
+# 1. PRIMERO: AUDITAR
 
-La simulación debe generar exactamente 8 fechas válidas consecutivas de registro/estadística.
+Antes de modificar nada, inspeccioná:
 
-No generar 9 registros.
-No generar solamente 7.
-No incluir hoy/futuro como día cerrado si la lógica real no lo permite.
+- Daily Entries actuales;
+- Surveys actuales;
+- Money;
+- Previas;
+- Stats Día;
+- Stats Total;
+- Rachas;
+- títulos;
+- Rey de Bariloche;
+- usuarios activos/dinámicos;
+- generador actual;
+- endpoints de simulación;
+- helpers de fechas;
+- offline/sync si aplica;
+- migrations actuales.
 
-# 2. FECHAS
+Identificar exactamente:
 
-Usar la lógica temporal REAL que ya tiene la app.
+1. qué datos genera hoy el simulador;
+2. qué estructura antigua sigue esperando;
+3. de dónde sale exactamente `daily_surveys_not_found`;
+4. qué partes del generador ya no coinciden con el modelo real.
 
-No hardcodear fechas si ya existen helpers de viaje.
+No asumir que el problema es solamente Surveys.
 
-La simulación debe crear 8 días consecutivos válidos inmediatamente anteriores al día actual o según el rango de viaje que ya tenga configurado el proyecto.
+# 2. PRINCIPIO FUNDAMENTAL
 
-Lo importante es que al terminar:
+El generador NO debe tener una segunda implementación manual de:
 
-- Estadísticas Día permita navegar 8 días.
-- Total acumule esas 8 noches.
-- las rachas puedan alcanzar hasta 8.
-- títulos/logros puedan calcularse sobre las 8 noches.
-- la frase final del Rey se considere desbloqueada porque ya existen las 8 noches completas.
+- estadísticas;
+- títulos;
+- rachas;
+- Rey;
+- encuestas.
 
-No inventar una segunda definición de “viaje terminado”.
+Debe generar DATA BASE válida y dejar que las funciones reales de producción calculen:
 
-Reutilizar la misma condición que usa la app para saber si ya están completas las 8 noches.
+- Stats Día;
+- Stats Total;
+- títulos;
+- rachas;
+- Rey de Bariloche;
+- Casi Reyes.
 
-# 3. DATOS GENERADOS
+La simulación debe comportarse como si los usuarios reales hubieran usado la aplicación.
 
-La simulación de 8 noches debe generar datos suficientemente variados para probar:
+NO hardcodear resultados finales.
+
+Ejemplo incorrecto:
+
+`Gio es El más dormilón`
+
+Ejemplo correcto:
+
+generar daily entries coherentes y dejar que el sistema real determine quién es El más dormilón.
+
+# 3. ENCUESTAS ACTUALES
+
+Revisar el sistema REAL de encuestas.
+
+Actualmente deben existir como mínimo:
+
+- `destroyed_vote`
+- encuesta de `El más chamullero`
+- encuesta de `El mejor outfit`
+
+No asumir que existe una entidad antigua llamada `daily_surveys` si la arquitectura nueva ya no trabaja así.
+
+El generador debe usar exactamente el mismo formato/modelo/endpoints que usa un usuario real al votar.
+
+Para cada fecha simulada:
+- usuarios activos;
+- un voto por usuario por encuesta;
+- no self-vote;
+- candidatos válidos;
+- votos variados;
+- algunos empates posibles;
+- sin duplicados.
+
+Corregir la causa real de:
+
+`daily_surveys_not_found`
+
+No ocultar el error con try/catch si la simulación está generando datos incorrectamente.
+
+# 4. GENERAR DATOS DE ENTRADA, NO ESTADÍSTICAS
+
+Muy importante:
+
+El generador debe crear únicamente los datos fuente necesarios:
+
+- daily entries;
+- money movements;
+- previas;
+- survey votes;
+- cualquier otro input real necesario.
+
+Después:
+Stats debe leer esos datos mediante la lógica normal.
+
+NO insertar:
+- rankings precalculados;
+- títulos manuales;
+- Rey manual;
+- rachas manuales;
+- stats artificiales.
+
+# 5. DAILY ENTRIES
+
+Generar Daily Entries usando la estructura actual exacta.
+
+Respetar:
 
 - sueño;
-- no dormir si existe esa opción;
+- no dormir, si existe actualmente;
+- siesta;
+- quinta comida;
+- baño;
+- boliche;
+- computed derivados;
+- validaciones horarias;
+- fecha correspondiente.
+
+No guardar campos `computed` si producción normalmente los deriva.
+
+Usar los mismos contratos que las rutas reales.
+
+# 6. DINERO
+
+Usar el modelo actual de Money.
+
+Generar variedad por usuario y fecha.
+
+Usar únicamente categorías actuales:
+
+- Chocolates
+- Alcohol
+- Boliche
+- Comida
+- Bebida
+- Actividades
+- Otros
+
+No usar categorías eliminadas.
+
+Respetar:
+- expense/income;
+- legacy_id/idempotencia;
+- ownership por usuario;
+- fechas.
+
+# 7. PREVIAS
+
+Generar previas compatibles con el modelo actual.
+
+Usar:
+- usuarios activos;
+- participantIds válidos;
+- creador válido;
+- cantidades/precios coherentes;
+- fechas correctas;
+- permisos si la ruta real los exige.
+
+No inventar usuarios.
+
+# 8. USUARIOS
+
+No hardcodear solamente los 11 usuarios originales.
+
+Obtener usuarios activos desde la fuente actual.
+
+Debe incluir automáticamente usuarios dinámicos activos.
+
+Excluir:
+- inactivos;
+- eliminados.
+
+# 9. 8 NOCHES
+
+`Simular 8 noches` debe producir exactamente:
+
+8 fechas cerradas consecutivas.
+
+Es un viaje de:
+- 9 días;
+- 8 noches;
+- 8 registros diarios evaluables.
+
+No generar 9 registros.
+
+Usar los helpers actuales de fechas.
+
+No inventar una segunda regla para detectar que el viaje terminó.
+
+Después de simular 8 noches, la app debe reconocer naturalmente que existen 8 días cerrados.
+
+# 10. SIMULAR AYER
+
+`Simular el día de ayer` debe:
+
+- generar solamente ayer;
+- usar las estructuras actuales;
+- no generar otras fechas;
+- poder ejecutarse nuevamente sin crear duplicados inconsistentes.
+
+Daily debe respetar reemplazo/idempotencia.
+
+Survey votes también.
+
+# 11. DATOS INTERESANTES
+
+La simulación debe producir variedad suficiente para probar la app.
+
+No quiero puro random sin control.
+
+Generar perfiles distintos entre usuarios para que existan:
+
+- distintos ganadores de sueño;
+- menos sueño;
 - siestas;
 - quinta comida;
 - baño;
 - boliche;
-- gastos;
-- ingresos si la simulación actual los contempla;
-- categorías de gastos;
+- gasto;
 - previas;
-- encuesta de destruido;
-- rankings;
-- títulos;
-- rachas positivas;
-- rachas negativas;
-- Rey de Bariloche;
-- múltiples Reyes cuando ocurra naturalmente;
-- Casi Reyes;
-- perfil del Rey;
-- frase del Rey al haberse completado 8 noches.
+- encuestas;
+- rachas.
 
-No hace falta forzar artificialmente TODOS los edge cases en una sola simulación si eso vuelve incoherentes los datos.
+Generar también:
+- algunas rachas de 2;
+- algunas de 3+;
+- rachas que después se corten;
+- algunos empates naturales;
+- distintos líderes conforme avanzan los días.
 
-Pero sí generar un dataset rico y creíble que permita recorrer toda la app.
+No hacer que siempre gane Gio.
+No hacer que todos tengan prácticamente lo mismo.
 
-# 4. COHERENCIA
+# 12. TÍTULOS DINÁMICOS
 
-Los datos simulados deben respetar validaciones reales.
+El generador NO debe asignar títulos.
 
-Ejemplos:
+Pero los datos generados deben permitir que el sistema actual calcule correctamente los títulos dinámicos existentes.
 
-SUEÑO
-- horarios válidos;
-- wake posterior a bedtime según la lógica nocturna;
-- si `did_not_sleep`, no generar horarios contradictorios.
+Incluyendo como mínimo:
 
-SIESTA
-- inicio y fin válidos;
-- fin posterior al inicio.
+- El más dormilón
+- El más zombi
+- El rey de la siesta
+- La panza más grande
+- Minigun de mierdas
+- El que más se la bancó en el baile
+- Billetera sin fondo
+- El más manija
+- El más destruido
+- El más chamullero
+- El mejor outfit
+- todas las rachas actuales.
 
-BOLICHE
-- respetar horarios permitidos;
-- no generar salida inválida;
-- si no fue, no generar minutos de boliche.
+Revisar el código y agregar cualquier otro título actual que falte en esta lista.
 
-DINERO
-- categorías válidas actuales;
-- montos válidos;
-- no usar categorías antiguas/eliminadas.
+# 13. EMPATES
 
-PREVIAS
-- participantes reales/activos;
-- valores compatibles con cálculo actual.
+No fabricar manualmente ganadores.
 
-ENCUESTAS
-- no votar por usuarios inexistentes;
-- respetar reglas actuales, incluyendo self-vote si está prohibido.
+Si los datos generan empate:
+usar exactamente las reglas actuales del sistema.
 
-No saltarse validaciones solo porque sean datos simulados.
+No introducir desempates especiales desde el simulador.
 
-# 5. VARIEDAD ENTRE USUARIOS
+# 14. REY DE BARILOCHE
 
-No generar los mismos datos para todos.
+NO calcular ni guardar Rey desde el generador.
 
-Quiero que la simulación produzca rankings interesantes.
+Después de insertar los datos:
+`buildTotalAchievementProfiles()` o la lógica actual equivalente debe determinarlo.
 
-Por ejemplo:
-- alguien duerme claramente poco;
-- alguien hace muchas siestas;
-- alguien tiene más quintas comidas;
-- alguien va más al boliche;
-- alguien gasta más;
-- distintos usuarios ganan encuestas;
-- algunas rachas se mantienen varios días;
-- otras se cortan.
+El generador solo debe dejar un dataset válido.
 
-Evitar que todo termine empatado.
+Debe soportar naturalmente:
+- Rey único;
+- múltiples Reyes;
+- Casi Reyes.
 
-Pero permitir algunos empates naturales para verificar la lógica actual.
+# 15. FRASE DEL REY
 
-# 6. RACHAS
+Con 8 noches completas:
 
-Muy importante:
+si un Rey tiene configurada `Frase del Rey`,
+debe mostrarse por la lógica normal.
 
-Las rachas deben poder probarse correctamente sobre los 8 días.
+No crear ni modificar frases desde el generador.
 
-Generar condiciones que permitan al menos algunas rachas de:
-- 2 días;
-- 3+ días;
-- alguna racha que se corte y conserve su máximo histórico.
+# 16. PUSH
 
-Recordar que las nuevas rachas negativas se basan en ganar determinadas estadísticas diarias consecutivamente.
+Revisar cuidadosamente cómo interactúa la simulación con:
 
-La simulación debe ser compatible con ellas.
+`¡Ya están disponibles las estadisticas de ayer!`
 
-No cambiar la lógica de cálculo de rachas.
+No quiero que `Simular 8 noches` envíe 8 notificaciones reales consecutivas a los usuarios.
 
-Solo generar datos que puedan alimentarlas.
+La simulación masiva debe evitar spam.
 
-# 7. FRASE DEL REY
+Pero no romper la lógica real de stats-ready para registros normales.
 
-Al utilizar `Simular 8 noches`, la app debe quedar en estado de viaje completo.
+Para `Simular el día de ayer`, revisar el comportamiento actual y decidir la forma más coherente:
+- si usa el mismo cierre real del día, puede disparar una sola stats-ready;
+- nunca duplicarla si ya fue enviada.
 
-Por lo tanto:
-- si el Rey tiene una Frase del Rey configurada;
-- y existen las 8 noches completas;
+Preservar la idempotencia existente.
 
-su frase debe poder aparecer normalmente en su perfil.
+# 17. DATOS DE PRUEBA VS REALES
 
-No hardcodear una frase.
-Usar la que tenga guardada el usuario.
+MUY IMPORTANTE.
 
-# 8. SIMULAR EL DÍA DE AYER
+No borrar ni sobrescribir accidentalmente datos reales.
 
-La segunda opción debe ser mucho más acotada:
+Revisar cómo se identifican actualmente datos simulados.
 
-`Simular el día de ayer`
+Reutilizar la estrategia segura existente.
 
-Debe generar datos únicamente para AYER.
+Si el sistema actual no distingue suficientemente bien datos simulados:
+hacer el cambio mínimo necesario para que reejecutar la simulación pueda limpiar/reemplazar SOLO sus propios datos.
 
-Ejemplo:
-hoy 21/09
-=> simular 20/09.
-
-No generar más fechas.
-
-Debe permitir probar rápidamente:
-- Registro diario;
-- Estadísticas Día;
-- títulos de ese día;
-- dinero/previas/encuesta asociados si la simulación actual los incluye.
-
-No tocar otros días ya existentes salvo que la herramienta actual tenga una política explícita de reemplazo.
-
-# 9. REEJECUTAR SIMULACIÓN DE AYER
-
-Si se ejecuta nuevamente `Simular el día de ayer`:
-
-evitar duplicados.
-
-Debe respetar la filosofía real de Daily:
-- una persona/fecha;
-- actualizar/reemplazar si corresponde.
-
-Para money/previas/encuestas usar IDs/idempotencia o limpieza controlada de datos simulados según la arquitectura actual.
-
-No acumular basura cada vez que se toca el botón.
-
-# 10. DATOS REALES
-
-Esta herramienta es de desarrollo/Admin.
-
-No quiero que destruya accidentalmente datos reales.
-
-Revisar cómo distingue actualmente datos simulados.
-
-Si ya existe un prefijo/marcador/cleanup seguro:
-reutilizarlo.
-
-No hacer:
-- reset global;
-- truncate;
+NO:
+- TRUNCATE global;
+- reset general;
 - borrar usuarios;
-- borrar datos reales del viaje.
+- borrar appearances;
+- borrar push subscriptions;
+- borrar auth;
+- borrar frases;
+- borrar configuraciones.
 
-Si la implementación actual de `Simular datos` reemplaza datos de prueba de manera controlada, conservar ese mecanismo.
+# 18. API REAL
 
-# 11. UI
+Siempre que sea razonable, reutilizar services/repositories/helpers reales.
 
-En la sección actual de Simular datos reemplazar el selector/opciones existentes por:
+Evitar lógica duplicada del tipo:
 
-`Simular 8 noches`
+`simulateStats()`
 
-`Simular el día de ayer`
+si producción ya tiene:
 
-Diseño:
-- mantener estética actual;
-- dark/light;
-- mobile;
-- no agregar UI innecesaria.
+`calculateStats()`
 
-Puede ser:
-- dos botones;
-o
-- selector + botón ejecutar;
+La simulación debe estar lo más cerca posible de ejecutar el mismo flujo real.
 
-elegir lo más coherente con la UI existente.
+# 19. ERROR HANDLING
 
-# 12. CONFIRMACIÓN
+Si falla una parte de la simulación:
 
-Como `Simular 8 noches` genera bastante información, mantener/crear confirmación in-app clara antes de ejecutar.
+- devolver información útil;
+- loguear causa real;
+- no convertir errores específicos en un `500` opaco innecesariamente;
+- no mostrar éxito si hubo fallo parcial.
 
-No usar confirm() nativo.
+Corregir específicamente el flujo que hoy termina en:
 
-Texto breve indicando que se generarán datos simulados.
+`daily_surveys_not_found`
 
-Para `Simular el día de ayer` puede mantenerse una confirmación más simple.
+# 20. UI
 
-# 13. FEEDBACK
+Mantener únicamente las dos opciones actuales:
 
-Al finalizar:
+- `Simular 8 noches`
+- `Simular el día de ayer`
 
-Para 8 noches:
-`8 noches simuladas correctamente`
+No volver a 6/7.
 
-Para ayer:
-`Datos de ayer simulados correctamente`
+Mantener diseño actual.
 
-Si falla:
-mostrar error real y no éxito simultáneamente.
+No agregar más controles salvo que sean estrictamente necesarios.
 
-No repetir el bug anterior de mostrar éxito + error al mismo tiempo.
+# 21. TESTS IMPORTANTES
 
-# 14. API / DB
+Agregar/actualizar tests que validen:
 
-Revisar si la simulación escribe:
-- localmente;
-- por API;
-- directamente en backend.
+## Simular 8 noches
 
-Mantener la estrategia actual correcta.
+- exactamente 8 fechas;
+- usuarios activos;
+- daily entries válidos;
+- money válido;
+- previas válidas;
+- destroyed_vote válido;
+- chamullero válido;
+- outfit válido;
+- no self-votes;
+- no duplicados;
+- Stats Día funciona;
+- Stats Total funciona;
+- títulos funcionan;
+- rachas funcionan;
+- Rey funciona;
+- frase Rey puede desbloquearse;
+- no aparece `daily_surveys_not_found`;
+- no envía spam de push.
 
-Si la app real depende de API para estadísticas compartidas, la simulación debe generar datos donde corresponda para que la prueba sea representativa.
+## Simular ayer
 
-No crear datos únicamente locales si eso hace que Stats API no los vea.
+- solamente ayer;
+- reejecución segura;
+- no daily duplicado;
+- votos sin duplicados;
+- stats funcionan;
+- no rompe otros días.
 
-# 15. USUARIOS
+# 22. VALIDACIÓN EN PRODUCCIÓN
 
-Usar usuarios activos actuales.
+Si aparece una migración nueva:
 
-No hardcodear solamente los usuarios originales.
+- revisarla;
+- ejecutar migración contra Supabase real;
+- verificar que no sea destructiva;
+- ejecutar `db:health`.
 
-Incluir dinámicos activos como Lara/Mati si forman parte de la lista actual.
+Después probar contra el backend real de Render si la arquitectura actual lo permite.
 
-No incluir inactivos.
-
-# 16. NO TOCAR
-
-No modificar:
-- reglas reales de Registro diario;
-- auth;
-- sync/offline;
-- cálculo de estadísticas;
-- títulos;
-- rachas;
-- Rey/múltiples Reyes;
-- Casi Reyes;
-- appearance;
-- Web Push;
-- navegación.
-
-La tarea es adaptar la herramienta de simulación al escenario real de 8 noches / 9 días.
-
-# 17. TESTS
-
-Cubrir al menos:
-
-- `Simular 8 noches` genera exactamente 8 fechas;
-- fechas consecutivas válidas;
-- no genera hoy/futuro incorrectamente;
-- Stats Día ve 8 días;
-- Total acumula los 8;
-- frase del Rey puede desbloquearse al completar las 8 noches;
-- rachas pueden calcularse sobre los 8 días;
-- usuarios activos incluidos;
-- usuarios inactivos excluidos;
-- `Simular ayer` genera solo ayer;
-- reejecutar ayer no duplica daily;
-- no borrar datos reales;
-- no aparecen opciones antiguas 6/7;
-- feedback éxito/error correcto.
-
-# 18. VALIDACIÓN FINAL
+# 23. COMANDOS
 
 Ejecutar:
 
@@ -343,28 +459,34 @@ Ejecutar:
 - npm run build
 - npm run db:health
 
-Revisar visualmente:
-- Admin > Simular datos;
-- Simular 8 noches;
-- navegación de Estadísticas Día con 8 fechas;
-- Total;
-- Logros;
-- Rachas;
-- Rey;
-- múltiples Reyes;
-- perfil Rey;
-- frase Rey;
-- Casi Reyes;
-- Simular ayer;
-- dark/light.
+# 24. NO TOCAR
+
+No hacer todavía la remodelación futura de:
+
+- DINÁMICOS;
+- GENERALES;
+- ÚNICOS;
+- SECRETOS;
+- DUPLICADO;
+- popup de secreto;
+- catálogo Admin de logros.
+
+Eso todavía no se implementa.
+
+Esta tarea es EXCLUSIVAMENTE modernizar el generador para que produzca datos compatibles con el sistema ACTUAL.
 
 No hacer commit.
 
-Al final reportar:
-1. cómo quedó definida la ventana de 8 noches;
-2. qué fechas genera;
-3. cómo evitás duplicados;
-4. cómo protegés datos reales;
-5. qué datos genera;
-6. cómo se relaciona con la condición de viaje completado;
-7. tests realizados.
+# 25. REPORTE FINAL
+
+Al terminar, explicame:
+
+1. causa exacta de `daily_surveys_not_found`;
+2. qué parte del generador estaba desactualizada;
+3. cómo generaba encuestas antes;
+4. cómo las genera ahora;
+5. si había otras estructuras antiguas además de Surveys;
+6. cómo se generan ahora las 8 noches;
+7. cómo evitás alterar datos reales;
+8. cómo evitás spam de notificaciones;
+9. tests realizados.

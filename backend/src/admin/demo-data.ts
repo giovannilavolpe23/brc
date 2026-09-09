@@ -153,6 +153,10 @@ export function createAdminDemoDataRouter(
         res.status(400).json({ error: error.message });
         return;
       }
+      if (error instanceof DemoDataConfigurationError) {
+        res.status(503).json({ error: error.message, missingSurveys: error.missingSurveys });
+        return;
+      }
       next(error);
     }
   });
@@ -166,6 +170,13 @@ export class DemoDataValidationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "DemoDataValidationError";
+  }
+}
+
+export class DemoDataConfigurationError extends Error {
+  constructor(message: string, public readonly missingSurveys: string[]) {
+    super(message);
+    this.name = "DemoDataConfigurationError";
   }
 }
 
@@ -247,7 +258,8 @@ async function loadActiveUsers(client: DemoQueryClient): Promise<DemoUser[]> {
 async function insertDemoDataset(client: DemoQueryClient, dataset: GeneratedDemoDataset): Promise<void> {
   const surveyQuestion = await client.query<{ id: string; key: string }>("select id, key from survey_questions where key = any($1::text[]) and is_active = true", [DEMO_SURVEY_KEYS]);
   const surveyQuestionIds = new Map(surveyQuestion.rows.map((row) => [row.key, row.id]));
-  if (DEMO_SURVEY_KEYS.some((key) => !surveyQuestionIds.has(key))) throw new Error("daily_surveys_not_found");
+  const missingSurveys = DEMO_SURVEY_KEYS.filter((key) => !surveyQuestionIds.has(key));
+  if (missingSurveys.length) throw new DemoDataConfigurationError("daily_surveys_not_found", missingSurveys);
 
   for (const entry of dataset.dailyEntries) {
     await client.query(
@@ -276,7 +288,7 @@ async function insertDemoDataset(client: DemoQueryClient, dataset: GeneratedDemo
 
   for (const vote of dataset.surveyVotes) {
     const surveyQuestionId = surveyQuestionIds.get(vote.surveyKey);
-    if (!surveyQuestionId) throw new Error("daily_surveys_not_found");
+    if (!surveyQuestionId) throw new DemoDataConfigurationError("daily_surveys_not_found", [vote.surveyKey]);
     await client.query(
       `
         insert into survey_votes (survey_question_id, date_key, voter_user_id, voted_user_id, is_demo)
