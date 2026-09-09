@@ -23,7 +23,16 @@ function subscription(id: string, userId: string, endpoint = `https://push.examp
   };
 }
 
-function makeRepository(options: { missing?: string[]; allReady?: boolean; dailyAlreadySent?: boolean; statsAlreadySent?: boolean } = {}) {
+function makeRepository(
+  options: {
+    missing?: string[];
+    allReady?: boolean;
+    dailyAlreadySent?: boolean;
+    statsAlreadySent?: boolean;
+    activeUserIds?: string[];
+    subscriptionsByUser?: Record<string, PushSubscriptionRecord[]>;
+  } = {}
+) {
   const calls: string[] = [];
   const repo: PushRepository & { calls: string[] } = {
     calls,
@@ -41,15 +50,17 @@ function makeRepository(options: { missing?: string[]; allReady?: boolean; daily
     },
     async listSubscriptionsForUser(userId, endpoint) {
       calls.push(`list-user:${userId}:${endpoint || "*"}`);
+      if (!endpoint && options.subscriptionsByUser && options.subscriptionsByUser[userId]) return options.subscriptionsByUser[userId];
       return [subscription("single", userId, endpoint || "https://push.example/single")];
     },
     async listSubscriptionsForUsers(userIds) {
       calls.push(`list-users:${userIds.join(",")}`);
+      if (options.subscriptionsByUser) return userIds.flatMap((userId) => options.subscriptionsByUser?.[userId] || []);
       return userIds.map((userId, index) => subscription(`sub-${index}`, userId));
     },
     async listActiveUserIds() {
       calls.push("active-users");
-      return [userA, userB];
+      return options.activeUserIds ?? [userA, userB];
     },
     async listActiveUserIdsMissingDailyEntry(dateKey) {
       calls.push(`missing:${dateKey}`);
@@ -71,15 +82,19 @@ function makeRepository(options: { missing?: string[]; allReady?: boolean; daily
   return repo;
 }
 
-function makeSender(failStatusCode?: number): PushSender & { payloads: string[] } {
+function makeSender(failStatusCode?: number | ((endpoint: string) => number | undefined)): PushSender & { payloads: string[]; endpoints: string[] } {
   const payloads: string[] = [];
+  const endpoints: string[] = [];
   return {
     payloads,
-    async sendNotification(_subscription, payload) {
+    endpoints,
+    async sendNotification(subscription, payload) {
       payloads.push(payload);
-      if (failStatusCode) {
+      endpoints.push(subscription.endpoint);
+      const statusCode = typeof failStatusCode === "function" ? failStatusCode(subscription.endpoint) : failStatusCode;
+      if (statusCode) {
         const error = new Error("push failed") as Error & { statusCode?: number };
-        error.statusCode = failStatusCode;
+        error.statusCode = statusCode;
         throw error;
       }
     },
@@ -96,6 +111,45 @@ function makeConfig() {
 }
 
 describe("push service", () => {
+  it("sends an individual test only to all subscriptions for that user", async () => {
+    const repo = makeRepository({
+      subscriptionsByUser: {
+        [userA]: [subscription("phone", userA), subscription("desktop", userA)],
+        [userB]: [subscription("other", userB)],
+      },
+    });
+    const sender = makeSender();
+    const service = createPushService(repo, sender, makeConfig());
+
+    const sent = await service.sendTest(userA);
+
+    assert.equal(sent, 2);
+    assert.deepEqual(repo.calls, [`list-user:${userA}:*`]);
+    assert.deepEqual(sender.endpoints, ["https://push.example/phone", "https://push.example/desktop"]);
+    assert.equal(sender.payloads.every((payload) => payload.includes("Esta notificación solo fue enviada a tu cuenta.")), true);
+  });
+
+  it("sends a global test to active users with subscriptions", async () => {
+    const userWithoutSubscription = "33333333-3333-4333-8333-333333333333";
+    const repo = makeRepository({
+      activeUserIds: [userA, userB, userWithoutSubscription],
+      subscriptionsByUser: {
+        [userA]: [subscription("phone", userA), subscription("desktop", userA)],
+        [userB]: [subscription("tablet", userB)],
+        [userWithoutSubscription]: [],
+      },
+    });
+    const sender = makeSender();
+    const service = createPushService(repo, sender, makeConfig());
+
+    const result = await service.sendGlobalTest();
+
+    assert.deepEqual(result, { usersChecked: 3, sent: 3 });
+    assert.deepEqual(repo.calls, ["active-users", `list-users:${userA},${userB},${userWithoutSubscription}`]);
+    assert.deepEqual(sender.endpoints, ["https://push.example/phone", "https://push.example/desktop", "https://push.example/tablet"]);
+    assert.equal(sender.payloads.every((payload) => payload.includes("Esta es una prueba enviada a todos los usuarios.")), true);
+  });
+
   it("sends daily reminders once per user for yesterday in Argentina", async () => {
     const repo = makeRepository({ missing: [userA, userB] });
     const sender = makeSender();
@@ -161,5 +215,22 @@ describe("push service", () => {
 
     assert.equal(sent, 0);
     assert.deepEqual(repo.calls, [`list-user:${userA}:*`, "delete:https://push.example/single"]);
+  });
+
+  it("removes expired global test subscriptions and continues with the rest", async () => {
+    const repo = makeRepository({
+      subscriptionsByUser: {
+        [userA]: [subscription("expired", userA), subscription("valid-a", userA)],
+        [userB]: [subscription("valid-b", userB)],
+      },
+    });
+    const sender = makeSender((endpoint) => (endpoint.endsWith("/expired") ? 410 : undefined));
+    const service = createPushService(repo, sender, makeConfig());
+
+    const result = await service.sendGlobalTest();
+
+    assert.deepEqual(result, { usersChecked: 2, sent: 2 });
+    assert.deepEqual(repo.calls, ["active-users", `list-users:${userA},${userB}`, "delete:https://push.example/expired"]);
+    assert.deepEqual(sender.endpoints, ["https://push.example/expired", "https://push.example/valid-a", "https://push.example/valid-b"]);
   });
 });

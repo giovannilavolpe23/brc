@@ -71,6 +71,18 @@ export function createPushRouter(
     }
   });
 
+  router.post("/test/global", authMiddleware, adminMiddleware, async (_req, res, next) => {
+    try {
+      if (!service.isConfigured()) {
+        res.status(503).json({ error: "push_not_configured" });
+        return;
+      }
+      res.json(await service.sendGlobalTest());
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.post("/cron/daily-reminders", async (req, res, next) => {
     try {
       if (!cronSecret || req.header("x-cron-secret") !== cronSecret) {

@@ -18,6 +18,7 @@ export type PushService = {
   isConfigured(): boolean;
   publicKey(): string | null;
   sendTest(userId: string, endpoint?: string): Promise<number>;
+  sendGlobalTest(): Promise<{ usersChecked: number; sent: number }>;
   sendDailyReminders(now?: Date): Promise<{ dateKey: string; usersChecked: number; sent: number }>;
   notifyStatsReadyIfComplete(dateKey: string): Promise<{ sent: boolean; deliveries: number }>;
 };
@@ -75,11 +76,23 @@ export function createPushService(
     async sendTest(userId, endpoint) {
       const subscriptions = await repository.listSubscriptionsForUser(userId, endpoint);
       return sendPayload(subscriptions, {
-        title: "Notificaciones funcionando",
-        body: "Bariloche ya puede mandarte notificaciones.",
+        title: "Notificación de prueba",
+        body: "Esta notificación solo fue enviada a tu cuenta.",
         url: "#/home",
         type: "test",
       });
+    },
+
+    async sendGlobalTest() {
+      const userIds = await repository.listActiveUserIds();
+      const subscriptions = await repository.listSubscriptionsForUsers(userIds);
+      const sent = await sendPayload(subscriptions, {
+        title: "Notificación de prueba global",
+        body: "Esta es una prueba enviada a todos los usuarios.",
+        url: "#/home",
+        type: "test",
+      });
+      return { usersChecked: userIds.length, sent };
     },
 
     async sendDailyReminders(now = new Date()) {

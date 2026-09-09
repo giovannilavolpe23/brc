@@ -125,6 +125,10 @@ function makeService(configured = true): PushService & { calls: string[] } {
       calls.push(`test:${userId}:${endpoint || "*"}`);
       return 1;
     },
+    async sendGlobalTest() {
+      calls.push("test-global");
+      return { usersChecked: 2, sent: 2 };
+    },
     async sendDailyReminders() {
       calls.push("daily-reminders");
       return { dateKey: "2026-08-28", usersChecked: 1, sent: 1 };
@@ -200,6 +204,21 @@ describe("push routes", () => {
     assert.equal(sent.status, 200);
     assert.equal(sent.body.sent, 1);
     assert.deepEqual(admin.service.calls, [`test:${gio.id}:${subscriptionInput.endpoint}`]);
+  });
+
+  it("allows only admins to send a global test notification", async () => {
+    const normal = makeApp(jere);
+    const admin = makeApp(gio);
+
+    const rejected = await request(normal.app).post("/push/test/global").send();
+    const sent = await request(admin.app).post("/push/test/global").send();
+
+    assert.equal(rejected.status, 403);
+    assert.equal(sent.status, 200);
+    assert.equal(sent.body.usersChecked, 2);
+    assert.equal(sent.body.sent, 2);
+    assert.deepEqual(normal.service.calls, []);
+    assert.deepEqual(admin.service.calls, ["test-global"]);
   });
 
   it("protects the reminder cron route with a shared secret", async () => {

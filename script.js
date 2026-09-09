@@ -705,16 +705,25 @@ function renderPushSettingsPanel() {
           ? `<button type="button" class="admin-add-btn" id="btn-push-disable" ${pushActionSubmitting ? "disabled" : ""}>Desactivar</button>`
           : `<button type="button" class="sheet-submit" id="btn-push-enable" ${!canAct || pushActionSubmitting ? "disabled" : ""}>Activar notificaciones</button>`
       }
-      <button type="button" class="admin-add-btn" id="btn-push-test" ${!subscribed || pushActionSubmitting ? "disabled" : ""}>Enviar prueba</button>
+      <button type="button" class="admin-add-btn push-test-action" id="btn-push-test-individual" ${!subscribed || pushActionSubmitting ? "disabled" : ""}>
+        Enviar prueba individual
+        <span>Solo a tus dispositivos</span>
+      </button>
+      <button type="button" class="sheet-submit push-test-action push-global-test-btn" id="btn-push-test-global" ${pushActionSubmitting ? "disabled" : ""}>
+        Enviar prueba a todos
+        <span>A todos los usuarios suscriptos</span>
+      </button>
     </div>
   `;
 
   const enableBtn = document.getElementById("btn-push-enable");
   const disableBtn = document.getElementById("btn-push-disable");
-  const testBtn = document.getElementById("btn-push-test");
+  const individualTestBtn = document.getElementById("btn-push-test-individual");
+  const globalTestBtn = document.getElementById("btn-push-test-global");
   if (enableBtn) enableBtn.addEventListener("click", () => enablePushNotifications());
   if (disableBtn) disableBtn.addEventListener("click", disablePushNotifications);
-  if (testBtn) testBtn.addEventListener("click", sendPushTestNotification);
+  if (individualTestBtn) individualTestBtn.addEventListener("click", sendPushTestNotification);
+  if (globalTestBtn) globalTestBtn.addEventListener("click", () => openSheet("push-global-test-confirm"));
 }
 
 function setPushActionError(message) {
@@ -883,7 +892,7 @@ async function sendPushTestNotification() {
     }
     const response = await apiFetch("/push/test", {
       method: "POST",
-      body: JSON.stringify({ endpoint: subscription.endpoint }),
+      body: JSON.stringify({}),
     });
     if (response.status === 403) {
       pushSettingsError = "Solo Gio/Admin puede enviar pruebas.";
@@ -898,6 +907,46 @@ async function sendPushTestNotification() {
     pushSettingsError = "No se pudo enviar la prueba.";
   } finally {
     pushActionSubmitting = false;
+    renderPushSettingsPanel();
+  }
+}
+
+async function sendPushGlobalTestNotification() {
+  if (pushActionSubmitting) return;
+  pushActionSubmitting = true;
+  pushSettingsError = "";
+  pushSettingsMessage = "";
+  const submitBtn = document.getElementById("sheet-submit-btn");
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Enviando...";
+  }
+
+  try {
+    const response = await apiFetch("/push/test/global", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    if (response.status === 403) {
+      showSheetError("Solo Gio/Admin puede enviar una prueba global.");
+      return;
+    }
+    if (!response.ok) {
+      showSheetError("No se pudo enviar la prueba global.");
+      return;
+    }
+    const payload = await response.json().catch(() => null);
+    const sent = Number(payload && payload.sent);
+    closeSheet();
+    pushSettingsMessage = Number.isFinite(sent) ? `Notificación enviada a todos. Enviadas: ${sent}` : "Notificación enviada a todos.";
+  } catch (e) {
+    showSheetError("No se pudo enviar la prueba global.");
+  } finally {
+    pushActionSubmitting = false;
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Enviar a todos";
+    }
     renderPushSettingsPanel();
   }
 }
@@ -3674,6 +3723,21 @@ function openSheet(type, movement) {
     `;
     document.getElementById("sheet-submit-btn").addEventListener("click", () => enablePushNotifications({ fromPrompt: true }));
     document.getElementById("sheet-cancel-btn").addEventListener("click", dismissPushPermissionPrompt);
+    sheetOverlay.classList.add("visible");
+    return;
+  }
+
+  if (type === "push-global-test-confirm") {
+    sheetEl.classList.add("sheet-frost");
+    sheetContent.innerHTML = `
+      <h2 class="sheet-title">¿Enviar una notificación de prueba a todos los usuarios suscriptos?</h2>
+      <p class="sheet-sub">La van a recibir todos los usuarios activos que tengan notificaciones habilitadas en alguno de sus dispositivos.</p>
+      <p class="sheet-error" id="sheet-error"></p>
+      <button class="sheet-submit" id="sheet-submit-btn" type="button">Enviar a todos</button>
+      <button class="sheet-cancel-link" id="sheet-cancel-btn" type="button">Cancelar</button>
+    `;
+    document.getElementById("sheet-submit-btn").addEventListener("click", sendPushGlobalTestNotification);
+    document.getElementById("sheet-cancel-btn").addEventListener("click", closeSheet);
     sheetOverlay.classList.add("visible");
     return;
   }
