@@ -1541,7 +1541,8 @@ function appearanceStyleAttr(player, extra = "") {
 function appearanceDataAttrs(player) {
   const appearance = resolvePlayerAppearance(player);
   if (!appearance) return "";
-  return ` data-person-style="${appearance.visualStyle}" data-avatar-border="${appearance.avatarBorderStyle}" data-premium-glow="${appearance.premiumGlow}" data-premium-shadow="${appearance.premiumShadow}" data-premium-border="${appearance.premiumBorder}" data-premium-intensity="${appearance.premiumIntensity}" data-premium-motion="${appearance.premiumMotion}" data-premium-border-animation="${appearance.premiumBorderAnimation}" data-premium-shimmer="${appearance.premiumShimmer}"`;
+  const ownerAttr = isGioUser(player) ? ` data-private-appearance-owner="gio"` : "";
+  return ` data-person-style="${appearance.visualStyle}" data-avatar-border="${appearance.avatarBorderStyle}" data-premium-glow="${appearance.premiumGlow}" data-premium-shadow="${appearance.premiumShadow}" data-premium-border="${appearance.premiumBorder}" data-premium-intensity="${appearance.premiumIntensity}" data-premium-motion="${appearance.premiumMotion}" data-premium-border-animation="${appearance.premiumBorderAnimation}" data-premium-shimmer="${appearance.premiumShimmer}"${ownerAttr}`;
 }
 
 function applyAppearanceToElement(el, player) {
