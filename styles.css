@@ -6325,6 +6325,41 @@ html[data-theme="dark"] .screen.admin-frost .king-almost-column.personalized-sur
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 13px 26px -24px color-mix(in srgb, var(--person-secondary) 42%, rgba(0, 0, 0, 0.82));
 }
 
+html[data-theme="dark"] .appearance-preview-card.personalized-surface[data-private-appearance-owner="gio"][data-person-style="premium"],
+html[data-theme="dark"] .appearance-preview-card.personalized-surface[data-private-appearance-owner="gio"][data-premium-motion="soft"],
+html[data-theme="dark"] .appearance-preview-card.personalized-surface[data-private-appearance-owner="gio"][data-premium-motion="intense"],
+html[data-theme="dark"] .titulo-profile-card.personalized-surface[data-private-appearance-owner="gio"][data-person-style="premium"],
+html[data-theme="dark"] .titulo-profile-card.personalized-surface[data-private-appearance-owner="gio"][data-premium-motion="soft"],
+html[data-theme="dark"] .titulo-profile-card.personalized-surface[data-private-appearance-owner="gio"][data-premium-motion="intense"],
+html[data-theme="dark"] .titulos-king-card.personalized-surface[data-private-appearance-owner="gio"][data-person-style="premium"],
+html[data-theme="dark"] .titulos-king-card.personalized-surface[data-private-appearance-owner="gio"][data-premium-motion="soft"],
+html[data-theme="dark"] .titulos-king-card.personalized-surface[data-private-appearance-owner="gio"][data-premium-motion="intense"],
+html[data-theme="dark"] .king-profile-hero-card.personalized-surface[data-private-appearance-owner="gio"][data-person-style="premium"],
+html[data-theme="dark"] .king-profile-hero-card.personalized-surface[data-private-appearance-owner="gio"][data-premium-motion="soft"],
+html[data-theme="dark"] .king-profile-hero-card.personalized-surface[data-private-appearance-owner="gio"][data-premium-motion="intense"],
+html[data-theme="dark"] .ranking-podium.personalized-surface[data-private-appearance-owner="gio"][data-person-style="premium"],
+html[data-theme="dark"] .ranking-podium.personalized-surface[data-private-appearance-owner="gio"][data-premium-motion="soft"],
+html[data-theme="dark"] .ranking-podium.personalized-surface[data-private-appearance-owner="gio"][data-premium-motion="intense"] {
+  background:
+    radial-gradient(95% 120% at 50% 0%, rgba(255, 255, 255, 0.12), transparent 58%),
+    linear-gradient(120deg, color-mix(in srgb, var(--person-primary) 82%, #ffffff), color-mix(in srgb, var(--person-secondary) 80%, #ffffff), color-mix(in srgb, var(--person-primary) 82%, #ffffff));
+  background-size: 100% 100%, 260% 260%;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -28px 58px -48px color-mix(in srgb, var(--person-secondary) 62%, transparent),
+    0 20px 44px -25px color-mix(in srgb, var(--person-secondary) calc(var(--person-glow-alpha) + 20%), transparent),
+    0 12px 28px -25px rgba(0, 0, 0, 0.64);
+}
+
+html[data-theme="dark"] .king-almost-column.personalized-surface[data-private-appearance-owner="gio"] .king-almost-pedestal {
+  background:
+    linear-gradient(120deg, color-mix(in srgb, var(--person-primary) 86%, #ffffff), color-mix(in srgb, var(--person-secondary) 84%, #ffffff), color-mix(in srgb, var(--person-primary) 86%, #ffffff));
+  background-size: 230% 230%;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 13px 26px -24px color-mix(in srgb, var(--person-secondary) 58%, rgba(0, 0, 0, 0.82));
+}
+
 html[data-theme="dark"] .screen.admin-frost .titulo-badge {
   background: color-mix(in srgb, var(--titulo-accent, #5ec7ec) 12%, rgba(17, 43, 63, 0.9));
   border-color: color-mix(in srgb, var(--titulo-accent, #5ec7ec) 32%, rgba(127, 200, 231, 0.24));
