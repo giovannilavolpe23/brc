@@ -24,7 +24,7 @@ const surveyQuestions = [
 ];
 
 const users: SeedUser[] = [
-  { legacyId: "gio", displayName: "Gio", roleKey: "admin", passwordHash: "$2a$12$ErRI6zdXcekHh1vGuYPmmu5Uf/S4iqp6MPg17/OHAUdCOxk1M/RVi" },
+  { legacyId: "gio", displayName: "Gio", roleKey: "admin", passwordHash: "$2a$12$Bp6MnFts2MPeBn7VxtgAg.EB0hWrGnWsibQf9NCaFSybMFILdN5wa" },
   { legacyId: "marto", displayName: "Marto", roleKey: "user", passwordHash: "$2a$12$T2k8XT/xfE9/ko9iaTMpS.Rg9AmLNcnrwK4rdcbkVtVNYJQl1HL0a" },
   { legacyId: "sebas", displayName: "Sebas", roleKey: "user", passwordHash: "$2a$12$R/xS2HY8AR1HabaAmDXiGe6ve57YnUtSKq2dUjf0srHuTOvxWtfOa" },
   { legacyId: "ger", displayName: "Ger", roleKey: "user", passwordHash: "$2a$12$gz6g.Nc38PtxBsooMZSY/ed6zy8uNShT.mKF8cXoIVNCz0aqCt1ES" },

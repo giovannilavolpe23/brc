@@ -13,7 +13,7 @@
    es exclusivo de Gio.
    ----------------------------------------------------------- */
 const DEFAULT_PARTICIPANTS = [
-  { id: "gio", name: "Gio", password: "77", isAdmin: true },
+  { id: "gio", name: "Gio", password: "777", isAdmin: true },
   { id: "marto", name: "Marto", password: "67" },
   { id: "sebas", name: "Sebas", password: "12" },
   { id: "ger", name: "Ger", password: "11" },
