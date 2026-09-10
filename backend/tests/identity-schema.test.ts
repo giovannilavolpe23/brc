@@ -14,6 +14,7 @@ const demoFlagsMigration = fs.readFileSync(path.resolve(__dirname, "../migration
 const dailySurveyQuestionsMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/011_add_daily_survey_questions.sql"), "utf8");
 const achievementsMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/012_persistent_achievements.sql"), "utf8");
 const gioPremiumAppearanceMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/013_gio_premium_appearance.sql"), "utf8");
+const gioMotionAppearanceMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/014_gio_motion_appearance.sql"), "utf8");
 const seed = fs.readFileSync(path.resolve(__dirname, "../src/db/seed.ts"), "utf8");
 
 describe("identity schema", () => {
@@ -186,6 +187,21 @@ describe("gio premium appearance schema", () => {
     assert.match(gioPremiumAppearanceMigration, /'royal_gold'/);
     assert.match(gioPremiumAppearanceMigration, /'golden_power'/);
     assert.match(gioPremiumAppearanceMigration, /premium_glow in \('off', 'soft', 'strong'\)/);
+  });
+});
+
+describe("gio motion appearance schema", () => {
+  it("adds bounded motion controls and stronger premium presets", () => {
+    assert.match(gioMotionAppearanceMigration, /add column if not exists premium_motion text/);
+    assert.match(gioMotionAppearanceMigration, /add column if not exists premium_border_animation text/);
+    assert.match(gioMotionAppearanceMigration, /add column if not exists premium_shimmer text/);
+    assert.match(gioMotionAppearanceMigration, /'royal_motion'/);
+    assert.match(gioMotionAppearanceMigration, /'aurora_power'/);
+    assert.match(gioMotionAppearanceMigration, /'golden_crown'/);
+    assert.match(gioMotionAppearanceMigration, /'energy'/);
+    assert.match(gioMotionAppearanceMigration, /premium_motion in \('off', 'soft', 'intense'\)/);
+    assert.match(gioMotionAppearanceMigration, /premium_border_animation in \('solid', 'gradient', 'animated'\)/);
+    assert.match(gioMotionAppearanceMigration, /premium_shimmer in \('off', 'subtle'\)/);
   });
 });
 

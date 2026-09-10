@@ -27,6 +27,9 @@ type UserDbRow = {
   premium_shadow: UserAppearance["premiumShadow"] | null;
   premium_border: UserAppearance["premiumBorder"] | null;
   premium_intensity: UserAppearance["premiumIntensity"] | null;
+  premium_motion: UserAppearance["premiumMotion"] | null;
+  premium_border_animation: UserAppearance["premiumBorderAnimation"] | null;
+  premium_shimmer: UserAppearance["premiumShimmer"] | null;
 };
 
 type ExpenseDbRow = {
@@ -92,7 +95,10 @@ export async function loadStatsData(todayKey: string, client: StatsQueryClient =
                  user_appearances.premium_glow,
                  user_appearances.premium_shadow,
                  user_appearances.premium_border,
-                 user_appearances.premium_intensity
+                 user_appearances.premium_intensity,
+                 user_appearances.premium_motion,
+                 user_appearances.premium_border_animation,
+                 user_appearances.premium_shimmer
           from users
           left join user_appearances on user_appearances.user_id = users.id
           where users.is_active = true
@@ -169,6 +175,9 @@ function toStatsUser(row: UserDbRow): StatsUser {
           premium_shadow: row.premium_shadow,
           premium_border: row.premium_border,
           premium_intensity: row.premium_intensity,
+          premium_motion: row.premium_motion,
+          premium_border_animation: row.premium_border_animation,
+          premium_shimmer: row.premium_shimmer,
         })
       : null,
   };

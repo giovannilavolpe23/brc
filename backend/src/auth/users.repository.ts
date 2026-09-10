@@ -22,6 +22,9 @@ type UserRow = {
   premium_shadow: UserAppearance["premiumShadow"] | null;
   premium_border: UserAppearance["premiumBorder"] | null;
   premium_intensity: UserAppearance["premiumIntensity"] | null;
+  premium_motion: UserAppearance["premiumMotion"] | null;
+  premium_border_animation: UserAppearance["premiumBorderAnimation"] | null;
+  premium_shimmer: UserAppearance["premiumShimmer"] | null;
 };
 
 function mapAuthUser(row: UserRow): AuthUser {
@@ -45,6 +48,9 @@ function mapAuthUser(row: UserRow): AuthUser {
           premium_shadow: row.premium_shadow,
           premium_border: row.premium_border,
           premium_intensity: row.premium_intensity,
+          premium_motion: row.premium_motion,
+          premium_border_animation: row.premium_border_animation,
+          premium_shimmer: row.premium_shimmer,
         })
       : null,
   };
@@ -71,7 +77,10 @@ export async function findUserCredentialsByLegacyId(legacyId: string): Promise<U
         user_appearances.premium_glow,
         user_appearances.premium_shadow,
         user_appearances.premium_border,
-        user_appearances.premium_intensity
+        user_appearances.premium_intensity,
+        user_appearances.premium_motion,
+        user_appearances.premium_border_animation,
+        user_appearances.premium_shimmer
       from users
       join roles on roles.id = users.role_id
       left join user_permissions on user_permissions.user_id = users.id
@@ -113,7 +122,10 @@ export async function findAuthUserById(id: string): Promise<AuthUser | null> {
         user_appearances.premium_glow,
         user_appearances.premium_shadow,
         user_appearances.premium_border,
-        user_appearances.premium_intensity
+        user_appearances.premium_intensity,
+        user_appearances.premium_motion,
+        user_appearances.premium_border_animation,
+        user_appearances.premium_shimmer
       from users
       join roles on roles.id = users.role_id
       left join user_permissions on user_permissions.user_id = users.id
@@ -150,7 +162,10 @@ export async function listActiveAuthUsers(): Promise<AuthUser[]> {
         user_appearances.premium_glow,
         user_appearances.premium_shadow,
         user_appearances.premium_border,
-        user_appearances.premium_intensity
+        user_appearances.premium_intensity,
+        user_appearances.premium_motion,
+        user_appearances.premium_border_animation,
+        user_appearances.premium_shimmer
       from users
       join roles on roles.id = users.role_id
       left join user_permissions on user_permissions.user_id = users.id

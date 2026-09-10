@@ -16,6 +16,10 @@ export type AppearancePreset =
   | "imperial"
   | "ultra_glow"
   | "dark_crown"
+  | "royal_motion"
+  | "aurora_power"
+  | "golden_crown"
+  | "energy"
   | "custom";
 
 export type GradientDirection = "135deg" | "45deg" | "180deg" | "90deg";
@@ -26,6 +30,9 @@ export type PremiumGlow = "off" | "soft" | "strong";
 export type PremiumShadow = "normal" | "deep";
 export type PremiumBorder = "none" | "gold" | "bright_gradient";
 export type PremiumIntensity = "normal" | "bright" | "ultra";
+export type PremiumMotion = "off" | "soft" | "intense";
+export type PremiumBorderAnimation = "solid" | "gradient" | "animated";
+export type PremiumShimmer = "off" | "subtle";
 
 export type UserAppearance = {
   preset: AppearancePreset;
@@ -40,6 +47,9 @@ export type UserAppearance = {
   premiumShadow?: PremiumShadow | null;
   premiumBorder?: PremiumBorder | null;
   premiumIntensity?: PremiumIntensity | null;
+  premiumMotion?: PremiumMotion | null;
+  premiumBorderAnimation?: PremiumBorderAnimation | null;
+  premiumShimmer?: PremiumShimmer | null;
 };
 
 export const APPEARANCE_PRESETS: Record<Exclude<AppearancePreset, "custom">, Pick<UserAppearance, "primaryColor" | "secondaryColor">> = {
@@ -60,10 +70,24 @@ export const APPEARANCE_PRESETS: Record<Exclude<AppearancePreset, "custom">, Pic
   imperial: { primaryColor: "#24104F", secondaryColor: "#D9B76A" },
   ultra_glow: { primaryColor: "#0F172A", secondaryColor: "#7DD3FC" },
   dark_crown: { primaryColor: "#050B14", secondaryColor: "#B9944B" },
+  royal_motion: { primaryColor: "#07111F", secondaryColor: "#E0BE64" },
+  aurora_power: { primaryColor: "#0EA5E9", secondaryColor: "#8B5CF6" },
+  golden_crown: { primaryColor: "#050B14", secondaryColor: "#F2D27A" },
+  energy: { primaryColor: "#4CC9F0", secondaryColor: "#D6B25E" },
 };
 
 const GIO_LEGACY_ID = "gio";
-const GIO_ONLY_PRESETS = new Set<AppearancePreset>(["royal_gold", "golden_power", "imperial", "ultra_glow", "dark_crown"]);
+const GIO_ONLY_PRESETS = new Set<AppearancePreset>([
+  "royal_gold",
+  "golden_power",
+  "imperial",
+  "ultra_glow",
+  "dark_crown",
+  "royal_motion",
+  "aurora_power",
+  "golden_crown",
+  "energy",
+]);
 const PRESETS = new Set<AppearancePreset>([...Object.keys(APPEARANCE_PRESETS), "custom"] as AppearancePreset[]);
 const DIRECTIONS = new Set<GradientDirection>(["135deg", "45deg", "180deg", "90deg"]);
 const INTENSITIES = new Set<AppearanceIntensity>(["soft", "normal", "strong"]);
@@ -73,6 +97,9 @@ const PREMIUM_GLOWS = new Set<PremiumGlow>(["off", "soft", "strong"]);
 const PREMIUM_SHADOWS = new Set<PremiumShadow>(["normal", "deep"]);
 const PREMIUM_BORDERS = new Set<PremiumBorder>(["none", "gold", "bright_gradient"]);
 const PREMIUM_INTENSITIES = new Set<PremiumIntensity>(["normal", "bright", "ultra"]);
+const PREMIUM_MOTIONS = new Set<PremiumMotion>(["off", "soft", "intense"]);
+const PREMIUM_BORDER_ANIMATIONS = new Set<PremiumBorderAnimation>(["solid", "gradient", "animated"]);
+const PREMIUM_SHIMMERS = new Set<PremiumShimmer>(["off", "subtle"]);
 const HEX_COLOR = /^#[0-9A-F]{6}$/i;
 
 export class AppearanceValidationError extends Error {
@@ -102,8 +129,15 @@ export function parseAppearanceInput(body: unknown): UserAppearance {
   const premiumShadow = parseOptionalEnum(raw.premiumShadow, PREMIUM_SHADOWS, "invalid_premium_shadow");
   const premiumBorder = parseOptionalEnum(raw.premiumBorder, PREMIUM_BORDERS, "invalid_premium_border");
   const premiumIntensity = parseOptionalEnum(raw.premiumIntensity, PREMIUM_INTENSITIES, "invalid_premium_intensity");
+  const premiumMotion = parseOptionalEnum(raw.premiumMotion, PREMIUM_MOTIONS, "invalid_premium_motion");
+  const premiumBorderAnimation = parseOptionalEnum(
+    raw.premiumBorderAnimation,
+    PREMIUM_BORDER_ANIMATIONS,
+    "invalid_premium_border_animation"
+  );
+  const premiumShimmer = parseOptionalEnum(raw.premiumShimmer, PREMIUM_SHIMMERS, "invalid_premium_shimmer");
 
-  if (preset !== "custom") {
+  if (preset !== "custom" && preset !== "energy") {
     const presetColors = APPEARANCE_PRESETS[preset];
     if (primaryColor !== presetColors.primaryColor || secondaryColor !== presetColors.secondaryColor) {
       throw new AppearanceValidationError("preset_color_mismatch");
@@ -123,6 +157,9 @@ export function parseAppearanceInput(body: unknown): UserAppearance {
     ...(premiumShadow ? { premiumShadow } : {}),
     ...(premiumBorder ? { premiumBorder } : {}),
     ...(premiumIntensity ? { premiumIntensity } : {}),
+    ...(premiumMotion ? { premiumMotion } : {}),
+    ...(premiumBorderAnimation ? { premiumBorderAnimation } : {}),
+    ...(premiumShimmer ? { premiumShimmer } : {}),
   };
 }
 
@@ -142,7 +179,10 @@ function appearanceRequiresGio(appearance: UserAppearance): boolean {
     Boolean(appearance.premiumGlow && appearance.premiumGlow !== "off") ||
     Boolean(appearance.premiumShadow && appearance.premiumShadow !== "normal") ||
     Boolean(appearance.premiumBorder && appearance.premiumBorder !== "none") ||
-    Boolean(appearance.premiumIntensity && appearance.premiumIntensity !== "normal")
+    Boolean(appearance.premiumIntensity && appearance.premiumIntensity !== "normal") ||
+    Boolean(appearance.premiumMotion && appearance.premiumMotion !== "off") ||
+    Boolean(appearance.premiumBorderAnimation && appearance.premiumBorderAnimation !== "solid") ||
+    Boolean(appearance.premiumShimmer && appearance.premiumShimmer !== "off")
   );
 }
 

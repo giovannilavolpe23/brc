@@ -139,6 +139,66 @@ const GIO_SPECIAL_APPEARANCE_PRESETS = [
     premiumBorder: "gold",
     premiumIntensity: "normal",
   },
+  {
+    key: "royal_motion",
+    label: "Royal Motion",
+    primaryColor: "#07111F",
+    secondaryColor: "#E0BE64",
+    visualStyle: "royal",
+    avatarBorderStyle: "gold",
+    premiumGlow: "strong",
+    premiumShadow: "deep",
+    premiumBorder: "gold",
+    premiumIntensity: "ultra",
+    premiumMotion: "soft",
+    premiumBorderAnimation: "animated",
+    premiumShimmer: "subtle",
+  },
+  {
+    key: "aurora_power",
+    label: "Aurora Power",
+    primaryColor: "#0EA5E9",
+    secondaryColor: "#8B5CF6",
+    visualStyle: "premium",
+    avatarBorderStyle: "bright_gradient",
+    premiumGlow: "strong",
+    premiumShadow: "normal",
+    premiumBorder: "bright_gradient",
+    premiumIntensity: "bright",
+    premiumMotion: "soft",
+    premiumBorderAnimation: "animated",
+    premiumShimmer: "subtle",
+  },
+  {
+    key: "golden_crown",
+    label: "Golden Crown",
+    primaryColor: "#050B14",
+    secondaryColor: "#F2D27A",
+    visualStyle: "royal",
+    avatarBorderStyle: "gold",
+    premiumGlow: "strong",
+    premiumShadow: "deep",
+    premiumBorder: "gold",
+    premiumIntensity: "ultra",
+    premiumMotion: "intense",
+    premiumBorderAnimation: "animated",
+    premiumShimmer: "subtle",
+  },
+  {
+    key: "energy",
+    label: "Energy",
+    primaryColor: "#4CC9F0",
+    secondaryColor: "#D6B25E",
+    visualStyle: "premium",
+    avatarBorderStyle: "bright_gradient",
+    premiumGlow: "strong",
+    premiumShadow: "deep",
+    premiumBorder: "bright_gradient",
+    premiumIntensity: "ultra",
+    premiumMotion: "intense",
+    premiumBorderAnimation: "animated",
+    premiumShimmer: "subtle",
+  },
 ];
 
 const APPEARANCE_PRESETS = [...BASE_APPEARANCE_PRESETS, ...GIO_SPECIAL_APPEARANCE_PRESETS];
@@ -156,6 +216,9 @@ const DEFAULT_APPEARANCE_DRAFT = {
   premiumShadow: "normal",
   premiumBorder: "none",
   premiumIntensity: "normal",
+  premiumMotion: "off",
+  premiumBorderAnimation: "solid",
+  premiumShimmer: "off",
 };
 
 const APPEARANCE_DIRECTIONS = [
@@ -201,6 +264,20 @@ const GIO_PREMIUM_INTENSITIES = [
   { key: "normal", label: "Normal" },
   { key: "bright", label: "Brillante" },
   { key: "ultra", label: "Ultra" },
+];
+const GIO_PREMIUM_MOTIONS = [
+  { key: "off", label: "Apagado" },
+  { key: "soft", label: "Suave" },
+  { key: "intense", label: "Intenso" },
+];
+const GIO_PREMIUM_BORDER_ANIMATIONS = [
+  { key: "solid", label: "Sólido" },
+  { key: "gradient", label: "Gradiente" },
+  { key: "animated", label: "Animado" },
+];
+const GIO_PREMIUM_SHIMMERS = [
+  { key: "off", label: "Apagado" },
+  { key: "subtle", label: "Sutil" },
 ];
 const APPEARANCE_HEX_RE = /^#[0-9A-F]{6}$/i;
 const KING_PHRASE_MAX_LENGTH = 80;
@@ -1357,6 +1434,9 @@ function normalizeAppearance(appearance) {
   const premiumShadowKeys = new Set(GIO_PREMIUM_SHADOWS.map((item) => item.key));
   const premiumBorderKeys = new Set(GIO_PREMIUM_BORDERS.map((item) => item.key));
   const premiumIntensityKeys = new Set(GIO_PREMIUM_INTENSITIES.map((item) => item.key));
+  const premiumMotionKeys = new Set(GIO_PREMIUM_MOTIONS.map((item) => item.key));
+  const premiumBorderAnimationKeys = new Set(GIO_PREMIUM_BORDER_ANIMATIONS.map((item) => item.key));
+  const premiumShimmerKeys = new Set(GIO_PREMIUM_SHIMMERS.map((item) => item.key));
   const preset = presetKeys.has(appearance.preset) ? appearance.preset : null;
   const primaryColor = normalizeHexColor(appearance.primaryColor);
   const secondaryColor = normalizeHexColor(appearance.secondaryColor);
@@ -1374,6 +1454,9 @@ function normalizeAppearance(appearance) {
     premiumShadow: premiumShadowKeys.has(appearance.premiumShadow) ? appearance.premiumShadow : "normal",
     premiumBorder: premiumBorderKeys.has(appearance.premiumBorder) ? appearance.premiumBorder : "none",
     premiumIntensity: premiumIntensityKeys.has(appearance.premiumIntensity) ? appearance.premiumIntensity : "normal",
+    premiumMotion: premiumMotionKeys.has(appearance.premiumMotion) ? appearance.premiumMotion : "off",
+    premiumBorderAnimation: premiumBorderAnimationKeys.has(appearance.premiumBorderAnimation) ? appearance.premiumBorderAnimation : "solid",
+    premiumShimmer: premiumShimmerKeys.has(appearance.premiumShimmer) ? appearance.premiumShimmer : "off",
   };
 }
 
@@ -1458,7 +1541,7 @@ function appearanceStyleAttr(player, extra = "") {
 function appearanceDataAttrs(player) {
   const appearance = resolvePlayerAppearance(player);
   if (!appearance) return "";
-  return ` data-person-style="${appearance.visualStyle}" data-avatar-border="${appearance.avatarBorderStyle}" data-premium-glow="${appearance.premiumGlow}" data-premium-shadow="${appearance.premiumShadow}" data-premium-border="${appearance.premiumBorder}" data-premium-intensity="${appearance.premiumIntensity}"`;
+  return ` data-person-style="${appearance.visualStyle}" data-avatar-border="${appearance.avatarBorderStyle}" data-premium-glow="${appearance.premiumGlow}" data-premium-shadow="${appearance.premiumShadow}" data-premium-border="${appearance.premiumBorder}" data-premium-intensity="${appearance.premiumIntensity}" data-premium-motion="${appearance.premiumMotion}" data-premium-border-animation="${appearance.premiumBorderAnimation}" data-premium-shimmer="${appearance.premiumShimmer}"`;
 }
 
 function applyAppearanceToElement(el, player) {
@@ -1468,6 +1551,9 @@ function applyAppearanceToElement(el, player) {
   el.dataset.avatarBorder = appearance.avatarBorderStyle;
   el.dataset.premiumGlow = appearance.premiumGlow;
   el.dataset.premiumBorder = appearance.premiumBorder;
+  el.dataset.premiumMotion = appearance.premiumMotion;
+  el.dataset.premiumBorderAnimation = appearance.premiumBorderAnimation;
+  el.dataset.premiumShimmer = appearance.premiumShimmer;
   appearanceCssText(appearance).split(";").forEach((declaration) => {
     const [property, value] = declaration.split(":");
     if (property && value) el.style.setProperty(property, value);
@@ -1894,17 +1980,22 @@ function appearanceDraftWithColor(key, value) {
 function appearanceDraftForPreset(preset) {
   const base = personalizationDraft || DEFAULT_APPEARANCE_DRAFT;
   const special = GIO_SPECIAL_APPEARANCE_PRESETS.some((item) => item.key === preset.key);
+  const primaryColor = preset.key === "energy" ? base.primaryColor : preset.primaryColor;
+  const secondaryColor = preset.key === "energy" ? base.secondaryColor : preset.secondaryColor;
   return {
     ...base,
     preset: preset.key,
-    primaryColor: preset.primaryColor,
-    secondaryColor: preset.secondaryColor,
+    primaryColor,
+    secondaryColor,
     visualStyle: preset.visualStyle || "gradient",
     avatarBorderStyle: preset.avatarBorderStyle || "gradient",
     premiumGlow: special ? preset.premiumGlow || "off" : "off",
     premiumShadow: special ? preset.premiumShadow || "normal" : "normal",
     premiumBorder: special ? preset.premiumBorder || "none" : "none",
     premiumIntensity: special ? preset.premiumIntensity || "normal" : "normal",
+    premiumMotion: special ? preset.premiumMotion || "off" : "off",
+    premiumBorderAnimation: special ? preset.premiumBorderAnimation || "solid" : "solid",
+    premiumShimmer: special ? preset.premiumShimmer || "off" : "off",
   };
 }
 
@@ -2080,6 +2171,16 @@ function renderPersonalizationScreen() {
             ${renderAppearanceChips("premiumBorder", GIO_PREMIUM_BORDERS, draft ? draft.premiumBorder : DEFAULT_APPEARANCE_DRAFT.premiumBorder)}
             <div class="section-label">Intensidad premium</div>
             ${renderAppearanceChips("premiumIntensity", GIO_PREMIUM_INTENSITIES, draft ? draft.premiumIntensity : DEFAULT_APPEARANCE_DRAFT.premiumIntensity)}
+            <div class="section-label">Movimiento</div>
+            ${renderAppearanceChips("premiumMotion", GIO_PREMIUM_MOTIONS, draft ? draft.premiumMotion : DEFAULT_APPEARANCE_DRAFT.premiumMotion)}
+            <div class="section-label">Borde</div>
+            ${renderAppearanceChips(
+              "premiumBorderAnimation",
+              GIO_PREMIUM_BORDER_ANIMATIONS,
+              draft ? draft.premiumBorderAnimation : DEFAULT_APPEARANCE_DRAFT.premiumBorderAnimation
+            )}
+            <div class="section-label">Shimmer</div>
+            ${renderAppearanceChips("premiumShimmer", GIO_PREMIUM_SHIMMERS, draft ? draft.premiumShimmer : DEFAULT_APPEARANCE_DRAFT.premiumShimmer)}
           </section>`
         : ""
     }

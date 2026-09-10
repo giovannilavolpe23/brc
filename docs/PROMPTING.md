@@ -1,253 +1,325 @@
-Quiero hacer DOS cambios puntuales.
+Quiero rehacer la personalización premium de Gio.
 
-No hacer commit todavía.
+La implementación actual cambia colores, pero visualmente no sobresale lo suficiente.
+Quiero que el perfil/card/badges de Gio tengan MOVIMIENTO REAL y brillo visible.
 
-# 1. BUG EN REGISTRO: `NO DORMÍ`
+Objetivo:
+que cuando aparezca Gio entre otras personas, se note inmediatamente que su estilo es especial.
 
-Actualmente, en Registro diario, si marco:
+IMPORTANTE:
+- no quiero solo colores distintos;
+- quiero animación visual;
+- debe seguir siendo elegante;
+- no debe romper rendimiento;
+- no debe generar lag;
+- mobile-first;
+- respetar prefers-reduced-motion.
 
-`No dormí`
+# 1. PRINCIPIO
 
-se deshabilita o bloquea la carga de la hora de salida del boliche y aparece un mensaje del estilo:
+La personalización premium de Gio debe poder usar:
 
-`Elegí una hora de dormir posterior a la 01:00 para cargar salida.`
+- gradientes animados;
+- bordes animados;
+- glow dinámico;
+- reflejos suaves;
+- sombras luminosas;
+- líneas/accentos con movimiento.
 
-Esto no tiene sentido.
+Preferir CSS puro.
 
-Si una persona marca `No dormí`, es perfectamente posible que igualmente haya ido al boliche y necesite registrar a qué hora se fue.
+NO usar:
+- requestAnimationFrame;
+- loops JS;
+- canvas;
+- WebGL;
+- filtros pesados constantes.
 
-De hecho, en ese caso es incluso razonable que se haya quedado hasta muy tarde o hasta el cierre.
+# 2. GRADIENTE ANIMADO
 
-## COMPORTAMIENTO CORRECTO
+Agregar una opción premium para Gio donde el fondo use un gradiente con movimiento lento.
 
-Si la persona SÍ durmió:
-- mantener la lógica actual;
-- la hora de salida del boliche debe ser coherente con la hora de dormir;
-- no permitir una salida posterior al horario de sueño si esa validación ya existe.
+Ejemplo conceptual:
 
-Si la persona marca `No dormí`:
-- NO deshabilitar la hora de salida del boliche;
-- permitir cargarla normalmente;
-- NO exigir una hora de dormir;
-- usar como límite máximo únicamente el horario máximo/cierre permitido por la lógica real de la app;
-- eliminar el mensaje incorrecto que exige elegir hora de dormir en este caso.
+background:
+linear-gradient(
+  120deg,
+  gold,
+  deep navy,
+  violet,
+  gold
+);
 
-No inventar un horario nuevo si ya existe un helper o límite máximo para salida del boliche.
+background-size:
+300% 300%;
 
-Reutilizar la lógica actual de fechas/horarios.
+animation:
+gradientShift 8s ease infinite;
 
-Revisar frontend y backend para que ambos acepten este caso correctamente.
+Debe sentirse:
+- fluido;
+- lento;
+- premium;
+- no “RGB gamer”.
 
-## VALIDAR
+# 3. BORDE ANIMADO
 
-Probar:
-- sí durmió + salida válida;
-- sí durmió + salida posterior al sueño => inválido;
-- no durmió + fue al boliche => puede cargar salida;
-- no durmió + salida hasta el máximo permitido => válida;
-- no durmió + salida fuera del máximo permitido => inválida;
-- no fue al boliche => comportamiento actual;
-- mobile;
-- no romper Registro diario ni Stats.
+Quiero que el borde pueda tener color en movimiento.
 
-# 2. PERSONALIZACIÓN ESPECIAL PARA GIO
-
-Quiero ampliar la personalización visual disponible específicamente para el perfil/card de Gio.
-
-La idea es que Gio pueda tener una apariencia más fuerte y llamativa que el resto, sin romper la estética de la app.
-
-No quiero algo infantil ni exagerado.
-
-Quiero sensación de:
-- poder;
-- jerarquía;
-- brillo;
-- perfil premium;
-- presencia visual.
-
-## OBJETIVO VISUAL
-
-La card/perfil de Gio debe poder destacar frente a otras.
-
-Quiero agregar opciones de personalización especiales como:
-
-- colores más brillantes;
-- gradientes más intensos;
-- glow suave;
-- sombra más marcada;
-- borde luminoso;
-- variante dorada;
-- combinación negro + dorado;
-- combinación azul profundo + dorado;
-- combinación violeta brillante + dorado;
-- efecto premium/royal.
-
-No usar naranja fuerte.
-
-## NUEVAS OPCIONES SOLO PARA GIO
-
-En Personalización, si el usuario autenticado es Gio, agregar una sección especial:
-
-`Estilos especiales`
-
-Estas opciones NO deben aparecer para otros usuarios.
-
-Agregar varios presets, por ejemplo:
-
-### `Royal Gold`
-- fondo oscuro;
-- degradado negro / azul muy oscuro;
-- detalles dorados;
-- borde dorado;
-- glow suave;
-- sombra más profunda.
-
-### `Golden Power`
-- dorado más brillante;
-- contraste oscuro;
-- líneas/accent doradas;
-- apariencia más intensa.
-
-### `Imperial`
-- azul profundo;
+Ejemplo:
+- dorado;
+- blanco brillante;
+- azul;
 - violeta;
-- dorado sutil;
-- sensación elegante.
+- dorado nuevamente.
 
-### `Ultra Glow`
-- usar los colores personalizados actuales de Gio;
-- aumentar brillo, glow y sombra;
-- sin cambiar la paleta base.
+El color debe desplazarse alrededor del borde.
 
-### `Dark Crown`
-- negro / navy;
-- borde dorado tenue;
-- reflejo brillante;
-- card muy marcada frente al resto.
+Preferir técnicas como:
+- pseudo-elemento;
+- background gradient;
+- mask;
+- background-position animado.
 
-Podés ajustar nombres si hace falta, pero mantener la idea.
+No reconstruir DOM.
 
-## EFECTOS DISPONIBLES
+# 4. GLOW
 
-Para Gio permitir adicionalmente:
+Agregar glow visible pero controlado.
 
-- glow:
-  - apagado
-  - suave
-  - fuerte
+Opciones:
+- suave;
+- fuerte;
+- royal.
 
-- sombra:
-  - normal
-  - profunda
+El glow puede:
+- pulsar lentamente;
+- variar levemente de intensidad;
+- reflejar los colores del gradiente.
 
-- borde premium:
-  - ninguno
-  - dorado
-  - gradiente brillante
+No hacer parpadeo.
 
-- intensidad:
-  - normal
-  - brillante
-  - muy brillante
+Animaciones lentas, por ejemplo 4–8 segundos.
 
-No hacer que el texto pierda legibilidad.
+# 5. REFLEJO / SHIMMER
 
-El nombre debe seguir usando color de texto correcto según light/dark.
+Agregar un shimmer muy sutil que atraviese la card ocasionalmente.
 
-## DÓNDE DEBE VERSE
+Ejemplo:
+una franja luminosa translúcida que cruza de izquierda a derecha.
 
-La apariencia especial de Gio debe aplicarse donde ya se usa la personalización individual:
+No debe estar pasando cada segundo.
 
-- su perfil;
-- su card;
-- sus logros;
+Puede durar:
+1–2 segundos
+
+y repetirse cada:
+8–12 segundos.
+
+# 6. BADGES DE GIO
+
+Quiero que TODO elemento asociado específicamente a Gio pueda usar esta identidad premium:
+
+- badges;
+- títulos;
 - rachas;
 - ranking;
 - Casi Reyes;
 - perfil del Rey;
-- cualquier card asociada específicamente a Gio.
+- cards personales.
 
-NO pintar toda la aplicación con el tema de Gio.
+En sus badges:
 
-Solo elementos visuales que pertenezcan a Gio.
+- borde animado;
+- glow sutil;
+- pequeño gradiente en movimiento;
+- líneas/accentos vivos.
 
-## DORADO
+NO aplicar animaciones a texto.
 
-Quiero que exista al menos una opción claramente dorada.
+Mantener texto estable y legible.
 
-Pero:
-- no usar amarillo plano;
-- no hacer aspecto barato;
-- usar gradientes, bordes, sombras y glow;
-- mantener sensación elegante/premium.
+# 7. NO AFECTAR A OTROS
 
-Pensar más en:
-`gold / black / navy / glass`
+Esto es exclusivo de Gio.
 
-que en amarillo fuerte.
+Otros usuarios:
+- mantienen su sistema actual;
+- no reciben animaciones premium;
+- no ven estas opciones.
 
-## PERSISTENCIA
+No hardcodear estilos globales.
 
-Estas opciones deben persistirse igual que el sistema actual de appearance.
+Usar una clase/atributo claro, por ejemplo:
+`.appearance-premium-gio`
+o equivalente.
 
-No crear una arquitectura paralela si puede extenderse la existente.
+# 8. PRESETS PREMIUM
 
-Backend debe validar que estas opciones especiales solo puedan ser usadas por Gio.
+Agregar presets especiales más fuertes:
 
-No alcanza con ocultarlas en frontend.
+### Royal Motion
+- negro/navy;
+- dorado vivo;
+- borde dorado animado;
+- glow;
+- shimmer.
 
-Si otro usuario intenta enviar manualmente un preset exclusivo:
-- rechazarlo o normalizarlo de forma segura.
+### Aurora Power
+- azul brillante;
+- violeta;
+- cian;
+- movimiento suave;
+- glow frío.
 
-## COMPATIBILIDAD
+### Golden Crown
+- negro;
+- dorado intenso;
+- blanco brillante;
+- shimmer;
+- sombra profunda.
 
-Mantener:
-- light mode;
-- dark mode;
+### Energy
+- usa los colores custom actuales;
+- pero los convierte en gradiente animado;
+- borde vivo;
+- glow fuerte.
+
+# 9. OPCIONES
+
+Para Gio permitir configurar:
+
+Movimiento:
+- apagado
+- suave
+- intenso
+
+Glow:
+- apagado
+- suave
+- fuerte
+
+Borde:
+- sólido
+- gradiente
+- animado
+
+Shimmer:
+- apagado
+- sutil
+
+# 10. RENDIMIENTO
+
+MUY IMPORTANTE.
+
+Optimizar para mobile.
+
+Preferir animar:
+- background-position;
+- opacity;
+- transform.
+
+Evitar animar continuamente:
+- box-shadow muy grande;
+- filter blur pesado;
+- width/height;
+- layout properties.
+
+Usar:
+`will-change`
+solo donde realmente ayude.
+
+No poner animaciones innecesarias en decenas de elementos simultáneamente.
+
+Si Gio aparece muchas veces en pantalla:
+reducir complejidad visual en elementos pequeños.
+
+Por ejemplo:
+- card principal => full premium animation;
+- badges pequeños => borde/gradiente simple;
+- ranking => glow ligero.
+
+# 11. REDUCED MOTION
+
+Si:
+
+`prefers-reduced-motion: reduce`
+
+entonces:
+- detener animaciones;
+- mantener versión estática premium;
+- conservar colores/glow sin movimiento.
+
+# 12. LIGHT / DARK
+
+Debe funcionar en ambos.
+
+No perder contraste.
+
+Nombre/texto:
+- color estable;
+- no animado;
+- siempre legible.
+
+# 13. PERSISTENCIA
+
+Reutilizar el sistema actual de appearance.
+
+No crear una arquitectura paralela si puede extenderse.
+
+Si hace falta agregar campos como:
+- premium_motion
+- premium_border_animation
+- premium_shimmer
+
+hacer migración segura.
+
+Si hay migración:
+- aplicarla también en Supabase real;
+- ejecutar db:health;
+- evitar repetir el problema de columnas inexistentes.
+
+# 14. VALIDAR
+
+Probar:
+
+- Gio con Royal Motion;
+- Gio con Aurora Power;
+- Gio con Golden Crown;
+- Gio con Energy;
+- light;
+- dark;
 - mobile;
-- rendimiento;
-- reduced motion;
-- personalizaciones actuales de otros usuarios;
-- presets existentes;
-- custom colors actuales.
+- ranking con Gio;
+- Logros con Gio;
+- Rey;
+- Casi Reyes;
+- varias cards visibles a la vez;
+- scroll fluido;
+- teclado/forms no afectados;
+- no errores 500;
+- no unauthorized derivados.
 
-No romper usuarios que no usan estilos especiales.
+# 15. NO TOCAR
 
-## ANIMACIONES
+No modificar:
+- lógica de Logros;
+- Rey;
+- Stats;
+- Daily;
+- Push;
+- auth;
+- encuestas;
+- navegación.
 
-Si se usa glow o brillo:
-- debe ser mayormente estático;
-- puede haber un shimmer MUY sutil;
-- nada que esté moviéndose constantemente de forma molesta;
-- no generar lag.
+Esta tarea es SOLO visual/performance del appearance premium de Gio.
 
-## TESTS
-
-Revisar:
-- Gio ve opciones especiales;
-- otros usuarios no;
-- backend bloquea presets exclusivos para otros;
-- persistencia funciona;
-- reload mantiene apariencia;
-- cards de Gio resaltan;
-- otros perfiles siguen iguales;
-- light/dark;
-- mobile;
-- no overflow;
-- no caída de FPS apreciable.
-
-Ejecutar:
-- node --check script.js
-- npm test
-- npm run typecheck
-- npm run build
-- npm run db:health
+No hacer commit.
 
 Al final reportar:
-1. causa del bug de `No dormí`;
-2. cómo quedó corregida la salida del boliche;
-3. qué opciones especiales agregaste para Gio;
-4. cómo se persisten;
-5. cómo protegiste que solo Gio pueda usarlas;
-6. dónde se aplican visualmente;
-7. tests realizados.
+1. qué animaciones agregaste;
+2. qué elementos las usan;
+3. cómo limitaste consumo;
+4. cómo funciona reduced-motion;
+5. qué campos nuevos agregaste si los hubo;
+6. tests realizados.

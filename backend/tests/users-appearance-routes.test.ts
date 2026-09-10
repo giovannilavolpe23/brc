@@ -58,6 +58,9 @@ const royalGold: UserAppearance = {
   premiumShadow: "deep",
   premiumBorder: "gold",
   premiumIntensity: "bright",
+  premiumMotion: "soft",
+  premiumBorderAnimation: "animated",
+  premiumShimmer: "subtle",
 };
 
 function authAs(user: AuthUser): RequestHandler {
@@ -136,6 +139,18 @@ describe("users appearance routes", () => {
     const { repository, writes } = makeRepository();
 
     const response = await request(makeApp(marto, repository)).put("/users/me/appearance").send(royalGold);
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(response.body, { error: "gio_appearance_only" });
+    assert.deepEqual(writes, []);
+  });
+
+  it("rejects Gio-only motion controls for other users even with custom colors", async () => {
+    const { repository, writes } = makeRepository();
+
+    const response = await request(makeApp(marto, repository))
+      .put("/users/me/appearance")
+      .send({ ...custom, premiumMotion: "intense", premiumBorderAnimation: "animated", premiumShimmer: "subtle" });
 
     assert.equal(response.status, 400);
     assert.deepEqual(response.body, { error: "gio_appearance_only" });
