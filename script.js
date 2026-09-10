@@ -2763,10 +2763,57 @@ function handleAdminGenerateDemoDataClick() {
   openSheet("admin-generate-demo-data-confirm");
 }
 
+function setAdminGenerateDemoControlsDisabled(disabled) {
+  const mainBtn = document.getElementById("btn-admin-generate-demo-data");
+  const select = document.getElementById("admin-demo-mode");
+  if (mainBtn) mainBtn.disabled = disabled;
+  if (select) select.disabled = disabled;
+}
+
+function startAdminGenerateDemoLoading(mode) {
+  stopAdminGenerateDemoLoading();
+  setAdminGenerateDemoControlsDisabled(true);
+  const submitBtn = document.getElementById("sheet-submit-btn");
+  const cancelBtn = document.getElementById("sheet-cancel-btn");
+  const loading = document.getElementById("admin-generate-demo-loading");
+  const dots = document.getElementById("admin-generate-demo-loading-dots");
+  const note = document.getElementById("admin-generate-demo-loading-note");
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Generando datos...";
+  }
+  if (cancelBtn) cancelBtn.disabled = true;
+  if (loading) loading.hidden = false;
+  if (note) note.hidden = mode !== "full_trip";
+  let step = 0;
+  const updateDots = () => {
+    if (dots) dots.textContent = ".".repeat((step % 3) + 1);
+    step += 1;
+  };
+  updateDots();
+  adminGenerateDemoLoadingTimer = window.setInterval(updateDots, 500);
+}
+
+function stopAdminGenerateDemoLoading() {
+  if (adminGenerateDemoLoadingTimer) {
+    window.clearInterval(adminGenerateDemoLoadingTimer);
+    adminGenerateDemoLoadingTimer = null;
+  }
+  setAdminGenerateDemoControlsDisabled(false);
+  const submitBtn = document.getElementById("sheet-submit-btn");
+  const cancelBtn = document.getElementById("sheet-cancel-btn");
+  const loading = document.getElementById("admin-generate-demo-loading");
+  if (submitBtn) {
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Generar datos";
+  }
+  if (cancelBtn) cancelBtn.disabled = false;
+  if (loading) loading.hidden = true;
+}
+
 async function handleAdminGenerateDemoDataConfirm() {
   if (adminGenerateDemoSubmitting) return;
   const select = document.getElementById("admin-demo-mode");
-  const submitBtn = document.getElementById("sheet-submit-btn");
   const mode = select ? select.value : "full_trip";
 
   if (mode !== "full_trip" && mode !== "yesterday") {
@@ -2775,10 +2822,7 @@ async function handleAdminGenerateDemoDataConfirm() {
   }
 
   adminGenerateDemoSubmitting = true;
-  if (submitBtn) {
-    submitBtn.disabled = true;
-    submitBtn.textContent = "Generando...";
-  }
+  startAdminGenerateDemoLoading(mode);
 
   try {
     const response = await apiFetch("/admin/dev/generate-demo-data", {
@@ -2837,10 +2881,7 @@ async function handleAdminGenerateDemoDataConfirm() {
     showSheetError("No se pudieron generar los datos de prueba.");
   } finally {
     adminGenerateDemoSubmitting = false;
-    if (submitBtn) {
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Generar datos";
-    }
+    stopAdminGenerateDemoLoading();
   }
 }
 
@@ -4054,6 +4095,7 @@ let backupImportStep = null; // "paste" | "preview"
 let backupImportPendingPayload = null; // payload de backup completo, ya validado, pendiente de confirmar
 let adminResetSubmitting = false;
 let adminGenerateDemoSubmitting = false;
+let adminGenerateDemoLoadingTimer = null;
 
 function findMovement(money, id) {
   return money.movements.find((m) => m.id === id) || null;
@@ -4194,6 +4236,10 @@ function openSheet(type, movement) {
       <h2 class="sheet-title">Generar datos de prueba</h2>
       <p class="sheet-sub">Esto va a limpiar datos simulados previos y crear datos ficticios para ${escapeHtml(modeLabel)} con todos los jugadores activos. No elimina usuarios, roles, permisos, contraseñas ni saldos iniciales.</p>
       <p class="sheet-error" id="sheet-error"></p>
+      <div class="demo-generation-loading" id="admin-generate-demo-loading" hidden>
+        <span>Generando datos<span id="admin-generate-demo-loading-dots">...</span></span>
+        <small id="admin-generate-demo-loading-note">Esto puede tardar hasta 2 minutos.</small>
+      </div>
       <button class="sheet-submit danger" id="sheet-submit-btn" type="button">Generar datos</button>
       <button class="sheet-cancel-link" id="sheet-cancel-btn" type="button">Cancelar</button>
     `;

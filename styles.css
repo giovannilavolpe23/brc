@@ -1261,11 +1261,7 @@ img, svg {
 }
 
 .appearance-preview-card.personalized-surface[data-premium-glow="soft"],
-.appearance-preview-card.personalized-surface[data-premium-glow="strong"],
-.titulos-king-card.personalized-surface[data-premium-glow="soft"],
-.titulos-king-card.personalized-surface[data-premium-glow="strong"],
-.king-profile-hero-card.personalized-surface[data-premium-glow="soft"],
-.king-profile-hero-card.personalized-surface[data-premium-glow="strong"] {
+.appearance-preview-card.personalized-surface[data-premium-glow="strong"] {
   animation-name: gioPremiumGlowPulse;
   animation-duration: 6.5s;
   animation-timing-function: ease-in-out;
@@ -1275,19 +1271,24 @@ img, svg {
 .appearance-preview-card.personalized-surface[data-premium-motion="soft"][data-premium-glow="soft"],
 .appearance-preview-card.personalized-surface[data-premium-motion="intense"][data-premium-glow="soft"],
 .appearance-preview-card.personalized-surface[data-premium-motion="soft"][data-premium-glow="strong"],
-.appearance-preview-card.personalized-surface[data-premium-motion="intense"][data-premium-glow="strong"],
-.titulos-king-card.personalized-surface[data-premium-motion="soft"][data-premium-glow="soft"],
-.titulos-king-card.personalized-surface[data-premium-motion="intense"][data-premium-glow="soft"],
-.titulos-king-card.personalized-surface[data-premium-motion="soft"][data-premium-glow="strong"],
-.titulos-king-card.personalized-surface[data-premium-motion="intense"][data-premium-glow="strong"],
-.king-profile-hero-card.personalized-surface[data-premium-motion="soft"][data-premium-glow="soft"],
-.king-profile-hero-card.personalized-surface[data-premium-motion="intense"][data-premium-glow="soft"],
-.king-profile-hero-card.personalized-surface[data-premium-motion="soft"][data-premium-glow="strong"],
-.king-profile-hero-card.personalized-surface[data-premium-motion="intense"][data-premium-glow="strong"] {
+.appearance-preview-card.personalized-surface[data-premium-motion="intense"][data-premium-glow="strong"] {
   animation-name: gioPremiumGradientShift, gioPremiumGlowPulse;
   animation-duration: 8s, 6.5s;
   animation-timing-function: ease, ease-in-out;
   animation-iteration-count: infinite, infinite;
+}
+
+.titulos-king-card.personalized-surface[data-premium-motion="soft"],
+.titulos-king-card.personalized-surface[data-premium-motion="intense"],
+.titulo-profile-card.personalized-surface[data-premium-motion="soft"],
+.titulo-profile-card.personalized-surface[data-premium-motion="intense"],
+.king-profile-hero-card.personalized-surface[data-premium-motion="soft"],
+.king-profile-hero-card.personalized-surface[data-premium-motion="intense"] {
+  animation-name: statsFadeUp, gioPremiumGradientShift;
+  animation-duration: 0.42s, 8s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1), ease;
+  animation-fill-mode: both, none;
+  animation-iteration-count: 1, infinite;
 }
 
 .personalized-surface[data-premium-border="gold"] {
@@ -1591,6 +1592,30 @@ img, svg {
 
 .appearance-chip {
   padding: 0 12px;
+}
+
+.demo-generation-loading {
+  display: grid;
+  gap: 5px;
+  margin: 4px 0 2px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent-2) 10%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, var(--accent-2) 24%, var(--border));
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.demo-generation-loading[hidden] {
+  display: none;
+}
+
+.demo-generation-loading small {
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .appearance-custom-fields {
