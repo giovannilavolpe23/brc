@@ -1,492 +1,253 @@
-Quiero actualizar por completo el sistema de generación de datos de prueba para que use la lógica ACTUAL de la aplicación.
+Quiero hacer DOS cambios puntuales.
 
-Contexto:
+No hacer commit todavía.
 
-Al ejecutar el generador actualmente recibo:
+# 1. BUG EN REGISTRO: `NO DORMÍ`
 
-`500 Internal Server Error`
+Actualmente, en Registro diario, si marco:
 
-y en Render aparece:
+`No dormí`
 
-`Error: daily_surveys_not_found`
+se deshabilita o bloquea la carga de la hora de salida del boliche y aparece un mensaje del estilo:
 
-La app cambió bastante desde que se creó originalmente el generador:
-- cambiaron estadísticas;
-- cambiaron títulos/logros;
-- existen nuevas encuestas;
-- existen rachas;
-- existen múltiples Reyes;
-- existen usuarios dinámicos;
-- cambió la lógica de 8 noches / 9 días;
-- el sistema de Stats API es ahora más completo.
+`Elegí una hora de dormir posterior a la 01:00 para cargar salida.`
 
-Mi sospecha es que el generador sigue intentando crear datos según una estructura antigua.
+Esto no tiene sentido.
 
-NO quiero simplemente atrapar `daily_surveys_not_found`.
+Si una persona marca `No dormí`, es perfectamente posible que igualmente haya ido al boliche y necesite registrar a qué hora se fue.
 
-Quiero que revises cómo funciona HOY la app real y adaptes la generación de datos de prueba a esa arquitectura.
+De hecho, en ese caso es incluso razonable que se haya quedado hasta muy tarde o hasta el cierre.
 
-# 1. PRIMERO: AUDITAR
+## COMPORTAMIENTO CORRECTO
 
-Antes de modificar nada, inspeccioná:
+Si la persona SÍ durmió:
+- mantener la lógica actual;
+- la hora de salida del boliche debe ser coherente con la hora de dormir;
+- no permitir una salida posterior al horario de sueño si esa validación ya existe.
 
-- Daily Entries actuales;
-- Surveys actuales;
-- Money;
-- Previas;
-- Stats Día;
-- Stats Total;
-- Rachas;
-- títulos;
-- Rey de Bariloche;
-- usuarios activos/dinámicos;
-- generador actual;
-- endpoints de simulación;
-- helpers de fechas;
-- offline/sync si aplica;
-- migrations actuales.
+Si la persona marca `No dormí`:
+- NO deshabilitar la hora de salida del boliche;
+- permitir cargarla normalmente;
+- NO exigir una hora de dormir;
+- usar como límite máximo únicamente el horario máximo/cierre permitido por la lógica real de la app;
+- eliminar el mensaje incorrecto que exige elegir hora de dormir en este caso.
 
-Identificar exactamente:
+No inventar un horario nuevo si ya existe un helper o límite máximo para salida del boliche.
 
-1. qué datos genera hoy el simulador;
-2. qué estructura antigua sigue esperando;
-3. de dónde sale exactamente `daily_surveys_not_found`;
-4. qué partes del generador ya no coinciden con el modelo real.
+Reutilizar la lógica actual de fechas/horarios.
 
-No asumir que el problema es solamente Surveys.
+Revisar frontend y backend para que ambos acepten este caso correctamente.
 
-# 2. PRINCIPIO FUNDAMENTAL
+## VALIDAR
 
-El generador NO debe tener una segunda implementación manual de:
+Probar:
+- sí durmió + salida válida;
+- sí durmió + salida posterior al sueño => inválido;
+- no durmió + fue al boliche => puede cargar salida;
+- no durmió + salida hasta el máximo permitido => válida;
+- no durmió + salida fuera del máximo permitido => inválida;
+- no fue al boliche => comportamiento actual;
+- mobile;
+- no romper Registro diario ni Stats.
 
-- estadísticas;
-- títulos;
+# 2. PERSONALIZACIÓN ESPECIAL PARA GIO
+
+Quiero ampliar la personalización visual disponible específicamente para el perfil/card de Gio.
+
+La idea es que Gio pueda tener una apariencia más fuerte y llamativa que el resto, sin romper la estética de la app.
+
+No quiero algo infantil ni exagerado.
+
+Quiero sensación de:
+- poder;
+- jerarquía;
+- brillo;
+- perfil premium;
+- presencia visual.
+
+## OBJETIVO VISUAL
+
+La card/perfil de Gio debe poder destacar frente a otras.
+
+Quiero agregar opciones de personalización especiales como:
+
+- colores más brillantes;
+- gradientes más intensos;
+- glow suave;
+- sombra más marcada;
+- borde luminoso;
+- variante dorada;
+- combinación negro + dorado;
+- combinación azul profundo + dorado;
+- combinación violeta brillante + dorado;
+- efecto premium/royal.
+
+No usar naranja fuerte.
+
+## NUEVAS OPCIONES SOLO PARA GIO
+
+En Personalización, si el usuario autenticado es Gio, agregar una sección especial:
+
+`Estilos especiales`
+
+Estas opciones NO deben aparecer para otros usuarios.
+
+Agregar varios presets, por ejemplo:
+
+### `Royal Gold`
+- fondo oscuro;
+- degradado negro / azul muy oscuro;
+- detalles dorados;
+- borde dorado;
+- glow suave;
+- sombra más profunda.
+
+### `Golden Power`
+- dorado más brillante;
+- contraste oscuro;
+- líneas/accent doradas;
+- apariencia más intensa.
+
+### `Imperial`
+- azul profundo;
+- violeta;
+- dorado sutil;
+- sensación elegante.
+
+### `Ultra Glow`
+- usar los colores personalizados actuales de Gio;
+- aumentar brillo, glow y sombra;
+- sin cambiar la paleta base.
+
+### `Dark Crown`
+- negro / navy;
+- borde dorado tenue;
+- reflejo brillante;
+- card muy marcada frente al resto.
+
+Podés ajustar nombres si hace falta, pero mantener la idea.
+
+## EFECTOS DISPONIBLES
+
+Para Gio permitir adicionalmente:
+
+- glow:
+  - apagado
+  - suave
+  - fuerte
+
+- sombra:
+  - normal
+  - profunda
+
+- borde premium:
+  - ninguno
+  - dorado
+  - gradiente brillante
+
+- intensidad:
+  - normal
+  - brillante
+  - muy brillante
+
+No hacer que el texto pierda legibilidad.
+
+El nombre debe seguir usando color de texto correcto según light/dark.
+
+## DÓNDE DEBE VERSE
+
+La apariencia especial de Gio debe aplicarse donde ya se usa la personalización individual:
+
+- su perfil;
+- su card;
+- sus logros;
 - rachas;
-- Rey;
-- encuestas.
+- ranking;
+- Casi Reyes;
+- perfil del Rey;
+- cualquier card asociada específicamente a Gio.
 
-Debe generar DATA BASE válida y dejar que las funciones reales de producción calculen:
+NO pintar toda la aplicación con el tema de Gio.
 
-- Stats Día;
-- Stats Total;
-- títulos;
-- rachas;
-- Rey de Bariloche;
-- Casi Reyes.
+Solo elementos visuales que pertenezcan a Gio.
 
-La simulación debe comportarse como si los usuarios reales hubieran usado la aplicación.
+## DORADO
 
-NO hardcodear resultados finales.
+Quiero que exista al menos una opción claramente dorada.
 
-Ejemplo incorrecto:
+Pero:
+- no usar amarillo plano;
+- no hacer aspecto barato;
+- usar gradientes, bordes, sombras y glow;
+- mantener sensación elegante/premium.
 
-`Gio es El más dormilón`
+Pensar más en:
+`gold / black / navy / glass`
 
-Ejemplo correcto:
+que en amarillo fuerte.
 
-generar daily entries coherentes y dejar que el sistema real determine quién es El más dormilón.
+## PERSISTENCIA
 
-# 3. ENCUESTAS ACTUALES
+Estas opciones deben persistirse igual que el sistema actual de appearance.
 
-Revisar el sistema REAL de encuestas.
+No crear una arquitectura paralela si puede extenderse la existente.
 
-Actualmente deben existir como mínimo:
+Backend debe validar que estas opciones especiales solo puedan ser usadas por Gio.
 
-- `destroyed_vote`
-- encuesta de `El más chamullero`
-- encuesta de `El mejor outfit`
+No alcanza con ocultarlas en frontend.
 
-No asumir que existe una entidad antigua llamada `daily_surveys` si la arquitectura nueva ya no trabaja así.
+Si otro usuario intenta enviar manualmente un preset exclusivo:
+- rechazarlo o normalizarlo de forma segura.
 
-El generador debe usar exactamente el mismo formato/modelo/endpoints que usa un usuario real al votar.
+## COMPATIBILIDAD
 
-Para cada fecha simulada:
-- usuarios activos;
-- un voto por usuario por encuesta;
-- no self-vote;
-- candidatos válidos;
-- votos variados;
-- algunos empates posibles;
-- sin duplicados.
+Mantener:
+- light mode;
+- dark mode;
+- mobile;
+- rendimiento;
+- reduced motion;
+- personalizaciones actuales de otros usuarios;
+- presets existentes;
+- custom colors actuales.
 
-Corregir la causa real de:
+No romper usuarios que no usan estilos especiales.
 
-`daily_surveys_not_found`
+## ANIMACIONES
 
-No ocultar el error con try/catch si la simulación está generando datos incorrectamente.
+Si se usa glow o brillo:
+- debe ser mayormente estático;
+- puede haber un shimmer MUY sutil;
+- nada que esté moviéndose constantemente de forma molesta;
+- no generar lag.
 
-# 4. GENERAR DATOS DE ENTRADA, NO ESTADÍSTICAS
+## TESTS
 
-Muy importante:
-
-El generador debe crear únicamente los datos fuente necesarios:
-
-- daily entries;
-- money movements;
-- previas;
-- survey votes;
-- cualquier otro input real necesario.
-
-Después:
-Stats debe leer esos datos mediante la lógica normal.
-
-NO insertar:
-- rankings precalculados;
-- títulos manuales;
-- Rey manual;
-- rachas manuales;
-- stats artificiales.
-
-# 5. DAILY ENTRIES
-
-Generar Daily Entries usando la estructura actual exacta.
-
-Respetar:
-
-- sueño;
-- no dormir, si existe actualmente;
-- siesta;
-- quinta comida;
-- baño;
-- boliche;
-- computed derivados;
-- validaciones horarias;
-- fecha correspondiente.
-
-No guardar campos `computed` si producción normalmente los deriva.
-
-Usar los mismos contratos que las rutas reales.
-
-# 6. DINERO
-
-Usar el modelo actual de Money.
-
-Generar variedad por usuario y fecha.
-
-Usar únicamente categorías actuales:
-
-- Chocolates
-- Alcohol
-- Boliche
-- Comida
-- Bebida
-- Actividades
-- Otros
-
-No usar categorías eliminadas.
-
-Respetar:
-- expense/income;
-- legacy_id/idempotencia;
-- ownership por usuario;
-- fechas.
-
-# 7. PREVIAS
-
-Generar previas compatibles con el modelo actual.
-
-Usar:
-- usuarios activos;
-- participantIds válidos;
-- creador válido;
-- cantidades/precios coherentes;
-- fechas correctas;
-- permisos si la ruta real los exige.
-
-No inventar usuarios.
-
-# 8. USUARIOS
-
-No hardcodear solamente los 11 usuarios originales.
-
-Obtener usuarios activos desde la fuente actual.
-
-Debe incluir automáticamente usuarios dinámicos activos.
-
-Excluir:
-- inactivos;
-- eliminados.
-
-# 9. 8 NOCHES
-
-`Simular 8 noches` debe producir exactamente:
-
-8 fechas cerradas consecutivas.
-
-Es un viaje de:
-- 9 días;
-- 8 noches;
-- 8 registros diarios evaluables.
-
-No generar 9 registros.
-
-Usar los helpers actuales de fechas.
-
-No inventar una segunda regla para detectar que el viaje terminó.
-
-Después de simular 8 noches, la app debe reconocer naturalmente que existen 8 días cerrados.
-
-# 10. SIMULAR AYER
-
-`Simular el día de ayer` debe:
-
-- generar solamente ayer;
-- usar las estructuras actuales;
-- no generar otras fechas;
-- poder ejecutarse nuevamente sin crear duplicados inconsistentes.
-
-Daily debe respetar reemplazo/idempotencia.
-
-Survey votes también.
-
-# 11. DATOS INTERESANTES
-
-La simulación debe producir variedad suficiente para probar la app.
-
-No quiero puro random sin control.
-
-Generar perfiles distintos entre usuarios para que existan:
-
-- distintos ganadores de sueño;
-- menos sueño;
-- siestas;
-- quinta comida;
-- baño;
-- boliche;
-- gasto;
-- previas;
-- encuestas;
-- rachas.
-
-Generar también:
-- algunas rachas de 2;
-- algunas de 3+;
-- rachas que después se corten;
-- algunos empates naturales;
-- distintos líderes conforme avanzan los días.
-
-No hacer que siempre gane Gio.
-No hacer que todos tengan prácticamente lo mismo.
-
-# 12. TÍTULOS DINÁMICOS
-
-El generador NO debe asignar títulos.
-
-Pero los datos generados deben permitir que el sistema actual calcule correctamente los títulos dinámicos existentes.
-
-Incluyendo como mínimo:
-
-- El más dormilón
-- El más zombi
-- El rey de la siesta
-- La panza más grande
-- Minigun de mierdas
-- El que más se la bancó en el baile
-- Billetera sin fondo
-- El más manija
-- El más destruido
-- El más chamullero
-- El mejor outfit
-- todas las rachas actuales.
-
-Revisar el código y agregar cualquier otro título actual que falte en esta lista.
-
-# 13. EMPATES
-
-No fabricar manualmente ganadores.
-
-Si los datos generan empate:
-usar exactamente las reglas actuales del sistema.
-
-No introducir desempates especiales desde el simulador.
-
-# 14. REY DE BARILOCHE
-
-NO calcular ni guardar Rey desde el generador.
-
-Después de insertar los datos:
-`buildTotalAchievementProfiles()` o la lógica actual equivalente debe determinarlo.
-
-El generador solo debe dejar un dataset válido.
-
-Debe soportar naturalmente:
-- Rey único;
-- múltiples Reyes;
-- Casi Reyes.
-
-# 15. FRASE DEL REY
-
-Con 8 noches completas:
-
-si un Rey tiene configurada `Frase del Rey`,
-debe mostrarse por la lógica normal.
-
-No crear ni modificar frases desde el generador.
-
-# 16. PUSH
-
-Revisar cuidadosamente cómo interactúa la simulación con:
-
-`¡Ya están disponibles las estadisticas de ayer!`
-
-No quiero que `Simular 8 noches` envíe 8 notificaciones reales consecutivas a los usuarios.
-
-La simulación masiva debe evitar spam.
-
-Pero no romper la lógica real de stats-ready para registros normales.
-
-Para `Simular el día de ayer`, revisar el comportamiento actual y decidir la forma más coherente:
-- si usa el mismo cierre real del día, puede disparar una sola stats-ready;
-- nunca duplicarla si ya fue enviada.
-
-Preservar la idempotencia existente.
-
-# 17. DATOS DE PRUEBA VS REALES
-
-MUY IMPORTANTE.
-
-No borrar ni sobrescribir accidentalmente datos reales.
-
-Revisar cómo se identifican actualmente datos simulados.
-
-Reutilizar la estrategia segura existente.
-
-Si el sistema actual no distingue suficientemente bien datos simulados:
-hacer el cambio mínimo necesario para que reejecutar la simulación pueda limpiar/reemplazar SOLO sus propios datos.
-
-NO:
-- TRUNCATE global;
-- reset general;
-- borrar usuarios;
-- borrar appearances;
-- borrar push subscriptions;
-- borrar auth;
-- borrar frases;
-- borrar configuraciones.
-
-# 18. API REAL
-
-Siempre que sea razonable, reutilizar services/repositories/helpers reales.
-
-Evitar lógica duplicada del tipo:
-
-`simulateStats()`
-
-si producción ya tiene:
-
-`calculateStats()`
-
-La simulación debe estar lo más cerca posible de ejecutar el mismo flujo real.
-
-# 19. ERROR HANDLING
-
-Si falla una parte de la simulación:
-
-- devolver información útil;
-- loguear causa real;
-- no convertir errores específicos en un `500` opaco innecesariamente;
-- no mostrar éxito si hubo fallo parcial.
-
-Corregir específicamente el flujo que hoy termina en:
-
-`daily_surveys_not_found`
-
-# 20. UI
-
-Mantener únicamente las dos opciones actuales:
-
-- `Simular 8 noches`
-- `Simular el día de ayer`
-
-No volver a 6/7.
-
-Mantener diseño actual.
-
-No agregar más controles salvo que sean estrictamente necesarios.
-
-# 21. TESTS IMPORTANTES
-
-Agregar/actualizar tests que validen:
-
-## Simular 8 noches
-
-- exactamente 8 fechas;
-- usuarios activos;
-- daily entries válidos;
-- money válido;
-- previas válidas;
-- destroyed_vote válido;
-- chamullero válido;
-- outfit válido;
-- no self-votes;
-- no duplicados;
-- Stats Día funciona;
-- Stats Total funciona;
-- títulos funcionan;
-- rachas funcionan;
-- Rey funciona;
-- frase Rey puede desbloquearse;
-- no aparece `daily_surveys_not_found`;
-- no envía spam de push.
-
-## Simular ayer
-
-- solamente ayer;
-- reejecución segura;
-- no daily duplicado;
-- votos sin duplicados;
-- stats funcionan;
-- no rompe otros días.
-
-# 22. VALIDACIÓN EN PRODUCCIÓN
-
-Si aparece una migración nueva:
-
-- revisarla;
-- ejecutar migración contra Supabase real;
-- verificar que no sea destructiva;
-- ejecutar `db:health`.
-
-Después probar contra el backend real de Render si la arquitectura actual lo permite.
-
-# 23. COMANDOS
+Revisar:
+- Gio ve opciones especiales;
+- otros usuarios no;
+- backend bloquea presets exclusivos para otros;
+- persistencia funciona;
+- reload mantiene apariencia;
+- cards de Gio resaltan;
+- otros perfiles siguen iguales;
+- light/dark;
+- mobile;
+- no overflow;
+- no caída de FPS apreciable.
 
 Ejecutar:
-
 - node --check script.js
 - npm test
 - npm run typecheck
 - npm run build
 - npm run db:health
 
-# 24. NO TOCAR
-
-No hacer todavía la remodelación futura de:
-
-- DINÁMICOS;
-- GENERALES;
-- ÚNICOS;
-- SECRETOS;
-- DUPLICADO;
-- popup de secreto;
-- catálogo Admin de logros.
-
-Eso todavía no se implementa.
-
-Esta tarea es EXCLUSIVAMENTE modernizar el generador para que produzca datos compatibles con el sistema ACTUAL.
-
-No hacer commit.
-
-# 25. REPORTE FINAL
-
-Al terminar, explicame:
-
-1. causa exacta de `daily_surveys_not_found`;
-2. qué parte del generador estaba desactualizada;
-3. cómo generaba encuestas antes;
-4. cómo las genera ahora;
-5. si había otras estructuras antiguas además de Surveys;
-6. cómo se generan ahora las 8 noches;
-7. cómo evitás alterar datos reales;
-8. cómo evitás spam de notificaciones;
-9. tests realizados.
+Al final reportar:
+1. causa del bug de `No dormí`;
+2. cómo quedó corregida la salida del boliche;
+3. qué opciones especiales agregaste para Gio;
+4. cómo se persisten;
+5. cómo protegiste que solo Gio pueda usarlas;
+6. dónde se aplican visualmente;
+7. tests realizados.
