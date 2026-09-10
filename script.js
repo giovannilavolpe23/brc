@@ -6127,6 +6127,7 @@ function refreshActiveTitulosPanel() {
   if (screens["titulos-estadistica"] && screens["titulos-estadistica"].classList.contains("active")) renderTitulosEstadisticaPanel();
   if (screens["titulos-encuesta"] && screens["titulos-encuesta"].classList.contains("active")) renderTitulosEncuestaPanel();
   if (screens["titulos-racha"] && screens["titulos-racha"].classList.contains("active")) renderTitulosRachaPanel();
+  if (screens["titulos-especiales"] && screens["titulos-especiales"].classList.contains("active")) renderTitulosEspecialesScreen();
 }
 
 function clearStatsApiCache() {
@@ -6165,6 +6166,7 @@ function requestAchievementsRefresh(force = false) {
     .finally(() => {
       achievementsApiLoading = false;
       if (screens.titulos && screens.titulos.classList.contains("active")) renderTitulosHub();
+      if (screens["titulos-especiales"] && screens["titulos-especiales"].classList.contains("active")) renderTitulosEspecialesScreen();
     });
 }
 
@@ -7752,25 +7754,64 @@ function openKingProfileFromCard(kingKey) {
   navigateBetweenScreensWithTransition("titulos", "titulos-rey");
 }
 
-function renderPermanentAchievementTag(achievement) {
-  const label = `${achievement.type === "secret" ? "SECRETO" : "ÚNICO"}${achievement.isDuplicate ? " · DUPLICADO" : ""}`;
-  return `<span class="permanent-achievement-tag ${achievement.type}">${escapeHtml(label)}</span>`;
+function renderPermanentAchievementTypeTag(type) {
+  const label = type === "secret" ? "SECRETO" : "ÚNICO";
+  return `<span class="permanent-achievement-tag ${type}">${escapeHtml(label)}</span>`;
+}
+
+function groupPermanentAchievements(achievements) {
+  const groups = new Map();
+  achievements.forEach((achievement) => {
+    const key = `${achievement.key || ""}:${achievement.unlockedDate || ""}`;
+    const current = groups.get(key);
+    const participant = participantFromAchievementUser(achievement.user);
+    if (current) {
+      current.owners.push(participant);
+      current.isDuplicate = current.isDuplicate || achievement.isDuplicate || current.owners.length > 1;
+      return;
+    }
+    groups.set(key, {
+      ...achievement,
+      owners: [participant],
+      isDuplicate: achievement.isDuplicate,
+    });
+  });
+  return Array.from(groups.values()).map((group) => ({
+    ...group,
+    owners: group.owners.filter(Boolean),
+    isDuplicate: group.isDuplicate || group.owners.length > 1,
+  }));
+}
+
+function renderPermanentAchievementOwners(owners) {
+  const compact = owners.length > 2 ? " compact" : "";
+  return `
+    <div class="permanent-achievement-owners${compact}" style="--owner-count:${owners.length}">
+      ${owners.map((participant) => renderPlayerAvatarHtml(participant, "permanent-achievement-avatar")).join("")}
+    </div>
+  `;
 }
 
 function renderPermanentAchievementCard(achievement) {
-  const participant = participantFromAchievementUser(achievement.user);
+  const owners = Array.isArray(achievement.owners) && achievement.owners.length
+    ? achievement.owners
+    : [participantFromAchievementUser(achievement.user)];
+  const ownerNames = owners.map((owner) => owner.name).filter(Boolean).join(", ");
   return `
-    <article class="permanent-achievement-card ${achievement.type}">
+    <article class="permanent-achievement-card ${achievement.type}${achievement.isDuplicate ? " duplicate" : ""}">
       <div class="permanent-achievement-header">
-        ${renderPlayerAvatarHtml(participant, "permanent-achievement-avatar")}
+        ${renderPermanentAchievementOwners(owners)}
         <div class="permanent-achievement-title">
-          ${renderPermanentAchievementTag(achievement)}
+          <div class="permanent-achievement-tags">
+            ${renderPermanentAchievementTypeTag(achievement.type)}
+            ${achievement.isDuplicate ? `<span class="permanent-achievement-tag duplicate">DUPLICADO</span>` : ""}
+          </div>
           <h3>${escapeHtml(achievement.name)}</h3>
           <p>${escapeHtml(achievement.description)}</p>
         </div>
       </div>
       <div class="permanent-achievement-meta">
-        <span>${escapeHtml(participant.name)}</span>
+        <span>${escapeHtml(ownerNames)}</span>
         <span>${formatDailyDate(achievement.unlockedDate)}</span>
       </div>
     </article>
@@ -7786,41 +7827,27 @@ function participantFromAchievementUser(user) {
   };
 }
 
-function renderPermanentAchievementsSection() {
+function renderSpecialAchievementsAccess() {
   if (!canViewPrivateAchievements()) return "";
-
-  if (achievementsApiLoading && !achievementsApiSnapshot) {
-    return `
-      <section class="permanent-achievements-section">
-        <div class="section-label">Únicos y secretos</div>
-        ${renderApiLoadingBanner("Cargando logros permanentes...")}
-      </section>
-    `;
-  }
-
   const achievements = achievementsApiSnapshot && Array.isArray(achievementsApiSnapshot.achievements)
     ? achievementsApiSnapshot.achievements
     : [];
-
-  if (!achievements.length) {
-    return `
-      <section class="permanent-achievements-section">
-        <div class="section-label">Únicos y secretos</div>
-        <div class="stats-empty-banner">
-          <span class="stats-empty-banner-icon" aria-hidden="true">🏅</span>
-          <p>Todavía no se desbloqueó ningún logro único o secreto.</p>
-        </div>
-      </section>
-    `;
-  }
+  const groupedCount = groupPermanentAchievements(achievements).length;
+  const countText = achievementsApiLoading && !achievementsApiSnapshot
+    ? "Cargando logros especiales"
+    : groupedCount
+    ? `${groupedCount} logro${groupedCount === 1 ? "" : "s"} desbloqueado${groupedCount === 1 ? "" : "s"}`
+    : "Únicos y secretos";
 
   return `
-    <section class="permanent-achievements-section">
-      <div class="section-label">Únicos y secretos</div>
-      <div class="permanent-achievement-list">
-        ${achievements.map(renderPermanentAchievementCard).join("")}
+    <article class="special-achievements-access tappable" id="card-titulos-especiales" role="button" tabindex="0">
+      <div class="special-achievements-icon" aria-hidden="true">✨</div>
+      <div class="feature-text">
+        <h3>Logros especiales</h3>
+        <p>${escapeHtml(countText)}</p>
       </div>
-    </section>
+      <svg class="feature-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </article>
   `;
 }
 
@@ -7831,12 +7858,21 @@ function renderTitulosHub() {
   if (!main) return;
   const existing = main.querySelector(".titulos-king-section");
   if (existing) existing.remove();
-  const permanent = main.querySelector(".permanent-achievements-section");
-  if (permanent) permanent.remove();
+  const specialAccess = main.querySelector(".special-achievements-access");
+  if (specialAccess) specialAccess.remove();
   displayedKingOfBariloche = buildKingOfBariloche();
   main.insertAdjacentHTML("afterbegin", renderKingOfBarilocheSection(displayedKingOfBariloche));
   const kingSection = main.querySelector(".titulos-king-section");
-  if (kingSection) kingSection.insertAdjacentHTML("afterend", renderPermanentAchievementsSection());
+  if (kingSection) kingSection.insertAdjacentHTML("afterend", renderSpecialAchievementsAccess());
+  const specialCard = main.querySelector("#card-titulos-especiales");
+  if (specialCard) {
+    specialCard.addEventListener("click", () => navigateBetweenScreensWithTransition("titulos", "titulos-especiales"));
+    specialCard.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      navigateBetweenScreensWithTransition("titulos", "titulos-especiales");
+    });
+  }
   const kingCards = main.querySelectorAll(".titulos-king-section .titulos-king-card:not(.titulos-king-card-empty)");
   kingCards.forEach((kingCard) => {
     if (!displayedKingOfBariloche) return;
@@ -7851,6 +7887,43 @@ function renderTitulosHub() {
       openKingProfileFromCard(kingKey);
     });
   });
+}
+
+function renderTitulosEspecialesScreen() {
+  if (!achievementsApiSnapshot && !achievementsApiFailed) requestAchievementsRefresh();
+  const main = document.getElementById("titulos-especiales-main");
+  if (!main) return;
+  const achievements = achievementsApiSnapshot && Array.isArray(achievementsApiSnapshot.achievements)
+    ? groupPermanentAchievements(achievementsApiSnapshot.achievements)
+    : [];
+  const uniqueAchievements = achievements.filter((achievement) => achievement.type === "unique");
+  const secretAchievements = achievements.filter((achievement) => achievement.type === "secret");
+
+  main.innerHTML = `
+    <section class="special-achievements-intro">
+      <div class="special-achievements-icon" aria-hidden="true">✨</div>
+      <div>
+        <h2>Logros especiales</h2>
+        <p>Únicos y secretos desbloqueados durante el viaje.</p>
+      </div>
+    </section>
+    ${achievementsApiLoading && !achievementsApiSnapshot ? renderApiLoadingBanner("Cargando logros especiales...") : ""}
+    ${
+      !achievementsApiLoading && !achievements.length
+        ? `<div class="stats-empty-banner"><span class="stats-empty-banner-icon" aria-hidden="true">🏅</span><p>Todavía no se desbloqueó ningún logro especial.</p></div>`
+        : ""
+    }
+    ${
+      uniqueAchievements.length
+        ? `<section class="permanent-achievements-section"><div class="section-label">Únicos</div><div class="permanent-achievement-list">${uniqueAchievements.map(renderPermanentAchievementCard).join("")}</div></section>`
+        : ""
+    }
+    ${
+      secretAchievements.length
+        ? `<section class="permanent-achievements-section"><div class="section-label">Secretos</div><div class="permanent-achievement-list">${secretAchievements.map(renderPermanentAchievementCard).join("")}</div></section>`
+        : ""
+    }
+  `;
 }
 
 function renderKingProfileScreen() {
@@ -8698,6 +8771,7 @@ const screens = {
   stats: document.getElementById("screen-stats"),
   titulos: document.getElementById("screen-titulos"),
   "titulos-rey": document.getElementById("screen-titulos-rey"),
+  "titulos-especiales": document.getElementById("screen-titulos-especiales"),
   "titulos-estadistica": document.getElementById("screen-titulos-estadistica"),
   "titulos-encuesta": document.getElementById("screen-titulos-encuesta"),
   "titulos-racha": document.getElementById("screen-titulos-racha"),
@@ -8794,6 +8868,16 @@ function navigate(route) {
     location.hash = "#/titulos-rey";
     renderKingProfileScreen();
     showScreen("titulos-rey");
+  } else if (route === "titulos-especiales") {
+    if (!canViewPrivateAchievements()) {
+      location.hash = "#/titulos";
+      renderTitulosHub();
+      showScreen("titulos");
+      return;
+    }
+    location.hash = "#/titulos-especiales";
+    renderTitulosEspecialesScreen();
+    showScreen("titulos-especiales");
   } else if (route === "titulos-estadistica") {
     location.hash = "#/titulos-estadistica";
     renderTitulosEstadisticaScreen();
@@ -8860,6 +8944,7 @@ function navigate(route) {
       route === "stats" ||
       route === "titulos" ||
       route === "titulos-rey" ||
+      route === "titulos-especiales" ||
       route === "titulos-estadistica" ||
       route === "titulos-encuesta" ||
       route === "titulos-racha" ||
@@ -8882,7 +8967,7 @@ function navigate(route) {
       ? "home"
       : route === "previas" || route === "ajustes"
       ? "admin"
-      : route === "titulos" || route === "titulos-rey" || route === "titulos-estadistica" || route === "titulos-encuesta" || route === "titulos-racha"
+      : route === "titulos" || route === "titulos-rey" || route === "titulos-especiales" || route === "titulos-estadistica" || route === "titulos-encuesta" || route === "titulos-racha"
       ? "titulos"
       : route
   );
@@ -8904,6 +8989,7 @@ function routeFromHash() {
   if (hash === "stats") return "stats";
   if (hash === "titulos") return "titulos";
   if (hash === "titulos-rey") return "titulos-rey";
+  if (hash === "titulos-especiales") return "titulos-especiales";
   if (hash === "titulos-estadistica") return "titulos-estadistica";
   if (hash === "titulos-encuesta") return "titulos-encuesta";
   if (hash === "titulos-racha") return "titulos-racha";
@@ -8993,6 +9079,10 @@ document.getElementById("btn-titulos-back").addEventListener("click", () => {
 
 document.getElementById("btn-titulos-rey-back").addEventListener("click", () => {
   navigateBetweenScreensWithTransition("titulos-rey", "titulos");
+});
+
+document.getElementById("btn-titulos-especiales-back").addEventListener("click", () => {
+  navigateBetweenScreensWithTransition("titulos-especiales", "titulos");
 });
 
 document.getElementById("card-titulos-estadistica").addEventListener("click", () => {
@@ -9112,6 +9202,7 @@ bottomNav.addEventListener("click", (e) => {
       "stats",
       "titulos",
       "titulos-rey",
+      "titulos-especiales",
       "titulos-estadistica",
       "titulos-encuesta",
       "titulos-racha",
@@ -9135,6 +9226,7 @@ bottomNav.addEventListener("click", (e) => {
       "stats",
       "titulos",
       "titulos-rey",
+      "titulos-especiales",
       "titulos-estadistica",
       "titulos-encuesta",
       "titulos-racha",
@@ -9147,7 +9239,7 @@ bottomNav.addEventListener("click", (e) => {
   }
 
   if (route === "stats") {
-    const activeAnimatedOrigin = ["home", "usage", "admin", "titulos", "titulos-rey"].find((r) => screens[r] && screens[r].classList.contains("active"));
+    const activeAnimatedOrigin = ["home", "usage", "admin", "titulos", "titulos-rey", "titulos-especiales"].find((r) => screens[r] && screens[r].classList.contains("active"));
     if (activeAnimatedOrigin) {
       navigateBetweenScreensWithTransition(activeAnimatedOrigin, "stats");
       return;
@@ -9155,7 +9247,7 @@ bottomNav.addEventListener("click", (e) => {
   }
 
   if (route === "titulos") {
-    const activeAnimatedOrigin = ["home", "usage", "admin", "stats", "titulos-rey"].find((r) => screens[r] && screens[r].classList.contains("active"));
+    const activeAnimatedOrigin = ["home", "usage", "admin", "stats", "titulos-rey", "titulos-especiales"].find((r) => screens[r] && screens[r].classList.contains("active"));
     if (activeAnimatedOrigin) {
       navigateBetweenScreensWithTransition(activeAnimatedOrigin, "titulos");
       return;
