@@ -14,14 +14,16 @@ type AchievementUnlockRow = {
 };
 
 export type AchievementsRepository = {
-  listVisible(userId: string): Promise<AchievementUnlock[]>;
-  listPendingSecretReveals(userId: string): Promise<AchievementUnlock[]>;
+  listVisible(userId: string, canViewPrivate: boolean): Promise<AchievementUnlock[]>;
+  listPendingSecretReveals(userId: string, canViewPrivate: boolean): Promise<AchievementUnlock[]>;
   markSecretRevealed(userId: string, achievementKey: string): Promise<boolean>;
   listAdmin(): Promise<AdminAchievement[]>;
 };
 
 export const postgresAchievementsRepository: AchievementsRepository = {
-  async listVisible(userId) {
+  async listVisible(_userId, canViewPrivate) {
+    if (!canViewPrivate) return [];
+
     const result = await pool.query<AchievementUnlockRow>(
       `
         select achievement_unlocks.achievement_key,
@@ -34,16 +36,15 @@ export const postgresAchievementsRepository: AchievementsRepository = {
                users.display_name
         from achievement_unlocks
         join users on users.id = achievement_unlocks.user_id
-        where achievement_unlocks.achievement_type = 'unique'
-           or (achievement_unlocks.achievement_type = 'secret' and achievement_unlocks.user_id = $1)
         order by achievement_unlocks.unlocked_date, achievement_unlocks.created_at, users.display_name
-      `,
-      [userId]
+      `
     );
     return result.rows.map(toAchievementUnlock).filter(Boolean) as AchievementUnlock[];
   },
 
-  async listPendingSecretReveals(userId) {
+  async listPendingSecretReveals(userId, canViewPrivate) {
+    if (!canViewPrivate) return [];
+
     const result = await pool.query<AchievementUnlockRow>(
       `
         select achievement_unlocks.achievement_key,

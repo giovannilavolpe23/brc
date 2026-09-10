@@ -1890,7 +1890,7 @@ function renderHome(user) {
 
 function queueSecretAchievementReveals() {
   if (secretRevealLoading || secretRevealShowing) return;
-  if (!getCurrentUser() || !localStorage.getItem(STORAGE_KEYS.apiAccessToken)) return;
+  if (!getCurrentUser() || !canViewPrivateAchievements() || !localStorage.getItem(STORAGE_KEYS.apiAccessToken)) return;
 
   secretRevealLoading = true;
   apiFetch("/achievements/secret-reveals")
@@ -1961,6 +1961,10 @@ function presetByKey(key) {
 function isGioUser(user) {
   if (!user) return false;
   return [user.id, user.legacyId, user.apiId, user.name, user.displayName].some((value) => String(value || "").trim().toLowerCase() === "gio");
+}
+
+function canViewPrivateAchievements(user = getCurrentUser()) {
+  return isGioUser(user);
 }
 
 function cloneAppearance(appearance) {
@@ -7782,6 +7786,8 @@ function participantFromAchievementUser(user) {
 }
 
 function renderPermanentAchievementsSection() {
+  if (!canViewPrivateAchievements()) return "";
+
   if (achievementsApiLoading && !achievementsApiSnapshot) {
     return `
       <section class="permanent-achievements-section">
@@ -7819,7 +7825,7 @@ function renderPermanentAchievementsSection() {
 
 function renderTitulosHub() {
   if (!statsApiTotal) requestStatsPanelRefresh("total");
-  if (!achievementsApiSnapshot && !achievementsApiFailed) requestAchievementsRefresh();
+  if (canViewPrivateAchievements() && !achievementsApiSnapshot && !achievementsApiFailed) requestAchievementsRefresh();
   const main = document.querySelector("#screen-titulos .home-content");
   if (!main) return;
   const existing = main.querySelector(".titulos-king-section");
