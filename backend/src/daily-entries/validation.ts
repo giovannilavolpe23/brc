@@ -108,14 +108,15 @@ function validateLogicalTimes(
   }
 
   if (!boliche.didNotGo && boliche.time) {
-    if (sleep.didNotSleep || !sleep.bedtime) {
+    if (!sleep.didNotSleep && !sleep.bedtime) {
       throw new DailyEntryValidationError("invalid_boliche_sleep_required");
     }
 
     const exit = timeToMinutes(boliche.time);
     const exitAbsolute = exit + 24 * 60;
     const openAbsolute = 25 * 60;
-    const latestExit = bedtimeAbsoluteMinutes(sleep.bedtime) - 10;
+    const closeAbsolute = 31 * 60;
+    const latestExit = sleep.didNotSleep ? closeAbsolute : bedtimeAbsoluteMinutes(sleep.bedtime as string) - 10;
     if (exitAbsolute < openAbsolute || exitAbsolute > latestExit) {
       throw new DailyEntryValidationError("invalid_boliche_time_range");
     }

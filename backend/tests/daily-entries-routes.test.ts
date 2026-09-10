@@ -206,6 +206,32 @@ describe("daily entries routes", () => {
     assert.deepEqual(repo.calls, []);
   });
 
+  it("allows boliche exits until closing time when the user did not sleep", async () => {
+    const repo = makeRepository();
+    const app = makeApp(jere, repo);
+
+    const response = await request(app)
+      .put("/daily-entries/2026-08-28")
+      .send({ ...validInput, sleep: { didNotSleep: true, bedtime: null, wake: null }, boliche: { didNotGo: false, time: "07:00" } });
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.entry.sleep.didNotSleep, true);
+    assert.equal(response.body.entry.boliche.time, "07:00");
+  });
+
+  it("rejects boliche exits outside the closing range when the user did not sleep", async () => {
+    const repo = makeRepository();
+    const app = makeApp(jere, repo);
+
+    const response = await request(app)
+      .put("/daily-entries/2026-08-28")
+      .send({ ...validInput, sleep: { didNotSleep: true, bedtime: null, wake: null }, boliche: { didNotGo: false, time: "07:10" } });
+
+    assert.equal(response.status, 400);
+    assert.equal(response.body.error, "invalid_boliche_time_range");
+    assert.deepEqual(repo.calls, []);
+  });
+
   it("cannot read or modify another user's entries, even as admin", async () => {
     const repo = makeRepository([makeEntry(jere.id)]);
     const app = makeApp(gio, repo);

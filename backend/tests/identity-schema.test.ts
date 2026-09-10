@@ -13,6 +13,7 @@ const kingPhraseMigration = fs.readFileSync(path.resolve(__dirname, "../migratio
 const demoFlagsMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/010_demo_data_flags.sql"), "utf8");
 const dailySurveyQuestionsMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/011_add_daily_survey_questions.sql"), "utf8");
 const achievementsMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/012_persistent_achievements.sql"), "utf8");
+const gioPremiumAppearanceMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/013_gio_premium_appearance.sql"), "utf8");
 const seed = fs.readFileSync(path.resolve(__dirname, "../src/db/seed.ts"), "utf8");
 
 describe("identity schema", () => {
@@ -173,6 +174,18 @@ describe("king phrase schema", () => {
     assert.match(kingPhraseMigration, /add column if not exists king_phrase text/);
     assert.match(kingPhraseMigration, /user_appearances_king_phrase_check/);
     assert.match(kingPhraseMigration, /length\(king_phrase\) between 3 and 80/);
+  });
+});
+
+describe("gio premium appearance schema", () => {
+  it("adds bounded premium fields to user appearances", () => {
+    assert.match(gioPremiumAppearanceMigration, /add column if not exists premium_glow text/);
+    assert.match(gioPremiumAppearanceMigration, /add column if not exists premium_shadow text/);
+    assert.match(gioPremiumAppearanceMigration, /add column if not exists premium_border text/);
+    assert.match(gioPremiumAppearanceMigration, /add column if not exists premium_intensity text/);
+    assert.match(gioPremiumAppearanceMigration, /'royal_gold'/);
+    assert.match(gioPremiumAppearanceMigration, /'golden_power'/);
+    assert.match(gioPremiumAppearanceMigration, /premium_glow in \('off', 'soft', 'strong'\)/);
   });
 });
 

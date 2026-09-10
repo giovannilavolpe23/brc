@@ -10,6 +10,10 @@ export type AppearanceRow = {
   visual_style: UserAppearance["visualStyle"];
   avatar_border_style: UserAppearance["avatarBorderStyle"];
   king_phrase: string | null;
+  premium_glow?: UserAppearance["premiumGlow"] | null;
+  premium_shadow?: UserAppearance["premiumShadow"] | null;
+  premium_border?: UserAppearance["premiumBorder"] | null;
+  premium_intensity?: UserAppearance["premiumIntensity"] | null;
 };
 
 export type AppearanceRepository = {
@@ -29,7 +33,11 @@ export const postgresAppearanceRepository: AppearanceRepository = {
                intensity,
                visual_style,
                avatar_border_style,
-               king_phrase
+               king_phrase,
+               premium_glow,
+               premium_shadow,
+               premium_border,
+               premium_intensity
         from user_appearances
         where user_id = $1
         limit 1
@@ -51,9 +59,13 @@ export const postgresAppearanceRepository: AppearanceRepository = {
           intensity,
           visual_style,
           avatar_border_style,
-          king_phrase
+          king_phrase,
+          premium_glow,
+          premium_shadow,
+          premium_border,
+          premium_intensity
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         on conflict (user_id) do update
         set preset = excluded.preset,
             primary_color = excluded.primary_color,
@@ -63,6 +75,10 @@ export const postgresAppearanceRepository: AppearanceRepository = {
             visual_style = excluded.visual_style,
             avatar_border_style = excluded.avatar_border_style,
             king_phrase = excluded.king_phrase,
+            premium_glow = excluded.premium_glow,
+            premium_shadow = excluded.premium_shadow,
+            premium_border = excluded.premium_border,
+            premium_intensity = excluded.premium_intensity,
             updated_at = now()
         returning preset,
                   primary_color,
@@ -71,7 +87,11 @@ export const postgresAppearanceRepository: AppearanceRepository = {
                   intensity,
                   visual_style,
                   avatar_border_style,
-                  king_phrase
+                  king_phrase,
+                  premium_glow,
+                  premium_shadow,
+                  premium_border,
+                  premium_intensity
       `,
       [
         userId,
@@ -83,6 +103,10 @@ export const postgresAppearanceRepository: AppearanceRepository = {
         appearance.visualStyle,
         appearance.avatarBorderStyle,
         appearance.kingPhrase,
+        appearance.premiumGlow ?? null,
+        appearance.premiumShadow ?? null,
+        appearance.premiumBorder ?? null,
+        appearance.premiumIntensity ?? null,
       ]
     );
     const saved = toAppearance(result.rows[0]);
@@ -106,5 +130,9 @@ export function toAppearance(row: AppearanceRow | null | undefined): UserAppeara
     visualStyle: row.visual_style,
     avatarBorderStyle: row.avatar_border_style,
     kingPhrase: row.king_phrase ?? null,
+    ...(row.premium_glow ? { premiumGlow: row.premium_glow } : {}),
+    ...(row.premium_shadow ? { premiumShadow: row.premium_shadow } : {}),
+    ...(row.premium_border ? { premiumBorder: row.premium_border } : {}),
+    ...(row.premium_intensity ? { premiumIntensity: row.premium_intensity } : {}),
   };
 }

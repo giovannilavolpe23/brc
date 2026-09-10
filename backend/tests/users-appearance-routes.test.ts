@@ -45,6 +45,21 @@ const custom: UserAppearance = {
   kingPhrase: "Ja, pedazos de bots",
 };
 
+const royalGold: UserAppearance = {
+  preset: "royal_gold",
+  primaryColor: "#08111F",
+  secondaryColor: "#D6B25E",
+  gradientDirection: "135deg",
+  intensity: "normal",
+  visualStyle: "royal",
+  avatarBorderStyle: "gold",
+  kingPhrase: null,
+  premiumGlow: "soft",
+  premiumShadow: "deep",
+  premiumBorder: "gold",
+  premiumIntensity: "bright",
+};
+
 function authAs(user: AuthUser): RequestHandler {
   return (req, _res, next) => {
     req.user = user;
@@ -105,6 +120,26 @@ describe("users appearance routes", () => {
 
     assert.equal(response.status, 200);
     assert.deepEqual(response.body.appearance, custom);
+  });
+
+  it("allows Gio to persist exclusive premium appearance options", async () => {
+    const { repository, writes } = makeRepository();
+
+    const response = await request(makeApp(gio, repository)).put("/users/me/appearance").send(royalGold);
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.body.appearance, royalGold);
+    assert.deepEqual(writes, [{ userId: gio.id, appearance: royalGold }]);
+  });
+
+  it("rejects exclusive premium appearance options for other users", async () => {
+    const { repository, writes } = makeRepository();
+
+    const response = await request(makeApp(marto, repository)).put("/users/me/appearance").send(royalGold);
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(response.body, { error: "gio_appearance_only" });
+    assert.deepEqual(writes, []);
   });
 
   it("validates king phrases while allowing emojis and clearing empty phrases", async () => {

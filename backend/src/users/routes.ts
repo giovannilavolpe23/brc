@@ -1,6 +1,6 @@
 import { Router, type RequestHandler } from "express";
 import { requireAuth } from "../auth/middleware";
-import { parseAppearanceInput, AppearanceValidationError } from "./appearance";
+import { parseAppearanceInput, AppearanceValidationError, assertAppearanceAllowedForUser } from "./appearance";
 import { postgresAppearanceRepository, type AppearanceRepository } from "./appearance.repository";
 
 export function createUsersRouter(
@@ -22,6 +22,7 @@ export function createUsersRouter(
   router.put("/me/appearance", async (req, res, next) => {
     try {
       const appearance = parseAppearanceInput(req.body);
+      assertAppearanceAllowedForUser(appearance, req.user);
       res.json({ appearance: await repository.upsertForUser(req.user.id, appearance) });
     } catch (error) {
       if (error instanceof AppearanceValidationError) {
@@ -48,6 +49,7 @@ export function createUsersRouter(
         return;
       }
       const appearance = parseAppearanceInput(req.body);
+      assertAppearanceAllowedForUser(appearance, req.user);
       res.json({ appearance: await repository.upsertForUser(req.user.id, appearance) });
     } catch (error) {
       if (error instanceof AppearanceValidationError) {
