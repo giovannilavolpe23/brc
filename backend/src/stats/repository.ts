@@ -51,6 +51,7 @@ type DailyEntryDbRow = {
   bathroom_count: number | null;
   boliche_did_not_go: boolean;
   boliche_exit_time: string | null;
+  boliche_closed_club: boolean;
 };
 
 type SurveyVoteDbRow = {
@@ -119,7 +120,7 @@ export async function loadStatsData(todayKey: string, client: StatsQueryClient =
         `
           select user_id, date_key, sleep_did_not_sleep, sleep_bedtime, sleep_wake,
                  nap_start, nap_end, fifth_meal, bathroom_count,
-                 boliche_did_not_go, boliche_exit_time
+                 boliche_did_not_go, boliche_exit_time, boliche_closed_club
           from daily_entries
           where date_key < $1
         `,
@@ -205,6 +206,7 @@ function toDailyEntryStatsRow(row: DailyEntryDbRow): DailyEntryStatsRow {
     bathroom: row.bathroom_count,
     bolicheDidNotGo: row.boliche_did_not_go,
     bolicheExitTime: toTime(row.boliche_exit_time),
+    bolicheClosedClub: row.boliche_closed_club,
   };
 }
 

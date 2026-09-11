@@ -31,6 +31,13 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     condition: "Gasto acumulado total en movimientos de tipo expense mayor o igual a $350.000.",
   },
   {
+    key: "first_four_closed_clubs",
+    type: "unique",
+    name: "Primero en cerrar 4 veces",
+    description: "Primero en cerrar 4 boliches",
+    condition: "Llegar a 4 cierres de boliche acumulados durante el viaje.",
+  },
+  {
     key: "secret_no_sleep_required",
     type: "secret",
     name: "¿Dormir era obligatorio?",
@@ -50,6 +57,13 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: "Vino a quebrar",
     description: "Ser el más destruido y el que más gastó en alcohol el mismo día",
     condition: "Ganar destroyed_vote y el ranking diario de gasto en Alcohol durante el mismo día cerrado.",
+  },
+  {
+    key: "secret_club_staff",
+    type: "secret",
+    name: "Parte del personal bolichero",
+    description: "Cerrar 7 boliches",
+    condition: "Llegar a 7 cierres de boliche acumulados durante el viaje.",
   },
 ];
 

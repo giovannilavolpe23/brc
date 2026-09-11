@@ -104,6 +104,7 @@ function toStatsData(dataset: GeneratedDemoDataset): StatsData {
       bathroom: entry.bathroomCount,
       bolicheDidNotGo: entry.bolicheDidNotGo,
       bolicheExitTime: entry.bolicheExitTime,
+      bolicheClosedClub: entry.bolicheClosedClub,
     })),
     surveyVotes: dataset.surveyVotes.map<SurveyVoteStatsRow>((vote) => ({
       surveyKey: vote.surveyKey,
@@ -253,6 +254,11 @@ describe("admin demo data generation", () => {
         assert.equal(timeToMinutes(entry.napStart) >= timeToMinutes(entry.sleepWake ?? "00:00"), true);
         assert.equal(timeToMinutes(entry.napEnd) > timeToMinutes(entry.napStart), true);
       }
+      if (entry.bolicheClosedClub) {
+        assert.equal(entry.bolicheDidNotGo, false);
+        assert.equal(entry.bolicheExitTime, null);
+        assert.ok(entry.sleepDidNotSleep || timeToMinutes(entry.sleepBedtime ?? "00:00") >= timeToMinutes("06:55"));
+      }
       if (entry.bolicheExitTime) {
         assert.equal(timeToMinutes(entry.bolicheExitTime) >= 60, true);
         assert.equal(timeToMinutes(entry.bolicheExitTime) <= timeToMinutes(entry.sleepBedtime ?? "00:00") - 10, true);
@@ -311,6 +317,10 @@ describe("admin demo data generation", () => {
     assert.equal(stats.streaks.zombie.some((row) => row.value >= 2), true);
     assert.equal(stats.streaks.alcoholSpender.some((row) => row.value >= 2), true);
     assert.equal(stats.streaks.destroyedVote.some((row) => row.value >= 2), true);
+    assert.equal(stats.streaks.mostFlirtyVote.some((row) => row.value >= 2), true);
+    assert.equal(stats.streaks.bestOutfitVote.some((row) => row.value >= 2), true);
+    assert.equal(stats.dailyEntries.closedClubs.some((row) => row.value >= 7), true);
+    assert.equal(stats.streaks.closedClub.some((row) => row.value >= 7), true);
     assert.equal(stats.streaks.moneySpender.some((row) => row.value >= 2), true);
 
     const titleHolders = new Set([

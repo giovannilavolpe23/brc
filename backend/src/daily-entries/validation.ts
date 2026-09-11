@@ -1,5 +1,7 @@
 import type { DailyEntryInput } from "./types";
 
+const BOLICHE_CLOSED_CLUB_TIME = "06:45";
+
 export class DailyEntryValidationError extends Error {
   constructor(message: string) {
     super(message);
@@ -61,8 +63,15 @@ function parseBathroom(value: unknown): number | null {
 function parseBoliche(value: unknown): DailyEntryInput["boliche"] {
   const boliche = getRecord(value);
   const didNotGo = parseBoolean(boliche.didNotGo, "invalid_boliche");
-  const time = didNotGo ? null : parseNullableTime(boliche.time, "invalid_boliche_time");
-  return { didNotGo, time };
+  const closedClub = didNotGo ? false : parseOptionalBoolean(boliche.closedClub, "invalid_boliche_closed_club");
+  const time = didNotGo || closedClub ? null : parseNullableTime(boliche.time, "invalid_boliche_time");
+  if (!didNotGo && closedClub && boliche.time !== null && boliche.time !== undefined) {
+    throw new DailyEntryValidationError("invalid_boliche_closed_club_conflict");
+  }
+  if (didNotGo && boliche.closedClub === true) {
+    throw new DailyEntryValidationError("invalid_boliche_closed_club_conflict");
+  }
+  return { didNotGo, time, closedClub };
 }
 
 function getRecord(value: unknown): Record<string, unknown> {
@@ -79,6 +88,11 @@ function parseBoolean(value: unknown, error: string): boolean {
   }
 
   return value;
+}
+
+function parseOptionalBoolean(value: unknown, error: string): boolean {
+  if (value === null || value === undefined) return false;
+  return parseBoolean(value, error);
 }
 
 function parseNullableTime(value: unknown, error: string): string | null {
@@ -107,12 +121,13 @@ function validateLogicalTimes(
     throw new DailyEntryValidationError("invalid_nap_start_before_wake");
   }
 
-  if (!boliche.didNotGo && boliche.time) {
+  const bolicheExitTime = boliche.closedClub ? BOLICHE_CLOSED_CLUB_TIME : boliche.time;
+  if (!boliche.didNotGo && bolicheExitTime) {
     if (!sleep.didNotSleep && !sleep.bedtime) {
       throw new DailyEntryValidationError("invalid_boliche_sleep_required");
     }
 
-    const exit = timeToMinutes(boliche.time);
+    const exit = timeToMinutes(bolicheExitTime);
     const exitAbsolute = exit + 24 * 60;
     const openAbsolute = 25 * 60;
     const closeAbsolute = 31 * 60;

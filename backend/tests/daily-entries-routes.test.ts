@@ -30,7 +30,7 @@ const validInput: DailyEntryInput = {
   nap: { start: "16:00", end: "17:00" },
   fifthMeal: "yes",
   bathroom: 2,
-  boliche: { didNotGo: false, time: "05:30" },
+  boliche: { didNotGo: false, time: "05:30", closedClub: false },
 };
 
 function authAs(user: AuthUser): RequestHandler {
@@ -212,7 +212,7 @@ describe("daily entries routes", () => {
 
     const response = await request(app)
       .put("/daily-entries/2026-08-28")
-      .send({ ...validInput, sleep: { didNotSleep: true, bedtime: null, wake: null }, boliche: { didNotGo: false, time: "07:00" } });
+      .send({ ...validInput, sleep: { didNotSleep: true, bedtime: null, wake: null }, boliche: { didNotGo: false, time: "07:00", closedClub: false } });
 
     assert.equal(response.status, 200);
     assert.equal(response.body.entry.sleep.didNotSleep, true);
@@ -225,10 +225,60 @@ describe("daily entries routes", () => {
 
     const response = await request(app)
       .put("/daily-entries/2026-08-28")
-      .send({ ...validInput, sleep: { didNotSleep: true, bedtime: null, wake: null }, boliche: { didNotGo: false, time: "07:10" } });
+      .send({ ...validInput, sleep: { didNotSleep: true, bedtime: null, wake: null }, boliche: { didNotGo: false, time: "07:10", closedClub: false } });
 
     assert.equal(response.status, 400);
     assert.equal(response.body.error, "invalid_boliche_time_range");
+    assert.deepEqual(repo.calls, []);
+  });
+
+  it("allows closed club without storing a regular exit time", async () => {
+    const repo = makeRepository();
+    const app = makeApp(jere, repo);
+
+    const response = await request(app)
+      .put("/daily-entries/2026-08-28")
+      .send({ ...validInput, sleep: { didNotSleep: false, bedtime: "07:00", wake: "12:00" }, boliche: { didNotGo: false, time: null, closedClub: true } });
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.body.entry.boliche, { didNotGo: false, time: null, closedClub: true });
+  });
+
+  it("allows closed club when the user did not sleep", async () => {
+    const repo = makeRepository();
+    const app = makeApp(jere, repo);
+
+    const response = await request(app)
+      .put("/daily-entries/2026-08-28")
+      .send({ ...validInput, sleep: { didNotSleep: true, bedtime: null, wake: null }, boliche: { didNotGo: false, time: null, closedClub: true } });
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.body.entry.boliche, { didNotGo: false, time: null, closedClub: true });
+  });
+
+  it("rejects closed club when sleep timing is incompatible", async () => {
+    const repo = makeRepository();
+    const app = makeApp(jere, repo);
+
+    const response = await request(app)
+      .put("/daily-entries/2026-08-28")
+      .send({ ...validInput, sleep: { didNotSleep: false, bedtime: "06:50", wake: "07:00" }, boliche: { didNotGo: false, time: null, closedClub: true } });
+
+    assert.equal(response.status, 400);
+    assert.equal(response.body.error, "invalid_boliche_time_range");
+    assert.deepEqual(repo.calls, []);
+  });
+
+  it("rejects closed club mixed with a regular exit time", async () => {
+    const repo = makeRepository();
+    const app = makeApp(jere, repo);
+
+    const response = await request(app)
+      .put("/daily-entries/2026-08-28")
+      .send({ ...validInput, boliche: { didNotGo: false, time: "06:30", closedClub: true } });
+
+    assert.equal(response.status, 400);
+    assert.equal(response.body.error, "invalid_boliche_closed_club_conflict");
     assert.deepEqual(repo.calls, []);
   });
 

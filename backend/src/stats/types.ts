@@ -29,6 +29,7 @@ export type StatsResponse = {
     fifthMeals: RankingRow[];
     bathroom: RankingRow[];
     bolicheMinutes: RankingRow[];
+    closedClubs: RankingRow[];
   };
   surveys: {
     destroyed_vote: RankingRow[];
@@ -41,6 +42,7 @@ export type StatsResponse = {
   };
   streaks: {
     boliche: RankingRow[];
+    closedClub: RankingRow[];
     fifthMeal: RankingRow[];
     bathroom: RankingRow[];
     chocolates: RankingRow[];
@@ -48,6 +50,8 @@ export type StatsResponse = {
     zombie: RankingRow[];
     alcoholSpender: RankingRow[];
     destroyedVote: RankingRow[];
+    mostFlirtyVote: RankingRow[];
+    bestOutfitVote: RankingRow[];
     moneySpender: RankingRow[];
   };
 };
@@ -86,6 +90,7 @@ export type DailyEntryStatsRow = {
   bathroom: number | null;
   bolicheDidNotGo: boolean;
   bolicheExitTime: string | null;
+  bolicheClosedClub: boolean;
 };
 
 export type SurveyVoteStatsRow = {

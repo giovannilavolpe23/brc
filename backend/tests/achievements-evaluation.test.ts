@@ -20,6 +20,7 @@ function entry(userId: string, dateKey: string, overrides: Partial<DailyEntrySta
     bathroom: 0,
     bolicheDidNotGo: true,
     bolicheExitTime: null,
+    bolicheClosedClub: false,
     ...overrides,
   };
 }
@@ -110,6 +111,58 @@ describe("persistent achievement evaluation", () => {
     assert.deepEqual(candidate("first_broke_wallet", candidates)?.userIds, [gioId, jereId]);
   });
 
+  it("does not award Primero en cerrar 4 veces before four closed clubs", () => {
+    const candidates = collectAchievementCandidatesForDate(
+      "2026-08-26",
+      data({
+        dailyEntries: [
+          entry(gioId, "2026-08-24", { bolicheDidNotGo: false, bolicheClosedClub: true }),
+          entry(gioId, "2026-08-25", { bolicheDidNotGo: false, bolicheClosedClub: true }),
+          entry(gioId, "2026-08-26", { bolicheDidNotGo: false, bolicheClosedClub: true }),
+        ],
+      })
+    );
+
+    assert.equal(candidate("first_four_closed_clubs", candidates), undefined);
+  });
+
+  it("awards Primero en cerrar 4 veces when players reach four closures on the same closed day", () => {
+    const candidates = collectAchievementCandidatesForDate(
+      "2026-08-27",
+      data({
+        dailyEntries: [
+          entry(gioId, "2026-08-24", { bolicheDidNotGo: false, bolicheClosedClub: true }),
+          entry(gioId, "2026-08-25", { bolicheDidNotGo: false, bolicheClosedClub: true }),
+          entry(gioId, "2026-08-26", { bolicheDidNotGo: false, bolicheClosedClub: true }),
+          entry(gioId, "2026-08-27", { bolicheDidNotGo: false, bolicheClosedClub: true }),
+          entry(jereId, "2026-08-24", { bolicheDidNotGo: false, bolicheClosedClub: true }),
+          entry(jereId, "2026-08-25", { bolicheDidNotGo: false, bolicheClosedClub: true }),
+          entry(jereId, "2026-08-26", { bolicheDidNotGo: false, bolicheClosedClub: true }),
+          entry(jereId, "2026-08-27", { bolicheDidNotGo: false, bolicheClosedClub: true }),
+        ],
+      })
+    );
+
+    assert.deepEqual(candidate("first_four_closed_clubs", candidates)?.userIds, [gioId, jereId]);
+  });
+
+  it("does not award Primero en cerrar 4 veces again after it was resolved", () => {
+    const candidates = collectAchievementCandidatesForDate(
+      "2026-08-28",
+      data({
+        dailyEntries: [
+          entry(nataId, "2026-08-25", { bolicheDidNotGo: false, bolicheClosedClub: true }),
+          entry(nataId, "2026-08-26", { bolicheDidNotGo: false, bolicheClosedClub: true }),
+          entry(nataId, "2026-08-27", { bolicheDidNotGo: false, bolicheClosedClub: true }),
+          entry(nataId, "2026-08-28", { bolicheDidNotGo: false, bolicheClosedClub: true }),
+        ],
+      }),
+      new Set(["first_four_closed_clubs"])
+    );
+
+    assert.equal(candidate("first_four_closed_clubs", candidates), undefined);
+  });
+
   it("does not award already resolved achievements again", () => {
     const candidates = collectAchievementCandidatesForDate(
       "2026-08-28",
@@ -134,6 +187,19 @@ describe("persistent achievement evaluation", () => {
     );
 
     assert.deepEqual(candidate("secret_no_sleep_required", candidates)?.userIds, [gioId]);
+  });
+
+  it("awards Parte del personal bolichero at seven closures, including same-day duplicates", () => {
+    const dailyEntries = ["2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30"].flatMap((dateKey) => [
+      entry(gioId, dateKey, { bolicheDidNotGo: false, bolicheClosedClub: true }),
+      entry(jereId, dateKey, { bolicheDidNotGo: false, bolicheClosedClub: true }),
+    ]);
+
+    const before = collectAchievementCandidatesForDate("2026-08-29", data({ dailyEntries }));
+    const after = collectAchievementCandidatesForDate("2026-08-30", data({ dailyEntries }));
+
+    assert.equal(candidate("secret_club_staff", before), undefined);
+    assert.deepEqual(candidate("secret_club_staff", after)?.userIds, [gioId, jereId]);
   });
 
   it("does not award No era una competencia after winning only three distinct daily stats", () => {

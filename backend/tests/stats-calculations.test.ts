@@ -20,6 +20,7 @@ function entry(userId: string, dateKey: string, overrides: Partial<DailyEntrySta
     bathroom: null,
     bolicheDidNotGo: true,
     bolicheExitTime: null,
+    bolicheClosedClub: false,
     ...overrides,
   };
 }
@@ -108,6 +109,7 @@ describe("stats calculations", () => {
 
     assert.deepEqual(stats.streaks, {
       boliche: [],
+      closedClub: [],
       fifthMeal: [],
       bathroom: [],
       chocolates: [],
@@ -115,6 +117,8 @@ describe("stats calculations", () => {
       zombie: [],
       alcoholSpender: [],
       destroyedVote: [],
+      mostFlirtyVote: [],
+      bestOutfitVote: [],
       moneySpender: [],
     });
   });
@@ -252,6 +256,51 @@ describe("stats calculations", () => {
     assert.deepEqual(stats.streaks.alcohol, [{ userId: jereId, value: 1 }]);
   });
 
+  it("uses closed club as 06:45 for boliche duration and counts total closures", () => {
+    const stats = calculateStats("total", {
+      users: baseData().users,
+      expenses: [],
+      dailyEntries: [
+        entry(gioId, "2026-08-27", { bolicheDidNotGo: false, bolicheExitTime: null, bolicheClosedClub: true }),
+        entry(gioId, "2026-08-28", { bolicheDidNotGo: false, bolicheExitTime: null, bolicheClosedClub: true }),
+        entry(jereId, "2026-08-28", { bolicheDidNotGo: false, bolicheExitTime: "05:00" }),
+      ],
+      surveyVotes: [],
+      previaParticipants: [],
+    });
+
+    assert.deepEqual(stats.dailyEntries.bolicheMinutes, [
+      { userId: gioId, value: 690 },
+      { userId: jereId, value: 240 },
+    ]);
+    assert.deepEqual(stats.dailyEntries.closedClubs, [{ userId: gioId, value: 2 }]);
+    assert.deepEqual(stats.streaks.closedClub, [{ userId: gioId, value: 2 }]);
+  });
+
+  it("keeps the best historical closed club streak and shares tied maxima", () => {
+    const stats = calculateStats("total", {
+      users: baseData().users,
+      expenses: [],
+      dailyEntries: [
+        entry(gioId, "2026-08-24", { bolicheDidNotGo: false, bolicheClosedClub: true }),
+        entry(gioId, "2026-08-25", { bolicheDidNotGo: false, bolicheClosedClub: true }),
+        entry(gioId, "2026-08-26", { bolicheDidNotGo: false, bolicheClosedClub: true }),
+        entry(gioId, "2026-08-28", { bolicheDidNotGo: false, bolicheClosedClub: true }),
+        entry(gioId, "2026-08-29", { bolicheDidNotGo: false, bolicheClosedClub: true }),
+        entry(jereId, "2026-08-24", { bolicheDidNotGo: false, bolicheClosedClub: true }),
+        entry(jereId, "2026-08-25", { bolicheDidNotGo: false, bolicheClosedClub: true }),
+        entry(jereId, "2026-08-26", { bolicheDidNotGo: false, bolicheClosedClub: true }),
+      ],
+      surveyVotes: [],
+      previaParticipants: [],
+    });
+
+    assert.deepEqual(stats.streaks.closedClub, [
+      { userId: gioId, value: 3 },
+      { userId: jereId, value: 3 },
+    ]);
+  });
+
   it("calculates all negative streak titles from daily winners", () => {
     const stats = calculateStats("total", {
       users: [
@@ -286,7 +335,133 @@ describe("stats calculations", () => {
     assert.deepEqual(stats.streaks.zombie, [{ userId: gioId, value: 3 }]);
     assert.deepEqual(stats.streaks.alcoholSpender, [{ userId: gioId, value: 3 }]);
     assert.deepEqual(stats.streaks.destroyedVote, [{ userId: laraId, value: 3 }]);
+    assert.deepEqual(stats.streaks.mostFlirtyVote, []);
+    assert.deepEqual(stats.streaks.bestOutfitVote, []);
     assert.deepEqual(stats.streaks.moneySpender, [{ userId: jereId, value: 3 }]);
+  });
+
+  it("calculates best historical streaks for most flirty survey winners", () => {
+    const stats = calculateStats("total", {
+      users: [
+        { id: gioId, legacyId: "gio", displayName: "Gio" },
+        { id: jereId, legacyId: "jere", displayName: "Jere" },
+        { id: laraId, legacyId: "lara", displayName: "Lara" },
+      ],
+      expenses: [],
+      dailyEntries: [],
+      surveyVotes: [
+        { surveyKey: "most_flirty", dateKey: "2026-08-24", votedUserId: gioId },
+        { surveyKey: "most_flirty", dateKey: "2026-08-25", votedUserId: gioId },
+        { surveyKey: "most_flirty", dateKey: "2026-08-26", votedUserId: gioId },
+        { surveyKey: "most_flirty", dateKey: "2026-08-27", votedUserId: jereId },
+        { surveyKey: "most_flirty", dateKey: "2026-08-28", votedUserId: gioId },
+        { surveyKey: "most_flirty", dateKey: "2026-08-29", votedUserId: gioId },
+        { surveyKey: "most_flirty", dateKey: "2026-08-30", votedUserId: gioId },
+        { surveyKey: "most_flirty", dateKey: "2026-08-31", votedUserId: gioId },
+      ],
+      previaParticipants: [],
+    });
+
+    assert.deepEqual(stats.streaks.mostFlirtyVote, [
+      { userId: gioId, value: 4 },
+      { userId: jereId, value: 1 },
+    ]);
+  });
+
+  it("counts one-day outfit survey streaks", () => {
+    const stats = calculateStats("total", {
+      users: [
+        { id: gioId, legacyId: "gio", displayName: "Gio" },
+        { id: jereId, legacyId: "jere", displayName: "Jere" },
+      ],
+      expenses: [],
+      dailyEntries: [],
+      surveyVotes: [{ surveyKey: "best_outfit", dateKey: "2026-08-24", votedUserId: jereId }],
+      previaParticipants: [],
+    });
+
+    assert.deepEqual(stats.streaks.bestOutfitVote, [{ userId: jereId, value: 1 }]);
+  });
+
+  it("keeps and surpasses historical best outfit survey streaks", () => {
+    const stats = calculateStats("total", {
+      users: [
+        { id: gioId, legacyId: "gio", displayName: "Gio" },
+        { id: jereId, legacyId: "jere", displayName: "Jere" },
+        { id: laraId, legacyId: "lara", displayName: "Lara" },
+      ],
+      expenses: [],
+      dailyEntries: [],
+      surveyVotes: [
+        { surveyKey: "best_outfit", dateKey: "2026-08-24", votedUserId: laraId },
+        { surveyKey: "best_outfit", dateKey: "2026-08-25", votedUserId: laraId },
+        { surveyKey: "best_outfit", dateKey: "2026-08-26", votedUserId: laraId },
+        { surveyKey: "best_outfit", dateKey: "2026-08-27", votedUserId: gioId },
+        { surveyKey: "best_outfit", dateKey: "2026-08-28", votedUserId: laraId },
+        { surveyKey: "best_outfit", dateKey: "2026-08-29", votedUserId: laraId },
+        { surveyKey: "best_outfit", dateKey: "2026-08-30", votedUserId: laraId },
+        { surveyKey: "best_outfit", dateKey: "2026-08-31", votedUserId: laraId },
+      ],
+      previaParticipants: [],
+    });
+
+    assert.deepEqual(stats.streaks.bestOutfitVote, [
+      { userId: laraId, value: 4 },
+      { userId: gioId, value: 1 },
+    ]);
+  });
+
+  it("counts multiple winning votes in the same day as one streak day", () => {
+    const stats = calculateStats("total", {
+      users: [
+        { id: gioId, legacyId: "gio", displayName: "Gio" },
+        { id: jereId, legacyId: "jere", displayName: "Jere" },
+      ],
+      expenses: [],
+      dailyEntries: [],
+      surveyVotes: [
+        { surveyKey: "most_flirty", dateKey: "2026-08-24", votedUserId: gioId },
+        { surveyKey: "most_flirty", dateKey: "2026-08-24", votedUserId: gioId },
+        { surveyKey: "best_outfit", dateKey: "2026-08-24", votedUserId: jereId },
+        { surveyKey: "best_outfit", dateKey: "2026-08-24", votedUserId: jereId },
+      ],
+      previaParticipants: [],
+    });
+
+    assert.deepEqual(stats.streaks.mostFlirtyVote, [{ userId: gioId, value: 1 }]);
+    assert.deepEqual(stats.streaks.bestOutfitVote, [{ userId: jereId, value: 1 }]);
+  });
+
+  it("counts daily ties for both new survey streaks and returns tied maxima", () => {
+    const stats = calculateStats("total", {
+      users: [
+        { id: gioId, legacyId: "gio", displayName: "Gio" },
+        { id: jereId, legacyId: "jere", displayName: "Jere" },
+        { id: laraId, legacyId: "lara", displayName: "Lara" },
+      ],
+      expenses: [],
+      dailyEntries: [],
+      surveyVotes: [
+        { surveyKey: "best_outfit", dateKey: "2026-08-24", votedUserId: gioId },
+        { surveyKey: "best_outfit", dateKey: "2026-08-24", votedUserId: jereId },
+        { surveyKey: "best_outfit", dateKey: "2026-08-25", votedUserId: gioId },
+        { surveyKey: "best_outfit", dateKey: "2026-08-25", votedUserId: jereId },
+        { surveyKey: "most_flirty", dateKey: "2026-08-24", votedUserId: gioId },
+        { surveyKey: "most_flirty", dateKey: "2026-08-24", votedUserId: jereId },
+        { surveyKey: "most_flirty", dateKey: "2026-08-25", votedUserId: gioId },
+        { surveyKey: "most_flirty", dateKey: "2026-08-25", votedUserId: jereId },
+      ],
+      previaParticipants: [],
+    });
+
+    assert.deepEqual(stats.streaks.bestOutfitVote, [
+      { userId: gioId, value: 2 },
+      { userId: jereId, value: 2 },
+    ]);
+    assert.deepEqual(stats.streaks.mostFlirtyVote, [
+      { userId: gioId, value: 2 },
+      { userId: jereId, value: 2 },
+    ]);
   });
 
   it("keeps historical negative streak maximum after the streak ends", () => {
@@ -398,6 +573,7 @@ describe("stats calculations", () => {
     assert.equal(stats.money.totalSpentGlobal, 0);
     assert.deepEqual(stats.money.totalSpentByUser, []);
     assert.deepEqual(stats.dailyEntries.sleepMinutes, []);
+    assert.deepEqual(stats.dailyEntries.closedClubs, []);
     assert.deepEqual(stats.surveys.destroyed_vote, []);
     assert.deepEqual(stats.surveys.most_flirty, []);
     assert.deepEqual(stats.surveys.best_outfit, []);

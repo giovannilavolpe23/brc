@@ -15,6 +15,7 @@ const dailySurveyQuestionsMigration = fs.readFileSync(path.resolve(__dirname, ".
 const achievementsMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/012_persistent_achievements.sql"), "utf8");
 const gioPremiumAppearanceMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/013_gio_premium_appearance.sql"), "utf8");
 const gioMotionAppearanceMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/014_gio_motion_appearance.sql"), "utf8");
+const closedClubMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/015_daily_entry_closed_club.sql"), "utf8");
 const seed = fs.readFileSync(path.resolve(__dirname, "../src/db/seed.ts"), "utf8");
 
 describe("identity schema", () => {
@@ -119,6 +120,11 @@ describe("daily entries and surveys schema", () => {
     assert.doesNotMatch(dailyMigration, /computed/i);
     assert.doesNotMatch(dailyMigration, /sleep_minutes/i);
     assert.doesNotMatch(dailyMigration, /total_sleep_minutes/i);
+  });
+
+  it("adds a real closed club field for daily entries", () => {
+    assert.match(closedClubMigration, /add column if not exists boliche_closed_club boolean not null default false/);
+    assert.match(closedClubMigration, /daily_entries_boliche_closed_club_consistent/);
   });
 
   it("creates survey questions and historical votes", () => {

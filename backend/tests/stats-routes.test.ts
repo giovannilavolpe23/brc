@@ -53,6 +53,7 @@ const statsData: StatsData = {
       bathroom: 1,
       bolicheDidNotGo: true,
       bolicheExitTime: null,
+      bolicheClosedClub: false,
     },
   ],
   surveyVotes: [],

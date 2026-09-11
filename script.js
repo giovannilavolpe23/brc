@@ -4672,6 +4672,7 @@ function pad2(n) {
 
 const DAY_MINUTES = 24 * 60;
 const BOLICHE_ARRIVAL_MINUTES = 60; // 01:00
+const BOLICHE_CLOSED_CLUB_TIME = "06:45";
 
 // Rangos de cada selector de hora, en minutos desde las 00:00 del día
 // en que arranca el rango (pueden superar 1440 para representar que
@@ -4740,6 +4741,14 @@ function bolicheTimeOptionsForSleep(sleep) {
   return options;
 }
 
+function canCloseClubWithSleep(sleep) {
+  if (!sleep || sleep.didNotSleep) return true;
+  const bed = bedtimeAbsoluteMinutes(sleep.bedtime);
+  if (bed === null) return false;
+  const closedClubExit = DAY_MINUTES + timeToMinutes(BOLICHE_CLOSED_CLUB_TIME);
+  return closedClubExit <= bed - 10;
+}
+
 function dailyTimeOptions(rangeKey, state) {
   if (rangeKey === "nap-start") {
     const options = buildTimeOptions("nap");
@@ -4778,6 +4787,12 @@ function sanitizeDailyStateTimes(state) {
 
   if (state.boliche.didNotGo) {
     state.boliche.time = null;
+    state.boliche.closedClub = false;
+  } else if (state.boliche.closedClub) {
+    state.boliche.time = null;
+    if (!canCloseClubWithSleep(state.sleep)) {
+      state.boliche.closedClub = false;
+    }
   } else if (state.boliche.time && !dailyTimeOptions("boliche", state).includes(state.boliche.time)) {
     state.boliche.time = null;
   }
@@ -4865,6 +4880,11 @@ function bolicheDurationMinutes(exitTime) {
   return Math.max(0, timeToMinutes(exitTime) - BOLICHE_ARRIVAL_MINUTES);
 }
 
+function bolicheEffectiveExitTime(boliche) {
+  if (!boliche || boliche.didNotGo) return null;
+  return boliche.closedClub ? BOLICHE_CLOSED_CLUB_TIME : boliche.time;
+}
+
 // Combina sueño nocturno + siesta en un total, para el ejemplo del
 // pedido (6h sueño + 3h siesta = 9h dormidas totales). Si no hay datos
 // de ninguno de los dos, devuelve null.
@@ -4879,7 +4899,7 @@ function totalSleepMinutes(sleepMin, napMin) {
 function computeDailyDerived(entry) {
   const sleepMin = entry.sleep.didNotSleep ? null : sleepDurationMinutes(entry.sleep.bedtime, entry.sleep.wake);
   const napMin = napDurationMinutes(entry.nap);
-  const bolicheMin = entry.boliche.didNotGo ? null : bolicheDurationMinutes(entry.boliche.time);
+  const bolicheMin = entry.boliche.didNotGo ? null : bolicheDurationMinutes(bolicheEffectiveExitTime(entry.boliche));
   return {
     sleepMinutes: sleepMin,
     napMinutes: napMin,
@@ -4894,7 +4914,7 @@ function defaultDailyEntry() {
     nap: null, // { start, end } | null
     fifthMeal: null, // "yes" | "no" | null
     bathroom: null, // 0-5 | null
-    boliche: { didNotGo: false, time: null },
+    boliche: { didNotGo: false, time: null, closedClub: false },
     destroyedVote: null, // id de PARTICIPANTS | null — encuesta "¿Quién estuvo más destruido anoche?"
     mostFlirtyVote: null, // encuesta "¿Quién fue el más chamullero anoche?"
     bestOutfitVote: null, // encuesta "¿Quién tuvo el mejor outfit anoche?"
@@ -4919,6 +4939,7 @@ function dailyEntryApiPayload(entry) {
     boliche: {
       didNotGo: !!entry.boliche.didNotGo,
       time: entry.boliche.time || null,
+      closedClub: !!entry.boliche.closedClub,
     },
   };
 }
@@ -4990,6 +5011,7 @@ function dailyEntryFromApi(entry, surveyVotes) {
     boliche: {
       didNotGo: !!entry.boliche.didNotGo,
       time: entry.boliche.time || null,
+      closedClub: !!entry.boliche.closedClub,
     },
   };
   DAILY_SURVEYS.forEach((survey) => {
@@ -5102,7 +5124,8 @@ function renderDailyScreen() {
   const napStartOptions = s.nap ? dailyTimeOptions("nap-start", s) : [];
   const napEndOptions = s.nap ? dailyTimeOptions("nap-end", s) : [];
   const bolicheOptions = dailyTimeOptions("boliche", s);
-  const showBolichePicker = !s.boliche.didNotGo && bolicheOptions.length > 0;
+  const canCloseClub = !s.boliche.didNotGo && canCloseClubWithSleep(s.sleep);
+  const showBolichePicker = !s.boliche.didNotGo && !s.boliche.closedClub && bolicheOptions.length > 0;
 
   dailyMain.innerHTML = `
     <div class="daily-date-banner">
@@ -5172,12 +5195,17 @@ function renderDailyScreen() {
       <div class="section-label">🍾 ¿A qué hora abandonaste el boliche?</div>
       <button type="button" id="btn-no-boliche" class="toggle-chip${s.boliche.didNotGo ? " selected" : ""}">No fui al boliche</button>
       <div id="boliche-fields"${s.boliche.didNotGo ? " hidden" : ""}>
+        <button type="button" id="btn-closed-club" class="toggle-chip${s.boliche.closedClub ? " selected" : ""}" ${canCloseClub ? "" : "disabled"}>Cerré el boliche</button>
         ${
           showBolichePicker
             ? `<div class="picker-block">
                 ${renderTimeScroll("picker-boliche", "boliche", s.boliche.time, bolicheOptions)}
               </div>`
-            : `<p class="daily-computed">Elegí una hora de dormir posterior a la 01:00 para cargar salida.</p>`
+            : s.boliche.closedClub
+              ? `<p class="daily-computed">Quedó marcado que cerraste el boliche.</p>`
+              : canCloseClub
+                ? `<p class="daily-computed">Elegí una hora de dormir posterior a la 01:00 para cargar salida.</p>`
+                : `<p class="daily-computed">Para cerrar el boliche necesitás no dormir o dormir después del cierre.</p>`
         }
         ${derived.bolicheMinutes !== null ? `<p class="daily-computed">${formatDuration(derived.bolicheMinutes)} en el boliche (desde la 01:00)</p>` : ""}
       </div>
@@ -5299,6 +5327,21 @@ function attachDailyListeners() {
   if (noBolicheBtn) {
     noBolicheBtn.addEventListener("click", () => {
       dailyState.boliche.didNotGo = !dailyState.boliche.didNotGo;
+      if (dailyState.boliche.didNotGo) {
+        dailyState.boliche.time = null;
+        dailyState.boliche.closedClub = false;
+      }
+      renderDailyScreen();
+    });
+  }
+
+  const closedClubBtn = document.getElementById("btn-closed-club");
+  if (closedClubBtn) {
+    closedClubBtn.addEventListener("click", () => {
+      if (!canCloseClubWithSleep(dailyState.sleep)) return;
+      dailyState.boliche.didNotGo = false;
+      dailyState.boliche.closedClub = !dailyState.boliche.closedClub;
+      if (dailyState.boliche.closedClub) dailyState.boliche.time = null;
       renderDailyScreen();
     });
   }
@@ -5309,6 +5352,7 @@ function attachDailyListeners() {
       const btn = e.target.closest(".time-option");
       if (!btn) return;
       dailyState.boliche.time = btn.dataset.value;
+      dailyState.boliche.closedClub = false;
       renderDailyScreen();
     });
   }
@@ -6627,6 +6671,26 @@ function totalRankingBoliche(closedDays) {
   return sortRankingDesc(rows);
 }
 
+function totalRankingClosedClub(closedDays) {
+  const set = new Set(closedDays);
+  const totals = {};
+  getAdminPlayersArray().forEach((player) => {
+    const entries = player.data.dailyEntries || {};
+    Object.keys(entries).forEach((key) => {
+      if (!set.has(key)) return;
+      const entry = entries[key];
+      if (!entry || !entry.boliche || entry.boliche.didNotGo || !entry.boliche.closedClub) return;
+      totals[player.name] = (totals[player.name] || 0) + 1;
+    });
+  });
+  const rows = Object.keys(totals).map((name) => ({
+    name,
+    value: totals[name],
+    display: `${totals[name]} cierre${totals[name] === 1 ? "" : "s"}`,
+  }));
+  return sortRankingDesc(rows);
+}
+
 // Devuelve los gastos (type "expense") de todos los jugadores
 // importados cuya fecha real de carga cae dentro de alguno de los
 // días cerrados (`closedDays`).
@@ -7316,6 +7380,17 @@ const TITULOS_CONFIG = [
     totalFn: totalRankingBoliche,
   },
   {
+    key: "closedClub",
+    icon: "💡",
+    accent: "#38bdf8",
+    title: "El último apaga la luz",
+    caption: "Mayor cantidad de boliches cerrados",
+    dayFn: () => [],
+    totalFn: totalRankingClosedClub,
+    totalOnly: true,
+    allTied: true,
+  },
+  {
     key: "money",
     icon: "💸",
     accent: "#ffd166",
@@ -7377,9 +7452,12 @@ function buildTitulosByPlayer(getRows) {
   TITULOS_CONFIG.forEach((config) => {
     const rows = getRows(config);
     if (!rows.length) return;
-    const winner = rows[0];
-    if (!wonByName.has(winner.name)) wonByName.set(winner.name, []);
-    wonByName.get(winner.name).push({ config, winner, group: "stats" });
+    const topValue = rows[0].value;
+    const winners = config.allTied ? rows.filter((row) => row.value === topValue) : [rows[0]];
+    winners.forEach((winner) => {
+      if (!wonByName.has(winner.name)) wonByName.set(winner.name, []);
+      wonByName.get(winner.name).push({ config, winner, group: "stats" });
+    });
   });
 
   return PARTICIPANTS.filter((p) => wonByName.has(p.name)).map((p) => ({
@@ -7467,12 +7545,14 @@ function titulosApiRows(stats, config) {
     fifthMeal: [daily.fifthMeals, stats.scope === "day" ? displayDayYesNo : (value) => `${value} ${value === 1 ? "vez" : "veces"}`],
     bathroom: [daily.bathroom, (value) => (value === 1 ? "1 vez" : `${value} veces`)],
     boliche: [daily.bolicheMinutes, formatDuration],
+    closedClub: [daily.closedClubs, (value) => `${value} cierre${value === 1 ? "" : "s"}`],
     money: [money.totalSpentByUser, formatMoney],
     previas: [previas.byParticipant, displayCount("previa")],
     destroyedVote: [(stats.surveys || {}).destroyed_vote, displayCount("voto")],
     mostFlirtyVote: [(stats.surveys || {}).most_flirty, displayCount("voto")],
     bestOutfitVote: [(stats.surveys || {}).best_outfit, displayCount("voto")],
     streakBoliche: [(stats.streaks || {}).boliche, displayCount("día")],
+    streakClosedClub: [(stats.streaks || {}).closedClub, displayCount("día")],
     streakFifthMeal: [(stats.streaks || {}).fifthMeal, displayCount("día")],
     streakBathroom: [(stats.streaks || {}).bathroom, displayCount("día")],
     streakChocolates: [(stats.streaks || {}).chocolates, displayCount("día")],
@@ -7480,6 +7560,8 @@ function titulosApiRows(stats, config) {
     streakZombie: [(stats.streaks || {}).zombie, displayCount("día")],
     streakAlcoholSpender: [(stats.streaks || {}).alcoholSpender, displayCount("día")],
     streakDestroyedVote: [(stats.streaks || {}).destroyedVote, displayCount("día")],
+    streakMostFlirtyVote: [(stats.streaks || {}).mostFlirtyVote, displayCount("día")],
+    streakBestOutfitVote: [(stats.streaks || {}).bestOutfitVote, displayCount("día")],
     streakMoneySpender: [(stats.streaks || {}).moneySpender, displayCount("día")],
   };
 
@@ -7507,7 +7589,7 @@ function buildTitulosProfilesFromApi(stats, configs, allTied, group = "stats") {
     if (!rows.length) return;
     if (shouldBlockDestroyedVoteStreak(config, rows)) return;
     const topValue = rows[0].value;
-    const winners = allTied ? rows.filter((row) => row.value === topValue) : [rows[0]];
+    const winners = allTied || config.allTied ? rows.filter((row) => row.value === topValue) : [rows[0]];
     winners.forEach((winner) => {
       const key = winner.userId;
       if (!wonByUserId.has(key)) wonByUserId.set(key, { participant: titulosApiParticipant(stats, key), titles: [] });
@@ -7564,12 +7646,14 @@ function titleDominanceLabel(title) {
     fifthMeal: "Quinta comida",
     bathroom: "Baño",
     boliche: "Boliche",
+    closedClub: "Boliche",
     money: "Gasto",
     previas: "Previas",
     destroyedVote: "Encuestas",
     mostFlirtyVote: "Encuestas",
     bestOutfitVote: "Encuestas",
     streakBoliche: "Boliche",
+    streakClosedClub: "Boliche",
     streakFifthMeal: "Quinta comida",
     streakBathroom: "Baño",
     streakChocolates: "Chocolates",
@@ -7577,6 +7661,8 @@ function titleDominanceLabel(title) {
     streakZombie: "Menos sueño",
     streakAlcoholSpender: "Alcohol",
     streakDestroyedVote: "Encuestas",
+    streakMostFlirtyVote: "Encuestas",
+    streakBestOutfitVote: "Encuestas",
     streakMoneySpender: "Gasto",
   };
   return byKey[title && title.config && title.config.key] || (title && title.config && title.config.caption) || "";
@@ -7982,9 +8068,10 @@ function renderKingProfileScreen() {
 // hasta ese día puntual (mismas funciones dayRanking* que usa
 // Estadísticas, que ya filtran por `dateKey`).
 function renderTitulosDayReal(dateKey) {
+  const configs = TITULOS_CONFIG.filter((config) => !config.totalOnly);
   const profilesHtml = statsApiDays[dateKey]
-    ? renderTitulosProfilesFromApi(statsApiDays[dateKey], TITULOS_CONFIG, false)
-    : renderTitulosProfiles((config) => config.dayFn(dateKey));
+    ? renderTitulosProfilesFromApi(statsApiDays[dateKey], configs, false)
+    : buildTitulosByPlayer((config) => (config.totalOnly ? [] : config.dayFn(dateKey))).map(renderTituloProfileCard).join("");
   if (!profilesHtml) {
     return `
       <div class="stats-empty-banner">
@@ -8511,6 +8598,11 @@ function playerFueAlBoliche(player, dateKey) {
   return !!(entry && entry.computed && entry.computed.bolicheMinutes !== null && entry.computed.bolicheMinutes !== undefined);
 }
 
+function playerCerroBoliche(player, dateKey) {
+  const entry = (player.data.dailyEntries || {})[dateKey];
+  return !!(entry && entry.boliche && !entry.boliche.didNotGo && entry.boliche.closedClub);
+}
+
 function playerComioQuintaComida(player, dateKey) {
   const entry = (player.data.dailyEntries || {})[dateKey];
   return !!entry && entry.fifthMeal === "yes";
@@ -8550,6 +8642,14 @@ function playerWonDestroyedVote(player, dateKey) {
   return playerWonDailyRanking(player, votesToRankingRows(tallyVotesForDay(dateKey, "destroyedVote")));
 }
 
+function playerWonMostFlirtyVote(player, dateKey) {
+  return playerWonDailyRanking(player, votesToRankingRows(tallyVotesForDay(dateKey, "mostFlirtyVote")));
+}
+
+function playerWonBestOutfitVote(player, dateKey) {
+  return playerWonDailyRanking(player, votesToRankingRows(tallyVotesForDay(dateKey, "bestOutfitVote")));
+}
+
 function playerWonMoneySpending(player, dateKey) {
   return playerWonDailyRanking(player, dayRankingDineroTotal(dateKey));
 }
@@ -8572,6 +8672,15 @@ const RACHAS_CONFIG = [
     title: "Rey de la noche",
     caption: "Mayor racha de días yendo al boliche",
     totalFn: (closedDays) => streakRankingRows(closedDays, playerFueAlBoliche),
+  },
+  {
+    key: "streakClosedClub",
+    rachaType: "positive",
+    icon: "💡",
+    accent: "#38bdf8",
+    title: "Racha de apagar las luces del baile",
+    caption: "Mayor racha de noches consecutivas cerrando el boliche",
+    totalFn: (closedDays) => streakRankingRows(closedDays, playerCerroBoliche),
   },
   {
     key: "streakFifthMeal",
@@ -8638,6 +8747,24 @@ const NEGATIVE_RACHAS_CONFIG = [
     title: "Racha de ser el Registro Nacional de Hidratación Alternativa",
     caption: 'Mayor racha en ganar "Quién te pareció el más destruido"',
     totalFn: (closedDays) => streakRankingRows(closedDays, playerWonDestroyedVote),
+  },
+  {
+    key: "streakMostFlirtyVote",
+    rachaType: "negative",
+    icon: "💬",
+    accent: "#f472b6",
+    title: "Racha de atención al cliente personalizada",
+    caption: "Mayor racha de días consecutivos ganando El más chamuyero",
+    totalFn: (closedDays) => streakRankingRows(closedDays, playerWonMostFlirtyVote),
+  },
+  {
+    key: "streakBestOutfitVote",
+    rachaType: "negative",
+    icon: "🧥",
+    accent: "#38bdf8",
+    title: "Racha de desfile no autorizado",
+    caption: "Mayor racha de días consecutivos ganando El mejor outfit",
+    totalFn: (closedDays) => streakRankingRows(closedDays, playerWonBestOutfitVote),
   },
   {
     key: "streakMoneySpender",

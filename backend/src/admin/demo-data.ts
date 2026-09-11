@@ -11,6 +11,7 @@ const EXPENSE_CATEGORIES = ["Chocolates", "Alcohol", "Boliche", "Comida", "Bebid
 const DEMO_SURVEY_KEYS = ["destroyed_vote", "most_flirty", "best_outfit"] as const;
 const PRESERVED_TABLES = ["users", "roles", "permissions", "user_permissions", "survey_questions", "initial_balances"];
 const FULL_TRIP_NIGHTS = 8;
+const BOLICHE_CLOSED_CLUB_TIME = "06:45";
 
 export type DemoUser = {
   id: string;
@@ -40,6 +41,7 @@ type DemoDailyEntry = {
   bathroomCount: number;
   bolicheDidNotGo: boolean;
   bolicheExitTime: string | null;
+  bolicheClosedClub: boolean;
 };
 
 type DemoSurveyVote = {
@@ -194,6 +196,7 @@ export function buildDemoDataset(users: DemoUser[], mode: DemoSimulationMode, to
   const orderedUsers = shuffle(users, rng);
   const zombieUser = orderedUsers[0];
   const alcoholUser = orderedUsers[1 % orderedUsers.length];
+  const clubCloserUser = orderedUsers[2 % orderedUsers.length];
   const surveyFavorites = {
     destroyed_vote: zombieUser,
     most_flirty: orderedUsers[3 % orderedUsers.length],
@@ -208,7 +211,7 @@ export function buildDemoDataset(users: DemoUser[], mode: DemoSimulationMode, to
 
   days.forEach((dateKey, dayIndex) => {
     users.forEach((user, userIndex) => {
-      dailyEntries.push(generateDailyEntry(user, dateKey, dayIndex, zombieUser, rng));
+      dailyEntries.push(generateDailyEntry(user, dateKey, dayIndex, { zombieUser, clubCloserUser }, rng));
       DEMO_SURVEY_KEYS.forEach((surveyKey) => {
         surveyVotes.push(generateSurveyVote(surveyKey, user, users, dateKey, dayIndex, surveyFavorites[surveyKey], rng));
       });
@@ -272,9 +275,9 @@ async function insertDemoDataset(client: DemoQueryClient, dataset: GeneratedDemo
       `
         insert into daily_entries (
           user_id, date_key, sleep_did_not_sleep, sleep_bedtime, sleep_wake,
-          nap_start, nap_end, fifth_meal, bathroom_count, boliche_did_not_go, boliche_exit_time, is_demo
+          nap_start, nap_end, fifth_meal, bathroom_count, boliche_did_not_go, boliche_exit_time, boliche_closed_club, is_demo
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, true)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, true)
       `,
       [
         entry.userId,
@@ -288,6 +291,7 @@ async function insertDemoDataset(client: DemoQueryClient, dataset: GeneratedDemo
         entry.bathroomCount,
         entry.bolicheDidNotGo,
         entry.bolicheExitTime,
+        entry.bolicheClosedClub,
       ]
     );
   }
@@ -417,12 +421,22 @@ function summarizeDataset(mode: DemoSimulationMode, dataset: GeneratedDemoDatase
   };
 }
 
-function generateDailyEntry(user: DemoUser, dateKey: string, dayIndex: number, zombieUser: DemoUser, rng: Rng): DemoDailyEntry {
+function generateDailyEntry(
+  user: DemoUser,
+  dateKey: string,
+  dayIndex: number,
+  specialUsers: { zombieUser: DemoUser; clubCloserUser: DemoUser },
+  rng: Rng
+): DemoDailyEntry {
+  const { zombieUser, clubCloserUser } = specialUsers;
   const isZombieRun = user.id === zombieUser.id && dayIndex < 4;
   const isCompetitionSeed = user.id === zombieUser.id && dayIndex === 0;
+  const isClubClosingRun = user.id === clubCloserUser.id && dayIndex < 7;
   const sleepDidNotSleep = !isZombieRun && rng() < 0.04;
-  const sleepBedtime = sleepDidNotSleep ? null : minutesToTime(isCompetitionSeed ? 420 : isZombieRun ? randStep(rng, 420, 460) : randStep(rng, 240, 390));
-  const sleepWake = sleepDidNotSleep ? null : minutesToTime(isCompetitionSeed ? 480 : isZombieRun ? randStep(rng, 540, 600) : randStep(rng, 660, 840));
+  const sleepBedtime = sleepDidNotSleep
+    ? null
+    : minutesToTime(isCompetitionSeed ? 420 : isClubClosingRun ? randStep(rng, 420, 480) : isZombieRun ? randStep(rng, 420, 460) : randStep(rng, 240, 390));
+  const sleepWake = sleepDidNotSleep ? null : minutesToTime(isCompetitionSeed ? 480 : isClubClosingRun ? randStep(rng, 720, 900) : isZombieRun ? randStep(rng, 540, 600) : randStep(rng, 660, 840));
   const wakeMinutes = sleepWake ? timeToMinutes(sleepWake) : null;
 
   const hasNap = !sleepDidNotSleep && wakeMinutes !== null && rng() < (isZombieRun ? 0.25 : 0.48);
@@ -436,7 +450,8 @@ function generateDailyEntry(user: DemoUser, dateKey: string, dayIndex: number, z
   }
 
   const bolicheLatest = sleepBedtime ? timeToMinutes(sleepBedtime) - 10 : 0;
-  const wentToBoliche = !sleepDidNotSleep && bolicheLatest >= 60 && (isCompetitionSeed || rng() < (isZombieRun ? 0.82 : 0.62));
+  const closedClub = !sleepDidNotSleep && isClubClosingRun && bolicheLatest >= timeToMinutes(BOLICHE_CLOSED_CLUB_TIME);
+  const wentToBoliche = closedClub || (!sleepDidNotSleep && bolicheLatest >= 60 && (isCompetitionSeed || rng() < (isZombieRun ? 0.82 : 0.62)));
 
   return {
     userId: user.id,
@@ -449,7 +464,8 @@ function generateDailyEntry(user: DemoUser, dateKey: string, dayIndex: number, z
     fifthMeal: isCompetitionSeed || rng() < (isZombieRun ? 0.65 : 0.46) ? "yes" : "no",
     bathroomCount: isCompetitionSeed ? 4 : randInt(rng, 0, 4),
     bolicheDidNotGo: !wentToBoliche,
-    bolicheExitTime: wentToBoliche ? minutesToTime(isCompetitionSeed ? bolicheLatest : randStep(rng, 60, bolicheLatest)) : null,
+    bolicheExitTime: wentToBoliche && !closedClub ? minutesToTime(isCompetitionSeed ? bolicheLatest : randStep(rng, 60, bolicheLatest)) : null,
+    bolicheClosedClub: closedClub,
   };
 }
 

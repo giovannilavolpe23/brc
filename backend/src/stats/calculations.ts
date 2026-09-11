@@ -9,6 +9,7 @@ import type {
 } from "./types";
 
 const BOLICHE_ARRIVAL_MINUTES = 60;
+const BOLICHE_CLOSED_CLUB_TIME = "06:45";
 
 export function calculateStats(scope: "day" | "total", data: StatsData, dateKey?: string): StatsResponse {
   const closedDays = collectClosedDays(data, dateKey);
@@ -72,6 +73,7 @@ function dailyEntryStats(entries: DailyEntryStatsRow[]): StatsResponse["dailyEnt
     fifthMeals: sortRankingRows(sumDefined(entries, (entry) => (entry.fifthMeal === null ? null : entry.fifthMeal === "yes" ? 1 : 0))),
     bathroom: sortRankingRows(sumDefined(entries, (entry) => entry.bathroom)),
     bolicheMinutes: sortRankingRows(sumDefined(entries, bolicheDurationMinutes)),
+    closedClubs: sortRankingRows(sumDefined(entries, closedClubCount).filter((row) => row.value > 0)),
   };
 }
 
@@ -108,6 +110,7 @@ function streakStats(days: string[], data: StatsData): StatsResponse["streaks"] 
 
   return {
     boliche: rowsFor((userId, day) => bolicheDurationMinutes(entriesByUserAndDay.get(`${userId}:${day}`)) !== null),
+    closedClub: rowsFor((userId, day) => entriesByUserAndDay.get(`${userId}:${day}`)?.bolicheClosedClub === true),
     fifthMeal: rowsFor((userId, day) => entriesByUserAndDay.get(`${userId}:${day}`)?.fifthMeal === "yes"),
     bathroom: rowsFor((userId, day) => {
       const bathroom = entriesByUserAndDay.get(`${userId}:${day}`)?.bathroom;
@@ -117,7 +120,9 @@ function streakStats(days: string[], data: StatsData): StatsResponse["streaks"] 
     alcohol: rowsFor((userId, day) => expenseCategoriesByUserAndDay.get(`${userId}:${day}`)?.has("Alcohol") ?? false),
     zombie: negativeStreakRows(days, userIds, (day) => dailyLeastSleepWinners(day, data.dailyEntries)),
     alcoholSpender: negativeStreakRows(days, userIds, (day) => dailyCategorySpendingWinners(day, data.expenses, "Alcohol")),
-    destroyedVote: negativeStreakRows(days, userIds, (day) => dailyDestroyedVoteWinners(day, data.surveyVotes)),
+    destroyedVote: negativeStreakRows(days, userIds, (day) => dailySurveyVoteWinners(day, data.surveyVotes, "destroyed_vote")),
+    mostFlirtyVote: negativeStreakRows(days, userIds, (day) => dailySurveyVoteWinners(day, data.surveyVotes, "most_flirty")),
+    bestOutfitVote: negativeStreakRows(days, userIds, (day) => dailySurveyVoteWinners(day, data.surveyVotes, "best_outfit")),
     moneySpender: negativeStreakRows(days, userIds, (day) => dailyMoneySpendingWinners(day, data.expenses)),
   };
 }
@@ -125,6 +130,7 @@ function streakStats(days: string[], data: StatsData): StatsResponse["streaks"] 
 function emptyStreakStats(): StatsResponse["streaks"] {
   return {
     boliche: [],
+    closedClub: [],
     fifthMeal: [],
     bathroom: [],
     chocolates: [],
@@ -132,6 +138,8 @@ function emptyStreakStats(): StatsResponse["streaks"] {
     zombie: [],
     alcoholSpender: [],
     destroyedVote: [],
+    mostFlirtyVote: [],
+    bestOutfitVote: [],
     moneySpender: [],
   };
 }
@@ -168,8 +176,8 @@ function dailyCategorySpendingWinners(day: string, expenses: ExpenseRow[], categ
   return winnersByValue(rows, "max");
 }
 
-function dailyDestroyedVoteWinners(day: string, votes: SurveyVoteStatsRow[]): Set<string> {
-  const rows = rankingFromCounts(countBy(votes.filter((vote) => vote.dateKey === day && vote.surveyKey === "destroyed_vote"), "votedUserId"));
+function dailySurveyVoteWinners(day: string, votes: SurveyVoteStatsRow[], surveyKey: string): Set<string> {
+  const rows = rankingFromCounts(countBy(votes.filter((vote) => vote.dateKey === day && vote.surveyKey === surveyKey), "votedUserId"));
   return winnersByValue(rows, "max");
 }
 
@@ -224,8 +232,15 @@ function napDurationMinutes(entry: DailyEntryStatsRow | undefined): number | nul
 }
 
 function bolicheDurationMinutes(entry: DailyEntryStatsRow | undefined): number | null {
-  if (!entry || entry.bolicheDidNotGo || !entry.bolicheExitTime) return null;
-  return Math.max(0, timeToMinutes(entry.bolicheExitTime) - BOLICHE_ARRIVAL_MINUTES);
+  if (!entry || entry.bolicheDidNotGo) return null;
+  const exitTime = entry.bolicheClosedClub ? BOLICHE_CLOSED_CLUB_TIME : entry.bolicheExitTime;
+  if (!exitTime) return null;
+  return Math.max(0, timeToMinutes(exitTime) - BOLICHE_ARRIVAL_MINUTES);
+}
+
+function closedClubCount(entry: DailyEntryStatsRow | undefined): number | null {
+  if (!entry || entry.bolicheDidNotGo) return null;
+  return entry.bolicheClosedClub ? 1 : 0;
 }
 
 function timeToMinutes(value: string): number {

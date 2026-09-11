@@ -14,6 +14,7 @@ type DailyEntryRow = {
   bathroom_count: number | null;
   boliche_did_not_go: boolean;
   boliche_exit_time: string | null;
+  boliche_closed_club: boolean;
   created_at: string | Date;
   updated_at: string | Date;
 };
@@ -30,7 +31,7 @@ export const postgresDailyEntriesRepository: DailyEntriesRepository = {
       `
         select id, user_id, date_key, sleep_did_not_sleep, sleep_bedtime, sleep_wake,
                nap_start, nap_end, fifth_meal, bathroom_count,
-               boliche_did_not_go, boliche_exit_time, created_at, updated_at
+               boliche_did_not_go, boliche_exit_time, boliche_closed_club, created_at, updated_at
         from daily_entries
         where user_id = $1
         order by date_key desc
@@ -46,7 +47,7 @@ export const postgresDailyEntriesRepository: DailyEntriesRepository = {
       `
         select id, user_id, date_key, sleep_did_not_sleep, sleep_bedtime, sleep_wake,
                nap_start, nap_end, fifth_meal, bathroom_count,
-               boliche_did_not_go, boliche_exit_time, created_at, updated_at
+               boliche_did_not_go, boliche_exit_time, boliche_closed_club, created_at, updated_at
         from daily_entries
         where user_id = $1 and date_key = $2
       `,
@@ -61,9 +62,9 @@ export const postgresDailyEntriesRepository: DailyEntriesRepository = {
       `
         insert into daily_entries (
           user_id, date_key, sleep_did_not_sleep, sleep_bedtime, sleep_wake,
-          nap_start, nap_end, fifth_meal, bathroom_count, boliche_did_not_go, boliche_exit_time
+          nap_start, nap_end, fifth_meal, bathroom_count, boliche_did_not_go, boliche_exit_time, boliche_closed_club
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         on conflict (user_id, date_key) do update
         set sleep_did_not_sleep = excluded.sleep_did_not_sleep,
             sleep_bedtime = excluded.sleep_bedtime,
@@ -74,10 +75,11 @@ export const postgresDailyEntriesRepository: DailyEntriesRepository = {
             bathroom_count = excluded.bathroom_count,
             boliche_did_not_go = excluded.boliche_did_not_go,
             boliche_exit_time = excluded.boliche_exit_time,
+            boliche_closed_club = excluded.boliche_closed_club,
             updated_at = now()
         returning id, user_id, date_key, sleep_did_not_sleep, sleep_bedtime, sleep_wake,
                   nap_start, nap_end, fifth_meal, bathroom_count,
-                  boliche_did_not_go, boliche_exit_time, created_at, updated_at
+                  boliche_did_not_go, boliche_exit_time, boliche_closed_club, created_at, updated_at
       `,
       [
         userId,
@@ -91,6 +93,7 @@ export const postgresDailyEntriesRepository: DailyEntriesRepository = {
         input.bathroom,
         input.boliche.didNotGo,
         input.boliche.time,
+        input.boliche.closedClub,
       ]
     );
 
@@ -120,6 +123,7 @@ function toDailyEntry(row: DailyEntryRow): DailyEntry {
     boliche: {
       didNotGo: row.boliche_did_not_go,
       time: toTime(row.boliche_exit_time),
+      closedClub: row.boliche_closed_club,
     },
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),

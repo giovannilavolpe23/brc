@@ -13,6 +13,7 @@ export type DailyEntryInput = {
   boliche: {
     didNotGo: boolean;
     time: string | null;
+    closedClub: boolean;
   };
 };
 
