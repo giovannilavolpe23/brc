@@ -1364,14 +1364,12 @@ img, svg {
   z-index: 1;
 }
 
-.titulo-badge.personalized-surface[data-premium-border-animation="animated"],
-.ranking-row.personalized-surface[data-premium-border-animation="animated"] {
+.titulo-badge.personalized-surface[data-premium-border-animation="animated"] {
   background-size: 220% 220%;
   border-color: color-mix(in srgb, var(--person-secondary) 62%, var(--border));
 }
 
-.titulo-badge.personalized-surface[data-premium-border-animation="animated"]::after,
-.ranking-row.personalized-surface[data-premium-border-animation="animated"]::after {
+.titulo-badge.personalized-surface[data-premium-border-animation="animated"]::after {
   animation-duration: 10s;
 }
 
@@ -1383,6 +1381,20 @@ img, svg {
     linear-gradient(115deg, color-mix(in srgb, var(--person-primary) 16%, var(--surface)) 0%, var(--surface) 54%, color-mix(in srgb, var(--person-secondary) 14%, var(--surface-2)) 100%);
   background-size: 240% 240%;
   animation: gioPremiumGradientShift 11s ease infinite;
+}
+
+.ranking-row.personalized-surface {
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+  background: transparent;
+  isolation: auto;
+  animation: none;
+}
+
+.ranking-row.personalized-surface::before,
+.ranking-row.personalized-surface::after {
+  content: none;
 }
 
 .personalized-surface[data-premium-border-animation="animated"]::after {
@@ -1867,6 +1879,16 @@ img, svg {
   animation: gioPremiumGradientShift 16s ease-in-out infinite;
 }
 
+.king-almost-column.personalized-surface[data-private-appearance-owner="gio"] {
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+  background: transparent;
+  isolation: auto;
+}
+
+.king-almost-column.personalized-surface[data-private-appearance-owner="gio"]::before,
+.king-almost-column.personalized-surface[data-private-appearance-owner="gio"]::after,
 .king-almost-column.personalized-surface[data-private-appearance-owner="gio"] .king-almost-pedestal::before,
 .king-almost-column.personalized-surface[data-private-appearance-owner="gio"] .king-almost-pedestal::after {
   content: none;

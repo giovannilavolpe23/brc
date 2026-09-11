@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import express, { type RequestHandler } from "express";
 import request from "supertest";
+import { collectAchievementCandidatesForDate } from "../src/achievements/evaluation";
 import {
   buildDemoDataset,
   createAdminDemoDataRouter,
@@ -322,6 +323,9 @@ describe("admin demo data generation", () => {
       ...stats.streaks.zombie.slice(0, 3).map((row) => row.userId),
     ]);
     assert.equal(titleHolders.size >= 2, true);
+
+    const candidates = dataset.days.flatMap((dateKey) => collectAchievementCandidatesForDate(dateKey, toStatsData(dataset)));
+    assert.equal(candidates.some((candidate) => candidate.key === "secret_not_a_competition"), true);
   });
 
   it("resets and inserts the dataset in one transaction", async () => {

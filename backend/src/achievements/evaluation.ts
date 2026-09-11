@@ -53,7 +53,7 @@ export function collectAchievementCandidatesForDate(
   addCandidate(candidates, resolvedKeys, FIRST_EXTRA_SLEEP_KEY, dateKey, sleepWinners(dayEntries, (minutes) => minutes > 480));
   addCandidate(candidates, resolvedKeys, FIRST_BROKE_WALLET_KEY, dateKey, cumulativeExpenseWinners(dateKey, data, activeUserIds));
   addCandidate(candidates, resolvedKeys, SECRET_NO_SLEEP_REQUIRED_KEY, dateKey, sleepWinners(dayEntries, (minutes) => minutes < 60));
-  addCandidate(candidates, resolvedKeys, SECRET_NOT_A_COMPETITION_KEY, dateKey, threeDynamicStatsWinners(dateKey, data, activeUserIds));
+  addCandidate(candidates, resolvedKeys, SECRET_NOT_A_COMPETITION_KEY, dateKey, fourDynamicStatsWinners(dateKey, data, activeUserIds));
   addCandidate(candidates, resolvedKeys, SECRET_CAME_TO_BREAK_KEY, dateKey, cameToBreakWinners(dateKey, data, activeUserIds));
 
   return candidates;
@@ -152,7 +152,7 @@ function cumulativeExpenseWinners(dateKey: string, data: StatsData, activeUserId
     .map(([userId]) => userId);
 }
 
-function threeDynamicStatsWinners(dateKey: string, data: StatsData, activeUserIds: Set<string>): string[] {
+function fourDynamicStatsWinners(dateKey: string, data: StatsData, activeUserIds: Set<string>): string[] {
   const wins = new Map<string, Set<string>>();
   const stats = calculateStats("day", data, dateKey);
   const addWins = (statKey: string, winners: string[]) => {
@@ -181,7 +181,7 @@ function threeDynamicStatsWinners(dateKey: string, data: StatsData, activeUserId
   });
 
   return Array.from(wins)
-    .filter(([, wonStats]) => wonStats.size >= 3)
+    .filter(([, wonStats]) => wonStats.size >= 4)
     .map(([userId]) => userId);
 }
 

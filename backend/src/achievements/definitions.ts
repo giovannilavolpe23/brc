@@ -41,8 +41,8 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     key: "secret_not_a_competition",
     type: "secret",
     name: "No era una competencia",
-    description: "Ganar 3 estadísticas distintas en el mismo día",
-    condition: "Ganar al menos 3 estadísticas dinámicas distintas durante el mismo día cerrado.",
+    description: "Ganar 4 estadísticas distintas en el mismo día",
+    condition: "Ganar al menos 4 estadísticas dinámicas distintas durante el mismo día cerrado.",
   },
   {
     key: "secret_came_to_break",

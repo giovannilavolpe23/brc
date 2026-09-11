@@ -136,7 +136,7 @@ describe("persistent achievement evaluation", () => {
     assert.deepEqual(candidate("secret_no_sleep_required", candidates)?.userIds, [gioId]);
   });
 
-  it("awards No era una competencia after winning three distinct daily stats with ties counting", () => {
+  it("does not award No era una competencia after winning only three distinct daily stats", () => {
     const candidates = collectAchievementCandidatesForDate(
       "2026-08-28",
       data({
@@ -147,8 +147,57 @@ describe("persistent achievement evaluation", () => {
             fifthMeal: "yes",
             bathroom: 4,
           }),
-          entry(jereId, "2026-08-28", { sleepBedtime: "04:00", sleepWake: "09:00", fifthMeal: "yes", bathroom: 4 }),
+          entry(jereId, "2026-08-28", { sleepBedtime: "04:00", sleepWake: "09:00" }),
           entry(nataId, "2026-08-28", { sleepBedtime: "04:00", sleepWake: "09:00" }),
+        ],
+      })
+    );
+
+    assert.equal(candidate("secret_not_a_competition", candidates), undefined);
+  });
+
+  it("awards No era una competencia after winning four distinct daily stats", () => {
+    const candidates = collectAchievementCandidatesForDate(
+      "2026-08-28",
+      data({
+        dailyEntries: [
+          entry(gioId, "2026-08-28", { sleepBedtime: "02:00", sleepWake: "12:00", fifthMeal: "yes", bathroom: 4 }),
+          entry(jereId, "2026-08-28"),
+        ],
+        expenses: [{ userId: gioId, dateKey: "2026-08-28", category: "Comida", amount: 9000 }],
+      })
+    );
+
+    assert.deepEqual(candidate("secret_not_a_competition", candidates)?.userIds, [gioId]);
+  });
+
+  it("awards No era una competencia after winning five or more distinct daily stats", () => {
+    const candidates = collectAchievementCandidatesForDate(
+      "2026-08-28",
+      data({
+        dailyEntries: [
+          entry(gioId, "2026-08-28", { sleepBedtime: "02:00", sleepWake: "12:00", fifthMeal: "yes", bathroom: 4, bolicheDidNotGo: false, bolicheExitTime: "01:50" }),
+          entry(jereId, "2026-08-28"),
+        ],
+        expenses: [{ userId: gioId, dateKey: "2026-08-28", category: "Comida", amount: 9000 }],
+      })
+    );
+
+    assert.deepEqual(candidate("secret_not_a_competition", candidates)?.userIds, [gioId]);
+  });
+
+  it("counts tied daily stats as wins for No era una competencia", () => {
+    const candidates = collectAchievementCandidatesForDate(
+      "2026-08-28",
+      data({
+        dailyEntries: [
+          entry(gioId, "2026-08-28", { sleepBedtime: "02:00", sleepWake: "12:00", fifthMeal: "yes", bathroom: 4 }),
+          entry(jereId, "2026-08-28", { sleepBedtime: "02:00", sleepWake: "12:00", fifthMeal: "yes", bathroom: 4 }),
+          entry(nataId, "2026-08-28"),
+        ],
+        expenses: [
+          { userId: gioId, dateKey: "2026-08-28", category: "Comida", amount: 9000 },
+          { userId: jereId, dateKey: "2026-08-28", category: "Comida", amount: 9000 },
         ],
       })
     );
@@ -156,13 +205,18 @@ describe("persistent achievement evaluation", () => {
     assert.deepEqual(candidate("secret_not_a_competition", candidates)?.userIds, [gioId, jereId]);
   });
 
-  it("does not award No era una competencia with only two wins", () => {
+  it("does not count the same statistic twice for No era una competencia", () => {
     const candidates = collectAchievementCandidatesForDate(
       "2026-08-28",
       data({
         dailyEntries: [
-          entry(gioId, "2026-08-28", { sleepBedtime: "02:00", sleepWake: "12:00", fifthMeal: "yes" }),
+          entry(gioId, "2026-08-28", { sleepBedtime: "02:00", sleepWake: "12:00", bathroom: 4 }),
           entry(jereId, "2026-08-28"),
+        ],
+        surveyVotes: [
+          { surveyKey: "destroyed_vote", dateKey: "2026-08-28", votedUserId: gioId },
+          { surveyKey: "destroyed_vote", dateKey: "2026-08-28", votedUserId: gioId },
+          { surveyKey: "destroyed_vote", dateKey: "2026-08-28", votedUserId: gioId },
         ],
       })
     );
