@@ -215,7 +215,7 @@ export function buildDemoDataset(users: DemoUser[], mode: DemoSimulationMode, to
     users.forEach((user, userIndex) => {
       dailyEntries.push(generateDailyEntry(user, dateKey, dayIndex, { zombieUser, clubCloserUser }, rng));
       DEMO_SURVEY_KEYS.forEach((surveyKey) => {
-        const favoriteUser = surveyKey === "best_outfit" && dayIndex === 0 ? surveyFavorites.destroyed_vote : surveyFavorites[surveyKey];
+        const favoriteUser = surveyKey === "best_outfit" && dayIndex === 0 ? surveyFavorites.most_flirty : surveyFavorites[surveyKey];
         surveyVotes.push(generateSurveyVote(surveyKey, user, users, dateKey, dayIndex, favoriteUser, rng));
       });
       moneyMovements.push(...generateMoneyMovements(user, dateKey, dayIndex, userIndex, { alcoholUser, spenderUser, secretComboUser: zombieUser, secretEconomyUser, batchId }, rng));

@@ -83,8 +83,8 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     key: "secret_outfit_consequences",
     type: "secret",
     name: "Outfit con consecuencias",
-    description: "Ganar El mejor outfit y El más destruido el mismo día",
-    condition: "Ganar best_outfit y destroyed_vote durante el mismo día cerrado.",
+    description: "Ganar El mejor outfit y El más chamuyero el mismo día",
+    condition: "Ganar best_outfit y most_flirty durante el mismo día cerrado.",
   },
 ];
 

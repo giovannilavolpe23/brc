@@ -242,8 +242,8 @@ function outfitConsequencesWinners(dateKey: string, data: StatsData, activeUserI
   if (!isCompleteDailyEntryDay(dateKey, data, activeUserIds)) return [];
   const stats = calculateStats("day", data, dateKey);
   const outfit = new Set(rankingWinners(stats.surveys.best_outfit).filter((userId) => activeUserIds.has(userId)));
-  const destroyed = new Set(rankingWinners(stats.surveys.destroyed_vote).filter((userId) => activeUserIds.has(userId)));
-  return Array.from(outfit).filter((userId) => destroyed.has(userId));
+  const mostFlirty = new Set(rankingWinners(stats.surveys.most_flirty).filter((userId) => activeUserIds.has(userId)));
+  return Array.from(outfit).filter((userId) => mostFlirty.has(userId));
 }
 
 function completeDailyEntryDaysThrough(dateKey: string, data: StatsData, activeUserIds: Set<string>): string[] {

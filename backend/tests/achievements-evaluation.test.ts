@@ -459,15 +459,15 @@ describe("persistent achievement evaluation", () => {
     assert.deepEqual(candidate("secret_broke_economy", candidates)?.userIds, [gioId]);
   });
 
-  it("awards Outfit con consecuencias only when outfit and destroyed are won on the same date", () => {
+  it("awards Outfit con consecuencias only when outfit and most flirty are won on the same date", () => {
     const dailyEntries = completeEntries(["2026-08-28"]);
     const outfitOnly = collectAchievementCandidatesForDate(
       "2026-08-28",
       data({ dailyEntries, surveyVotes: [{ surveyKey: "best_outfit", dateKey: "2026-08-28", votedUserId: gioId }] })
     );
-    const destroyedOnly = collectAchievementCandidatesForDate(
+    const flirtyOnly = collectAchievementCandidatesForDate(
       "2026-08-28",
-      data({ dailyEntries, surveyVotes: [{ surveyKey: "destroyed_vote", dateKey: "2026-08-28", votedUserId: gioId }] })
+      data({ dailyEntries, surveyVotes: [{ surveyKey: "most_flirty", dateKey: "2026-08-28", votedUserId: gioId }] })
     );
     const both = collectAchievementCandidatesForDate(
       "2026-08-28",
@@ -475,7 +475,7 @@ describe("persistent achievement evaluation", () => {
         dailyEntries,
         surveyVotes: [
           { surveyKey: "best_outfit", dateKey: "2026-08-28", votedUserId: gioId },
-          { surveyKey: "destroyed_vote", dateKey: "2026-08-28", votedUserId: gioId },
+          { surveyKey: "most_flirty", dateKey: "2026-08-28", votedUserId: gioId },
         ],
       })
     );
@@ -485,18 +485,18 @@ describe("persistent achievement evaluation", () => {
         dailyEntries: completeEntries(["2026-08-27", "2026-08-28"]),
         surveyVotes: [
           { surveyKey: "best_outfit", dateKey: "2026-08-27", votedUserId: gioId },
-          { surveyKey: "destroyed_vote", dateKey: "2026-08-28", votedUserId: gioId },
+          { surveyKey: "most_flirty", dateKey: "2026-08-28", votedUserId: gioId },
         ],
       })
     );
 
     assert.equal(candidate("secret_outfit_consequences", outfitOnly), undefined);
-    assert.equal(candidate("secret_outfit_consequences", destroyedOnly), undefined);
+    assert.equal(candidate("secret_outfit_consequences", flirtyOnly), undefined);
     assert.deepEqual(candidate("secret_outfit_consequences", both)?.userIds, [gioId]);
     assert.equal(candidate("secret_outfit_consequences", differentDates), undefined);
   });
 
-  it("counts tied outfit and destroyed winners for Outfit con consecuencias", () => {
+  it("counts tied outfit and most flirty winners for Outfit con consecuencias", () => {
     const candidates = collectAchievementCandidatesForDate(
       "2026-08-28",
       data({
@@ -504,8 +504,8 @@ describe("persistent achievement evaluation", () => {
         surveyVotes: [
           { surveyKey: "best_outfit", dateKey: "2026-08-28", votedUserId: gioId },
           { surveyKey: "best_outfit", dateKey: "2026-08-28", votedUserId: jereId },
-          { surveyKey: "destroyed_vote", dateKey: "2026-08-28", votedUserId: gioId },
-          { surveyKey: "destroyed_vote", dateKey: "2026-08-28", votedUserId: jereId },
+          { surveyKey: "most_flirty", dateKey: "2026-08-28", votedUserId: gioId },
+          { surveyKey: "most_flirty", dateKey: "2026-08-28", votedUserId: jereId },
         ],
       })
     );
