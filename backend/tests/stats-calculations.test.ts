@@ -19,6 +19,7 @@ function entry(userId: string, dateKey: string, overrides: Partial<DailyEntrySta
     fifthMeal: null,
     bathroom: null,
     bolicheDidNotGo: true,
+    bolicheEntryTime: "01:00",
     bolicheExitTime: null,
     bolicheClosedClub: false,
     ...overrides,
@@ -261,17 +262,17 @@ describe("stats calculations", () => {
       users: baseData().users,
       expenses: [],
       dailyEntries: [
-        entry(gioId, "2026-08-27", { bolicheDidNotGo: false, bolicheExitTime: null, bolicheClosedClub: true }),
-        entry(gioId, "2026-08-28", { bolicheDidNotGo: false, bolicheExitTime: null, bolicheClosedClub: true }),
-        entry(jereId, "2026-08-28", { bolicheDidNotGo: false, bolicheExitTime: "05:00" }),
+        entry(gioId, "2026-08-27", { bolicheDidNotGo: false, bolicheEntryTime: "02:00", bolicheExitTime: null, bolicheClosedClub: true }),
+        entry(gioId, "2026-08-28", { bolicheDidNotGo: false, bolicheEntryTime: "02:00", bolicheExitTime: null, bolicheClosedClub: true }),
+        entry(jereId, "2026-08-28", { bolicheDidNotGo: false, bolicheEntryTime: "03:00", bolicheExitTime: "05:00" }),
       ],
       surveyVotes: [],
       previaParticipants: [],
     });
 
     assert.deepEqual(stats.dailyEntries.bolicheMinutes, [
-      { userId: gioId, value: 690 },
-      { userId: jereId, value: 240 },
+      { userId: gioId, value: 570 },
+      { userId: jereId, value: 120 },
     ]);
     assert.deepEqual(stats.dailyEntries.closedClubs, [{ userId: gioId, value: 2 }]);
     assert.deepEqual(stats.streaks.closedClub, [{ userId: gioId, value: 2 }]);

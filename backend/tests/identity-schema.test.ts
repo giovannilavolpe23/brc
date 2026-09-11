@@ -16,6 +16,7 @@ const achievementsMigration = fs.readFileSync(path.resolve(__dirname, "../migrat
 const gioPremiumAppearanceMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/013_gio_premium_appearance.sql"), "utf8");
 const gioMotionAppearanceMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/014_gio_motion_appearance.sql"), "utf8");
 const closedClubMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/015_daily_entry_closed_club.sql"), "utf8");
+const bolicheEntryMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/016_daily_entry_boliche_entry_time.sql"), "utf8");
 const seed = fs.readFileSync(path.resolve(__dirname, "../src/db/seed.ts"), "utf8");
 
 describe("identity schema", () => {
@@ -125,6 +126,15 @@ describe("daily entries and surveys schema", () => {
   it("adds a real closed club field for daily entries", () => {
     assert.match(closedClubMigration, /add column if not exists boliche_closed_club boolean not null default false/);
     assert.match(closedClubMigration, /daily_entries_boliche_closed_club_consistent/);
+  });
+
+  it("adds a real boliche entry time and migrates the closed-club achievements", () => {
+    assert.match(bolicheEntryMigration, /add column if not exists boliche_entry_time time/);
+    assert.match(bolicheEntryMigration, /boliche_entry_time < time '06:45'/);
+    assert.match(bolicheEntryMigration, /boliche_exit_time > boliche_entry_time/);
+    assert.match(bolicheEntryMigration, /\) not valid;/);
+    assert.match(bolicheEntryMigration, /first_three_closed_clubs/);
+    assert.match(bolicheEntryMigration, /first_four_closed_clubs/);
   });
 
   it("creates survey questions and historical votes", () => {

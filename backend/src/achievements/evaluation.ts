@@ -11,7 +11,7 @@ type QueryClient = Pick<PoolClient, "query">;
 const FIRST_BOTTOM_KEY = "first_bottom";
 const FIRST_EXTRA_SLEEP_KEY = "first_extra_sleep";
 const FIRST_BROKE_WALLET_KEY = "first_broke_wallet";
-const FIRST_FOUR_CLOSED_CLUBS_KEY = "first_four_closed_clubs";
+const FIRST_THREE_CLOSED_CLUBS_KEY = "first_three_closed_clubs";
 const SECRET_NO_SLEEP_REQUIRED_KEY = "secret_no_sleep_required";
 const SECRET_NOT_A_COMPETITION_KEY = "secret_not_a_competition";
 const SECRET_CAME_TO_BREAK_KEY = "secret_came_to_break";
@@ -54,11 +54,11 @@ export function collectAchievementCandidatesForDate(
   addCandidate(candidates, resolvedKeys, FIRST_BOTTOM_KEY, dateKey, sleepWinners(dayEntries, (minutes) => minutes < 180));
   addCandidate(candidates, resolvedKeys, FIRST_EXTRA_SLEEP_KEY, dateKey, sleepWinners(dayEntries, (minutes) => minutes > 480));
   addCandidate(candidates, resolvedKeys, FIRST_BROKE_WALLET_KEY, dateKey, cumulativeExpenseWinners(dateKey, data, activeUserIds));
-  addCandidate(candidates, resolvedKeys, FIRST_FOUR_CLOSED_CLUBS_KEY, dateKey, cumulativeClosedClubWinners(dateKey, data, activeUserIds, 4));
+  addCandidate(candidates, resolvedKeys, FIRST_THREE_CLOSED_CLUBS_KEY, dateKey, cumulativeClosedClubWinners(dateKey, data, activeUserIds, 3));
   addCandidate(candidates, resolvedKeys, SECRET_NO_SLEEP_REQUIRED_KEY, dateKey, sleepWinners(dayEntries, (minutes) => minutes < 60));
   addCandidate(candidates, resolvedKeys, SECRET_NOT_A_COMPETITION_KEY, dateKey, fourDynamicStatsWinners(dateKey, data, activeUserIds));
   addCandidate(candidates, resolvedKeys, SECRET_CAME_TO_BREAK_KEY, dateKey, cameToBreakWinners(dateKey, data, activeUserIds));
-  addCandidate(candidates, resolvedKeys, SECRET_CLUB_STAFF_KEY, dateKey, cumulativeClosedClubWinners(dateKey, data, activeUserIds, 7));
+  addCandidate(candidates, resolvedKeys, SECRET_CLUB_STAFF_KEY, dateKey, cumulativeClosedClubWinners(dateKey, data, activeUserIds, 6));
 
   return candidates;
 }

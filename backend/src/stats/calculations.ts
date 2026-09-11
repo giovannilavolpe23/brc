@@ -8,7 +8,6 @@ import type {
   SurveyVoteStatsRow,
 } from "./types";
 
-const BOLICHE_ARRIVAL_MINUTES = 60;
 const BOLICHE_CLOSED_CLUB_TIME = "06:45";
 
 export function calculateStats(scope: "day" | "total", data: StatsData, dateKey?: string): StatsResponse {
@@ -233,9 +232,11 @@ function napDurationMinutes(entry: DailyEntryStatsRow | undefined): number | nul
 
 function bolicheDurationMinutes(entry: DailyEntryStatsRow | undefined): number | null {
   if (!entry || entry.bolicheDidNotGo) return null;
+  if (!entry.bolicheEntryTime) return null;
   const exitTime = entry.bolicheClosedClub ? BOLICHE_CLOSED_CLUB_TIME : entry.bolicheExitTime;
   if (!exitTime) return null;
-  return Math.max(0, timeToMinutes(exitTime) - BOLICHE_ARRIVAL_MINUTES);
+  const duration = timeToMinutes(exitTime) - timeToMinutes(entry.bolicheEntryTime);
+  return duration > 0 ? duration : null;
 }
 
 function closedClubCount(entry: DailyEntryStatsRow | undefined): number | null {

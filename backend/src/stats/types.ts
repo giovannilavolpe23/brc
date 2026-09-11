@@ -89,6 +89,7 @@ export type DailyEntryStatsRow = {
   fifthMeal: "yes" | "no" | null;
   bathroom: number | null;
   bolicheDidNotGo: boolean;
+  bolicheEntryTime: string | null;
   bolicheExitTime: string | null;
   bolicheClosedClub: boolean;
 };

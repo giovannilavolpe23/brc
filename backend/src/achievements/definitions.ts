@@ -31,11 +31,11 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     condition: "Gasto acumulado total en movimientos de tipo expense mayor o igual a $350.000.",
   },
   {
-    key: "first_four_closed_clubs",
+    key: "first_three_closed_clubs",
     type: "unique",
-    name: "Primero en cerrar 4 veces",
-    description: "Primero en cerrar 4 boliches",
-    condition: "Llegar a 4 cierres de boliche acumulados durante el viaje.",
+    name: "Primero en cerrar 3 veces",
+    description: "Primero en cerrar 3 noches",
+    condition: "Llegar a 3 noches con cierre de boliche acumuladas durante el viaje.",
   },
   {
     key: "secret_no_sleep_required",
@@ -62,8 +62,8 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     key: "secret_club_staff",
     type: "secret",
     name: "Parte del personal bolichero",
-    description: "Cerrar 7 boliches",
-    condition: "Llegar a 7 cierres de boliche acumulados durante el viaje.",
+    description: "Cerrar 6 noches",
+    condition: "Llegar a 6 noches con cierre de boliche acumuladas durante el viaje.",
   },
 ];
 

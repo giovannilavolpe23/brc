@@ -64,14 +64,18 @@ function parseBoliche(value: unknown): DailyEntryInput["boliche"] {
   const boliche = getRecord(value);
   const didNotGo = parseBoolean(boliche.didNotGo, "invalid_boliche");
   const closedClub = didNotGo ? false : parseOptionalBoolean(boliche.closedClub, "invalid_boliche_closed_club");
+  const entryTime = didNotGo ? null : parseNullableTime(boliche.entryTime, "invalid_boliche_entry_time");
   const time = didNotGo || closedClub ? null : parseNullableTime(boliche.time, "invalid_boliche_time");
+  if (!didNotGo && !entryTime) {
+    throw new DailyEntryValidationError("invalid_boliche_entry_time");
+  }
   if (!didNotGo && closedClub && boliche.time !== null && boliche.time !== undefined) {
     throw new DailyEntryValidationError("invalid_boliche_closed_club_conflict");
   }
   if (didNotGo && boliche.closedClub === true) {
     throw new DailyEntryValidationError("invalid_boliche_closed_club_conflict");
   }
-  return { didNotGo, time, closedClub };
+  return { didNotGo, entryTime, time, closedClub };
 }
 
 function getRecord(value: unknown): Record<string, unknown> {
@@ -127,12 +131,20 @@ function validateLogicalTimes(
       throw new DailyEntryValidationError("invalid_boliche_sleep_required");
     }
 
+    if (!boliche.entryTime) {
+      throw new DailyEntryValidationError("invalid_boliche_entry_time");
+    }
+    const entry = timeToMinutes(boliche.entryTime);
     const exit = timeToMinutes(bolicheExitTime);
+    if (exit <= entry) {
+      throw new DailyEntryValidationError("invalid_boliche_time_range");
+    }
     const exitAbsolute = exit + 24 * 60;
+    const entryAbsolute = entry + 24 * 60;
     const openAbsolute = 25 * 60;
     const closeAbsolute = 31 * 60;
     const latestExit = sleep.didNotSleep ? closeAbsolute : bedtimeAbsoluteMinutes(sleep.bedtime as string) - 10;
-    if (exitAbsolute < openAbsolute || exitAbsolute > latestExit) {
+    if (entryAbsolute < openAbsolute || entryAbsolute >= closeAbsolute || exitAbsolute < openAbsolute || exitAbsolute > latestExit) {
       throw new DailyEntryValidationError("invalid_boliche_time_range");
     }
   }

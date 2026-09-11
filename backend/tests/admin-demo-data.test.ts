@@ -103,6 +103,7 @@ function toStatsData(dataset: GeneratedDemoDataset): StatsData {
       fifthMeal: entry.fifthMeal,
       bathroom: entry.bathroomCount,
       bolicheDidNotGo: entry.bolicheDidNotGo,
+      bolicheEntryTime: entry.bolicheEntryTime,
       bolicheExitTime: entry.bolicheExitTime,
       bolicheClosedClub: entry.bolicheClosedClub,
     })),
@@ -256,11 +257,16 @@ describe("admin demo data generation", () => {
       }
       if (entry.bolicheClosedClub) {
         assert.equal(entry.bolicheDidNotGo, false);
+        assert.ok(entry.bolicheEntryTime);
         assert.equal(entry.bolicheExitTime, null);
+        assert.equal(timeToMinutes(entry.bolicheEntryTime) < timeToMinutes("06:45"), true);
         assert.ok(entry.sleepDidNotSleep || timeToMinutes(entry.sleepBedtime ?? "00:00") >= timeToMinutes("06:55"));
       }
       if (entry.bolicheExitTime) {
+        assert.ok(entry.bolicheEntryTime);
+        assert.equal(timeToMinutes(entry.bolicheEntryTime) >= 60, true);
         assert.equal(timeToMinutes(entry.bolicheExitTime) >= 60, true);
+        assert.equal(timeToMinutes(entry.bolicheExitTime) > timeToMinutes(entry.bolicheEntryTime), true);
         assert.equal(timeToMinutes(entry.bolicheExitTime) <= timeToMinutes(entry.sleepBedtime ?? "00:00") - 10, true);
       }
     });
@@ -319,8 +325,8 @@ describe("admin demo data generation", () => {
     assert.equal(stats.streaks.destroyedVote.some((row) => row.value >= 2), true);
     assert.equal(stats.streaks.mostFlirtyVote.some((row) => row.value >= 2), true);
     assert.equal(stats.streaks.bestOutfitVote.some((row) => row.value >= 2), true);
-    assert.equal(stats.dailyEntries.closedClubs.some((row) => row.value >= 7), true);
-    assert.equal(stats.streaks.closedClub.some((row) => row.value >= 7), true);
+    assert.equal(stats.dailyEntries.closedClubs.some((row) => row.value >= 6), true);
+    assert.equal(stats.streaks.closedClub.some((row) => row.value >= 6), true);
     assert.equal(stats.streaks.moneySpender.some((row) => row.value >= 2), true);
 
     const titleHolders = new Set([

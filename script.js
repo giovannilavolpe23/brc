@@ -3166,6 +3166,8 @@ let previaParticipantIds = [];
 let previaProducts = [];
 let previaSaveSubmitting = false;
 let previaSaveMessage = "";
+let previaDeleteTarget = null;
+let previaDeleteSubmitting = false;
 
 // "admin" -> pantalla #/previas dentro de /admin, guarda en
 // "adminPrevias" (solo Gio). "local" -> pantalla #/previas-jere
@@ -3262,6 +3264,7 @@ function previaFromApi(previa) {
   return {
     id: previa.legacyId || previa.id,
     apiId: previa.id,
+    creatorUserId: previa.creatorUserId,
     participantIds: previa.participantIds || [],
     products: (previa.products || []).map((product) => ({
       id: product.legacyId || product.id,
@@ -3275,6 +3278,44 @@ function previaFromApi(previa) {
     createdAt: previa.occurredAt,
     apiSynced: true,
   };
+}
+
+function previaStorageKeyForCurrentMode() {
+  const user = getCurrentUser();
+  return previaMode === "local" && user ? STORAGE_KEYS.localPrevias(user.id) : STORAGE_KEYS.adminPrevias;
+}
+
+function removePreviaFromStorage(storageKey, previaId) {
+  let previas = [];
+  try {
+    previas = JSON.parse(localStorage.getItem(storageKey) || "[]");
+  } catch (e) {
+    previas = [];
+  }
+  if (!Array.isArray(previas)) return;
+  const filtered = previas.filter((previa) => previa.id !== previaId && previa.apiId !== previaId);
+  localStorage.setItem(storageKey, JSON.stringify(filtered));
+}
+
+function removePreviaFromAllCaches(previa) {
+  const keys = new Set([STORAGE_KEYS.adminPrevias]);
+  const user = getCurrentUser();
+  if (user) keys.add(STORAGE_KEYS.localPrevias(user.id));
+  keys.forEach((key) => removePreviaFromStorage(key, previa.id));
+  if (previa.apiId) keys.forEach((key) => removePreviaFromStorage(key, previa.apiId));
+}
+
+function canDeletePreviaFromUi(previa) {
+  const user = getCurrentUser();
+  if (!user || !previa) return false;
+  if (user.isAdmin) return true;
+  const creatorId = String(previa.creatorUserId || "").toLowerCase();
+  if (creatorId && playerIdentityValues(user).includes(creatorId)) return true;
+  return previaMode === "local" && !creatorId;
+}
+
+function previaDeleteApiId(previa) {
+  return previa.apiId || previa.id;
 }
 
 function mergePreviasCache(storageKey, apiPrevias) {
@@ -3553,6 +3594,9 @@ function renderPreviaHistory() {
         previaMode === "local"
           ? `<button type="button" class="sheet-cancel-link previa-copy-code-btn" data-previa-id="${previa.id}">Copiar código para Gio</button>`
           : "";
+      const deleteButton = canDeletePreviaFromUi(previa)
+        ? `<button type="button" class="previa-delete-btn" data-previa-id="${escapeHtml(previa.id)}">Eliminar previa</button>`
+        : "";
       return `
         <div class="admin-preview-card previa-history-card">
           <div class="admin-preview-row"><span>Participantes</span><span>${names}</span></div>
@@ -3561,7 +3605,10 @@ function renderPreviaHistory() {
           <div class="admin-preview-row"><span>A pagar por persona</span><span>${formatMoney(previaPerPersonValue(previa))}</span></div>
           <div class="admin-preview-row"><span>Fecha</span><span>${formatDateTimeShort(previa.createdAt)}</span></div>
           <div class="admin-preview-row"><span>ID</span><span class="previa-id">${previa.id}</span></div>
-          ${codeButton}
+          <div class="previa-history-actions">
+            ${codeButton}
+            ${deleteButton}
+          </div>
         </div>
       `;
     })
@@ -3575,6 +3622,12 @@ function renderPreviaHistory() {
       });
     });
   }
+  list.querySelectorAll(".previa-delete-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const previa = previas.find((p) => p.id === btn.dataset.previaId);
+      if (previa) openPreviaDeleteConfirm(previa);
+    });
+  });
 }
 
 // Paso 1: valida y abre la confirmación. No escribe nada todavía.
@@ -3612,6 +3665,68 @@ function renderPreviaConfirmSheet() {
   document.getElementById("sheet-cancel-btn").addEventListener("click", closeSheet);
 }
 
+async function handlePreviaDeleteConfirm() {
+  if (previaDeleteSubmitting) return;
+  const previa = previaDeleteTarget;
+  if (!previa) {
+    closeSheet();
+    return;
+  }
+
+  previaDeleteSubmitting = true;
+  const submitBtn = document.getElementById("sheet-submit-btn");
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Eliminando...";
+  }
+  showSheetError("");
+
+  try {
+    const pendingCreateId = `previa:create:${previa.id}`;
+    const deleteOnlyLocal = hasPendingApiOperation(pendingCreateId) || (!previa.apiSynced && !previa.apiId);
+
+    if (deleteOnlyLocal) {
+      removePendingApiOperation(pendingCreateId);
+    } else {
+      const response = await apiFetch(`/previas/${encodeURIComponent(previaDeleteApiId(previa))}`, { method: "DELETE" });
+      if (!response.ok && response.status !== 404) {
+        if (response.status === 403) {
+          showSheetError("No tenés permiso para eliminar esta previa.");
+        } else if (response.status === 401) {
+          showSheetError("Tu sesión venció. Volvé a iniciar sesión.");
+        } else {
+          showSheetError("No se pudo eliminar la previa.");
+        }
+        return;
+      }
+    }
+
+    removePreviaFromAllCaches(previa);
+    previasApiLoadedKeys.clear();
+    previasApiFailedKeys.clear();
+    clearStatsApiCache();
+    previaSaveMessage = "✓ Previa eliminada";
+    closeSheet();
+    renderPreviasScreen();
+    if (screens.stats && screens.stats.classList.contains("active")) renderStatsPanel();
+    refreshActiveTitulosPanel();
+    setTimeout(() => {
+      previaSaveMessage = "";
+      if ((screens.previas && screens.previas.classList.contains("active")) || (screens["previas-jere"] && screens["previas-jere"].classList.contains("active"))) {
+        renderPreviasScreen();
+      }
+    }, 2200);
+  } catch (e) {
+    showSheetError("No se pudo eliminar la previa. Revisá tu conexión.");
+  } finally {
+    previaDeleteSubmitting = false;
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Eliminar";
+    }
+  }
+}
+
 // Paso 2: único punto que efectivamente escribe una previa nueva. Solo
 // se llega acá después de confirmar explícitamente en el sheet. El monto
 // por persona se calcula una sola vez acá y se guarda junto con el resto
@@ -3635,9 +3750,11 @@ function confirmSavePrevia() {
   const total = computePreviaTotal(previaProducts);
   const count = previaParticipantIds.length;
   const perPerson = computePreviaPerPerson(total, count);
+  const user = getCurrentUser();
 
   const newPrevia = {
     id: genId(),
+    creatorUserId: user ? user.apiId || user.id : null,
     participantIds: [...previaParticipantIds],
     products: previaProducts.map((p) => ({ ...p })),
     total,
@@ -3646,7 +3763,6 @@ function confirmSavePrevia() {
   };
 
   if (previaMode === "local") {
-    const user = getCurrentUser();
     const previas = getLocalPrevias(user.id);
     previas.unshift(newPrevia);
     saveLocalPrevias(user.id, previas);
@@ -4122,6 +4238,11 @@ function openAdminDeletePlayerConfirm(participant) {
   openSheet("admin-delete-player-confirm");
 }
 
+function openPreviaDeleteConfirm(previa) {
+  previaDeleteTarget = previa;
+  openSheet("previa-delete-confirm");
+}
+
 function openSheet(type, movement) {
   currentSheetType = type;
   selectedCategory = movement && movement.category ? movement.category : null;
@@ -4310,6 +4431,25 @@ function openSheet(type, movement) {
     return;
   }
 
+  if (type === "previa-delete-confirm") {
+    const previa = previaDeleteTarget;
+    if (!previa) {
+      closeSheet();
+      return;
+    }
+    sheetContent.innerHTML = `
+      <h2 class="sheet-title">¿Eliminar esta previa?</h2>
+      <p class="sheet-sub">Esta acción eliminará la previa y actualizará las estadísticas relacionadas.</p>
+      <p class="sheet-error" id="sheet-error"></p>
+      <button class="sheet-submit danger" id="sheet-submit-btn" type="button">Eliminar</button>
+      <button class="sheet-cancel-link" id="sheet-cancel-btn" type="button">Cancelar</button>
+    `;
+    document.getElementById("sheet-submit-btn").addEventListener("click", handlePreviaDeleteConfirm);
+    document.getElementById("sheet-cancel-btn").addEventListener("click", closeSheet);
+    sheetOverlay.classList.add("visible");
+    return;
+  }
+
   if (type === "previa-import") {
     renderPreviaImportSheet();
     sheetOverlay.classList.add("visible");
@@ -4489,6 +4629,8 @@ function closeSheet() {
   previaImportStep = null;
   previaImportPendingPayload = null;
   previaCodeTarget = null;
+  previaDeleteTarget = null;
+  previaDeleteSubmitting = false;
   backupImportStep = null;
   backupImportPendingPayload = null;
   adminDeletePlayerTarget = null;
@@ -4673,6 +4815,7 @@ function pad2(n) {
 const DAY_MINUTES = 24 * 60;
 const BOLICHE_ARRIVAL_MINUTES = 60; // 01:00
 const BOLICHE_CLOSED_CLUB_TIME = "06:45";
+const BOLICHE_CLOSED_CLUB_MINUTES = 6 * 60 + 45;
 
 // Rangos de cada selector de hora, en minutos desde las 00:00 del día
 // en que arranca el rango (pueden superar 1440 para representar que
@@ -4728,14 +4871,34 @@ function isNapEndAfterStart(napStart, napEnd) {
   return timeToMinutes(napEnd) > timeToMinutes(napStart);
 }
 
-function bolicheTimeOptionsForSleep(sleep) {
-  const start = DAY_MINUTES + BOLICHE_ARRIVAL_MINUTES;
+function bolicheLatestExitForSleep(sleep) {
   const closing = DAY_MINUTES + TIME_RANGES.boliche.end;
+  if (sleep && sleep.didNotSleep) return closing;
   const bed = sleep && !sleep.didNotSleep ? bedtimeAbsoluteMinutes(sleep.bedtime) : null;
-  if (sleep && !sleep.didNotSleep && bed === null) return [];
-  const end = sleep && sleep.didNotSleep ? closing : Math.min(closing, bed - 10);
+  if (sleep && !sleep.didNotSleep && bed === null) return null;
+  return Math.min(closing, bed - 10);
+}
+
+function bolicheEntryOptionsForSleep(sleep) {
+  const start = DAY_MINUTES + BOLICHE_ARRIVAL_MINUTES;
+  const latestExit = bolicheLatestExitForSleep(sleep);
+  if (latestExit === null) return [];
+  const end = Math.min(DAY_MINUTES + BOLICHE_CLOSED_CLUB_MINUTES - 10, latestExit - 10);
   const options = [];
   for (let m = start; m <= end; m += 10) {
+    options.push(minutesToTimeLabel(m));
+  }
+  return options;
+}
+
+function bolicheExitOptionsForState(state) {
+  const entryTime = state.boliche.entryTime;
+  if (!entryTime) return [];
+  const latestExit = bolicheLatestExitForSleep(state.sleep);
+  if (latestExit === null) return [];
+  const start = DAY_MINUTES + timeToMinutes(entryTime) + 10;
+  const options = [];
+  for (let m = start; m <= latestExit; m += 10) {
     options.push(minutesToTimeLabel(m));
   }
   return options;
@@ -4747,6 +4910,11 @@ function canCloseClubWithSleep(sleep) {
   if (bed === null) return false;
   const closedClubExit = DAY_MINUTES + timeToMinutes(BOLICHE_CLOSED_CLUB_TIME);
   return closedClubExit <= bed - 10;
+}
+
+function canCloseClubWithState(state) {
+  if (!state || state.boliche.didNotGo || !state.boliche.entryTime) return false;
+  return canCloseClubWithSleep(state.sleep) && timeToMinutes(state.boliche.entryTime) < BOLICHE_CLOSED_CLUB_MINUTES;
 }
 
 function dailyTimeOptions(rangeKey, state) {
@@ -4761,8 +4929,11 @@ function dailyTimeOptions(rangeKey, state) {
   if (rangeKey === "wake" && state.sleep.bedtime) {
     return buildTimeOptions("wake").filter((opt) => isWakeAfterBedtime(opt, state.sleep.bedtime));
   }
-  if (rangeKey === "boliche") {
-    return bolicheTimeOptionsForSleep(state.sleep);
+  if (rangeKey === "boliche-entry") {
+    return bolicheEntryOptionsForSleep(state.sleep);
+  }
+  if (rangeKey === "boliche-exit") {
+    return bolicheExitOptionsForState(state);
   }
   return buildTimeOptions(rangeKey);
 }
@@ -4786,14 +4957,19 @@ function sanitizeDailyStateTimes(state) {
   }
 
   if (state.boliche.didNotGo) {
+    state.boliche.entryTime = null;
+    state.boliche.time = null;
+    state.boliche.closedClub = false;
+  } else if (state.boliche.entryTime && !dailyTimeOptions("boliche-entry", state).includes(state.boliche.entryTime)) {
+    state.boliche.entryTime = null;
     state.boliche.time = null;
     state.boliche.closedClub = false;
   } else if (state.boliche.closedClub) {
     state.boliche.time = null;
-    if (!canCloseClubWithSleep(state.sleep)) {
+    if (!canCloseClubWithState(state)) {
       state.boliche.closedClub = false;
     }
-  } else if (state.boliche.time && !dailyTimeOptions("boliche", state).includes(state.boliche.time)) {
+  } else if (state.boliche.time && !dailyTimeOptions("boliche-exit", state).includes(state.boliche.time)) {
     state.boliche.time = null;
   }
 }
@@ -4873,11 +5049,10 @@ function napDurationMinutes(nap) {
   return Math.max(0, diff);
 }
 
-// El boliche arranca siempre a la 01:00; la duración es el tiempo
-// entre esa llegada fija y la hora de salida registrada.
-function bolicheDurationMinutes(exitTime) {
-  if (!exitTime) return null;
-  return Math.max(0, timeToMinutes(exitTime) - BOLICHE_ARRIVAL_MINUTES);
+function bolicheDurationMinutes(entryTime, exitTime) {
+  if (!entryTime || !exitTime) return null;
+  const duration = timeToMinutes(exitTime) - timeToMinutes(entryTime);
+  return duration > 0 ? duration : null;
 }
 
 function bolicheEffectiveExitTime(boliche) {
@@ -4899,7 +5074,8 @@ function totalSleepMinutes(sleepMin, napMin) {
 function computeDailyDerived(entry) {
   const sleepMin = entry.sleep.didNotSleep ? null : sleepDurationMinutes(entry.sleep.bedtime, entry.sleep.wake);
   const napMin = napDurationMinutes(entry.nap);
-  const bolicheMin = entry.boliche.didNotGo ? null : bolicheDurationMinutes(bolicheEffectiveExitTime(entry.boliche));
+  const bolicheEntry = entry.boliche.entryTime || (!entry.boliche.didNotGo && bolicheEffectiveExitTime(entry.boliche) ? "01:00" : null);
+  const bolicheMin = entry.boliche.didNotGo ? null : bolicheDurationMinutes(bolicheEntry, bolicheEffectiveExitTime(entry.boliche));
   return {
     sleepMinutes: sleepMin,
     napMinutes: napMin,
@@ -4914,7 +5090,7 @@ function defaultDailyEntry() {
     nap: null, // { start, end } | null
     fifthMeal: null, // "yes" | "no" | null
     bathroom: null, // 0-5 | null
-    boliche: { didNotGo: false, time: null, closedClub: false },
+    boliche: { didNotGo: false, entryTime: null, time: null, closedClub: false },
     destroyedVote: null, // id de PARTICIPANTS | null — encuesta "¿Quién estuvo más destruido anoche?"
     mostFlirtyVote: null, // encuesta "¿Quién fue el más chamullero anoche?"
     bestOutfitVote: null, // encuesta "¿Quién tuvo el mejor outfit anoche?"
@@ -4938,6 +5114,7 @@ function dailyEntryApiPayload(entry) {
     bathroom: entry.bathroom ?? null,
     boliche: {
       didNotGo: !!entry.boliche.didNotGo,
+      entryTime: entry.boliche.entryTime || null,
       time: entry.boliche.time || null,
       closedClub: !!entry.boliche.closedClub,
     },
@@ -5010,6 +5187,7 @@ function dailyEntryFromApi(entry, surveyVotes) {
     bathroom: entry.bathroom ?? null,
     boliche: {
       didNotGo: !!entry.boliche.didNotGo,
+      entryTime: entry.boliche.entryTime || null,
       time: entry.boliche.time || null,
       closedClub: !!entry.boliche.closedClub,
     },
@@ -5123,9 +5301,11 @@ function renderDailyScreen() {
   const wakeOptions = dailyTimeOptions("wake", s);
   const napStartOptions = s.nap ? dailyTimeOptions("nap-start", s) : [];
   const napEndOptions = s.nap ? dailyTimeOptions("nap-end", s) : [];
-  const bolicheOptions = dailyTimeOptions("boliche", s);
-  const canCloseClub = !s.boliche.didNotGo && canCloseClubWithSleep(s.sleep);
-  const showBolichePicker = !s.boliche.didNotGo && !s.boliche.closedClub && bolicheOptions.length > 0;
+  const bolicheEntryOptions = dailyTimeOptions("boliche-entry", s);
+  const bolicheExitOptions = dailyTimeOptions("boliche-exit", s);
+  const canCloseClub = canCloseClubWithState(s);
+  const showBolicheEntryPicker = !s.boliche.didNotGo && bolicheEntryOptions.length > 0;
+  const showBolicheExitPicker = !s.boliche.didNotGo && !s.boliche.closedClub && bolicheExitOptions.length > 0;
 
   dailyMain.innerHTML = `
     <div class="daily-date-banner">
@@ -5192,22 +5372,29 @@ function renderDailyScreen() {
     </div>
 
     <div class="daily-section">
-      <div class="section-label">🍾 ¿A qué hora abandonaste el boliche?</div>
+      <div class="section-label">🍾 ¿Fuiste al boliche?</div>
       <button type="button" id="btn-no-boliche" class="toggle-chip${s.boliche.didNotGo ? " selected" : ""}">No fui al boliche</button>
       <div id="boliche-fields"${s.boliche.didNotGo ? " hidden" : ""}>
-        <button type="button" id="btn-closed-club" class="toggle-chip${s.boliche.closedClub ? " selected" : ""}" ${canCloseClub ? "" : "disabled"}>Cerré el boliche</button>
         ${
-          showBolichePicker
+          showBolicheEntryPicker
             ? `<div class="picker-block">
-                ${renderTimeScroll("picker-boliche", "boliche", s.boliche.time, bolicheOptions)}
+                <label class="field-label">¿A qué hora fuiste al boliche?</label>
+                ${renderTimeScroll("picker-boliche-entry", "boliche-entry", s.boliche.entryTime, bolicheEntryOptions)}
               </div>`
-            : s.boliche.closedClub
-              ? `<p class="daily-computed">Quedó marcado que cerraste el boliche.</p>`
-              : canCloseClub
-                ? `<p class="daily-computed">Elegí una hora de dormir posterior a la 01:00 para cargar salida.</p>`
-                : `<p class="daily-computed">Para cerrar el boliche necesitás no dormir o dormir después del cierre.</p>`
+            : `<p class="daily-computed">Elegí una hora de dormir compatible para cargar boliche.</p>`
         }
-        ${derived.bolicheMinutes !== null ? `<p class="daily-computed">${formatDuration(derived.bolicheMinutes)} en el boliche (desde la 01:00)</p>` : ""}
+        ${
+          showBolicheExitPicker
+            ? `<div class="picker-block">
+                <label class="field-label">¿A qué hora te fuiste?</label>
+                ${renderTimeScroll("picker-boliche-exit", "boliche-exit", s.boliche.time, bolicheExitOptions)}
+              </div>`
+            : !s.boliche.closedClub && s.boliche.entryTime
+              ? `<p class="daily-computed">Elegí una salida posterior a la entrada.</p>`
+              : ""
+        }
+        <button type="button" id="btn-closed-club" class="toggle-chip${s.boliche.closedClub ? " selected" : ""}" ${canCloseClub || s.boliche.closedClub ? "" : "disabled"}>Cerré el boliche</button>
+        ${derived.bolicheMinutes !== null ? `<p class="daily-computed">${formatDuration(derived.bolicheMinutes)} en el boliche</p>` : ""}
       </div>
     </div>
 
@@ -5220,7 +5407,7 @@ function renderDailyScreen() {
   `;
 
   // Centrar la opción seleccionada de cada selector visible.
-  ["picker-bedtime", "picker-wake", "picker-nap-start", "picker-nap-end", "picker-boliche"].forEach((id) => {
+  ["picker-bedtime", "picker-wake", "picker-nap-start", "picker-nap-end", "picker-boliche-entry", "picker-boliche-exit"].forEach((id) => {
     if (document.getElementById(id)) scrollSelectedIntoView(id);
   });
 
@@ -5328,6 +5515,7 @@ function attachDailyListeners() {
     noBolicheBtn.addEventListener("click", () => {
       dailyState.boliche.didNotGo = !dailyState.boliche.didNotGo;
       if (dailyState.boliche.didNotGo) {
+        dailyState.boliche.entryTime = null;
         dailyState.boliche.time = null;
         dailyState.boliche.closedClub = false;
       }
@@ -5338,7 +5526,7 @@ function attachDailyListeners() {
   const closedClubBtn = document.getElementById("btn-closed-club");
   if (closedClubBtn) {
     closedClubBtn.addEventListener("click", () => {
-      if (!canCloseClubWithSleep(dailyState.sleep)) return;
+      if (!canCloseClubWithState(dailyState) && !dailyState.boliche.closedClub) return;
       dailyState.boliche.didNotGo = false;
       dailyState.boliche.closedClub = !dailyState.boliche.closedClub;
       if (dailyState.boliche.closedClub) dailyState.boliche.time = null;
@@ -5346,9 +5534,19 @@ function attachDailyListeners() {
     });
   }
 
-  const bolichePicker = document.getElementById("picker-boliche");
-  if (bolichePicker) {
-    bolichePicker.addEventListener("click", (e) => {
+  const bolicheEntryPicker = document.getElementById("picker-boliche-entry");
+  if (bolicheEntryPicker) {
+    bolicheEntryPicker.addEventListener("click", (e) => {
+      const btn = e.target.closest(".time-option");
+      if (!btn) return;
+      dailyState.boliche.entryTime = btn.dataset.value;
+      renderDailyScreen();
+    });
+  }
+
+  const bolicheExitPicker = document.getElementById("picker-boliche-exit");
+  if (bolicheExitPicker) {
+    bolicheExitPicker.addEventListener("click", (e) => {
       const btn = e.target.closest(".time-option");
       if (!btn) return;
       dailyState.boliche.time = btn.dataset.value;
@@ -5377,6 +5575,20 @@ async function saveDailyEntry() {
   // La UI filtra opciones incompatibles; antes de persistir volvemos a
   // limpiar dependencias para que un estado manipulado no se guarde.
   sanitizeDailyStateTimes(dailyState);
+  if (!dailyState.boliche.didNotGo && (!dailyState.boliche.entryTime || (!dailyState.boliche.closedClub && !dailyState.boliche.time))) {
+    const msg = document.getElementById("daily-save-msg");
+    if (msg) {
+      msg.textContent = "Completá la entrada y salida del boliche.";
+      msg.classList.add("visible");
+      setTimeout(() => msg.classList.remove("visible"), 2200);
+    }
+    dailySaveSubmitting = false;
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Guardar registro";
+    }
+    return;
+  }
   // Defensa extra: la UI ya excluye al propio usuario de las opciones,
   // pero si por algún motivo quedó un voto a sí mismo en el estado, se
   // descarta antes de guardar (nunca se persiste un autovoto).
@@ -9565,13 +9777,22 @@ function generateTestDailyEntry(otherIds) {
   entry.bathroom = tdRandInt(0, 5);
 
   if (Math.random() < 0.6) {
-    // La llegada al boliche es fija a la 01:00, así que la salida
-    // siempre tiene que ser posterior.
-    const exitHour = tdPick([1, 2, 3, 4, 5, 6]);
-    const exitMin = exitHour === 1 ? tdPick([10, 20, 30, 40, 50]) : tdPick([0, 10, 20, 30, 40, 50]);
-    entry.boliche.time = tdTimeStr(exitHour, exitMin);
+    const entryOptions = bolicheEntryOptionsForSleep(entry.sleep);
+    entry.boliche.entryTime = entryOptions.length ? tdPick(entryOptions) : null;
+    const entryMinutes = entry.boliche.entryTime ? timeToMinutes(entry.boliche.entryTime) : null;
+    const latestExit = bolicheLatestExitForSleep(entry.sleep);
+    const canClose = entryMinutes !== null && latestExit !== null && BOLICHE_CLOSED_CLUB_MINUTES > entryMinutes && BOLICHE_CLOSED_CLUB_MINUTES <= latestExit;
+    const closeClub = canClose && Math.random() < 0.18;
+    entry.boliche.closedClub = closeClub;
+    if (!entry.boliche.entryTime) {
+      entry.boliche = { didNotGo: true, entryTime: null, time: null, closedClub: false };
+    } else if (!closeClub) {
+      const exitOptions = bolicheExitOptionsForState(entry);
+      if (exitOptions.length) entry.boliche.time = tdPick(exitOptions);
+      else entry.boliche = { didNotGo: true, entryTime: null, time: null, closedClub: false };
+    }
   } else {
-    entry.boliche.didNotGo = true;
+    entry.boliche = { didNotGo: true, entryTime: null, time: null, closedClub: false };
   }
 
   DAILY_SURVEYS.forEach((survey) => {

@@ -1034,6 +1034,24 @@ img, svg {
   font-size: 12px !important;
 }
 
+.home-usage-types {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(234, 246, 255, 0.5);
+  border: 1px solid rgba(76, 201, 240, 0.18);
+}
+
+.home-usage-types h3 {
+  margin: 0;
+  color: #10233a;
+  font-size: 13px;
+  line-height: 1.2;
+  font-weight: 850;
+}
+
 /* ---------------------------------------------------------
    Home — mismo lenguaje visual del login (fondo claro ya viene de
    `.login-screen`) + tarjetas más grandes para aprovechar mejor el
@@ -4225,6 +4243,35 @@ img, svg {
   gap: 10px;
 }
 
+.previa-history-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.previa-delete-btn {
+  border: 1px solid color-mix(in srgb, var(--danger) 28%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--danger) 7%, var(--surface-2));
+  color: color-mix(in srgb, var(--danger) 86%, var(--text));
+  padding: 8px 11px;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 850;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+.previa-delete-btn:active {
+  transform: scale(0.98);
+  border-color: color-mix(in srgb, var(--danger) 54%, var(--border));
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface-2));
+}
+
 .previa-history-card .admin-preview-row span:last-child {
   text-align: right;
   max-width: 62%;
@@ -6136,7 +6183,8 @@ html[data-theme="dark"] #screen-home .home-usage-access .feature-text p {
 }
 
 html[data-theme="dark"] #screen-home .home-usage-card h2,
-html[data-theme="dark"] #screen-usage .home-usage-card h2 {
+html[data-theme="dark"] #screen-usage .home-usage-card h2,
+html[data-theme="dark"] #screen-usage .home-usage-types h3 {
   color: #edf7ff;
 }
 
@@ -6156,6 +6204,11 @@ html[data-theme="dark"] #screen-home .home-usage-note,
 html[data-theme="dark"] #screen-usage .home-usage-note {
   border-top-color: rgba(127, 200, 231, 0.18);
   color: #8da8ba !important;
+}
+
+html[data-theme="dark"] #screen-usage .home-usage-types {
+  background: rgba(17, 43, 63, 0.46);
+  border-color: rgba(127, 200, 231, 0.16);
 }
 
 html[data-theme="dark"] .home-hero .icon-btn,

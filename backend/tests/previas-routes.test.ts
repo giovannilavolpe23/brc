@@ -280,4 +280,60 @@ describe("previas routes", () => {
     assert.equal(denied.status, 404);
     assert.equal(allowed.status, 204);
   });
+
+  it("lets the creator delete a previa without admin privileges", async () => {
+    const input = {
+      legacyId: "legacy-previa-1",
+      participantIds: ["gio", "jere"],
+      products: [{ legacyId: "prod", name: "Fernet", unitPrice: 10000, quantity: 1 }],
+      totalAmount: 10000,
+      amountPerParticipant: 5000,
+      occurredAt: "2026-08-29T03:00:00.000Z",
+    };
+    const existing = makePrevia(jere.id, input, [users.get("gio") as ResolvedParticipant, users.get("jere") as ResolvedParticipant]);
+    const repo = makeRepository([existing]);
+
+    const response = await request(makeApp(jere, repo)).delete("/previas/uuid-legacy-previa-1");
+
+    assert.equal(response.status, 204);
+    assert.equal(repo.previas.length, 0);
+  });
+
+  it("does not let a participant who is not the creator delete a previa", async () => {
+    const input = {
+      legacyId: "legacy-previa-1",
+      participantIds: ["jere", "marto"],
+      products: [{ legacyId: "prod", name: "Fernet", unitPrice: 10000, quantity: 1 }],
+      totalAmount: 10000,
+      amountPerParticipant: 5000,
+      occurredAt: "2026-08-29T03:00:00.000Z",
+    };
+    const existing = makePrevia(jere.id, input, [users.get("jere") as ResolvedParticipant, users.get("marto") as ResolvedParticipant]);
+    const repo = makeRepository([existing]);
+
+    const response = await request(makeApp(marto, repo)).delete("/previas/uuid-legacy-previa-1");
+
+    assert.equal(response.status, 404);
+    assert.equal(repo.previas.length, 1);
+  });
+
+  it("responds predictably when deleting an already deleted previa", async () => {
+    const input = {
+      legacyId: "legacy-previa-1",
+      participantIds: ["gio", "jere"],
+      products: [{ legacyId: "prod", name: "Fernet", unitPrice: 10000, quantity: 1 }],
+      totalAmount: 10000,
+      amountPerParticipant: 5000,
+      occurredAt: "2026-08-29T03:00:00.000Z",
+    };
+    const existing = makePrevia(gio.id, input, [users.get("gio") as ResolvedParticipant, users.get("jere") as ResolvedParticipant]);
+    const repo = makeRepository([existing]);
+
+    const first = await request(makeApp(gio, repo)).delete("/previas/uuid-legacy-previa-1");
+    const second = await request(makeApp(gio, repo)).delete("/previas/uuid-legacy-previa-1");
+
+    assert.equal(first.status, 204);
+    assert.equal(second.status, 404);
+    assert.equal(second.body.error, "previa_not_found");
+  });
 });

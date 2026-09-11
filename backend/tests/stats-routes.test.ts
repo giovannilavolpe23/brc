@@ -52,6 +52,7 @@ const statsData: StatsData = {
       fifthMeal: "yes",
       bathroom: 1,
       bolicheDidNotGo: true,
+      bolicheEntryTime: null,
       bolicheExitTime: null,
       bolicheClosedClub: false,
     },

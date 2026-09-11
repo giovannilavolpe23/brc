@@ -12,6 +12,7 @@ export type DailyEntryInput = {
   bathroom: number | null;
   boliche: {
     didNotGo: boolean;
+    entryTime: string | null;
     time: string | null;
     closedClub: boolean;
   };
