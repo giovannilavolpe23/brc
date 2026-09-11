@@ -342,6 +342,12 @@ describe("admin demo data generation", () => {
 
     const candidates = dataset.days.flatMap((dateKey) => collectAchievementCandidatesForDate(dateKey, toStatsData(dataset)));
     assert.equal(candidates.some((candidate) => candidate.key === "secret_not_a_competition"), true);
+    assert.equal(candidates.some((candidate) => candidate.key === "secret_no_sleep_required"), true);
+    assert.equal(candidates.some((candidate) => candidate.key === "secret_came_to_break"), true);
+    assert.equal(candidates.some((candidate) => candidate.key === "secret_club_staff"), true);
+    assert.equal(candidates.some((candidate) => candidate.key === "secret_who_hurt_you"), true);
+    assert.equal(candidates.some((candidate) => candidate.key === "secret_broke_economy"), true);
+    assert.equal(candidates.some((candidate) => candidate.key === "secret_outfit_consequences"), true);
   });
 
   it("resets and inserts the dataset in one transaction", async () => {

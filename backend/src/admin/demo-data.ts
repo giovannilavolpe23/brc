@@ -198,6 +198,7 @@ export function buildDemoDataset(users: DemoUser[], mode: DemoSimulationMode, to
   const zombieUser = orderedUsers[0];
   const alcoholUser = orderedUsers[1 % orderedUsers.length];
   const clubCloserUser = orderedUsers[2 % orderedUsers.length];
+  const secretEconomyUser = orderedUsers[5 % orderedUsers.length];
   const surveyFavorites = {
     destroyed_vote: zombieUser,
     most_flirty: orderedUsers[3 % orderedUsers.length],
@@ -214,9 +215,10 @@ export function buildDemoDataset(users: DemoUser[], mode: DemoSimulationMode, to
     users.forEach((user, userIndex) => {
       dailyEntries.push(generateDailyEntry(user, dateKey, dayIndex, { zombieUser, clubCloserUser }, rng));
       DEMO_SURVEY_KEYS.forEach((surveyKey) => {
-        surveyVotes.push(generateSurveyVote(surveyKey, user, users, dateKey, dayIndex, surveyFavorites[surveyKey], rng));
+        const favoriteUser = surveyKey === "best_outfit" && dayIndex === 0 ? surveyFavorites.destroyed_vote : surveyFavorites[surveyKey];
+        surveyVotes.push(generateSurveyVote(surveyKey, user, users, dateKey, dayIndex, favoriteUser, rng));
       });
-      moneyMovements.push(...generateMoneyMovements(user, dateKey, dayIndex, userIndex, { alcoholUser, spenderUser, batchId }, rng));
+      moneyMovements.push(...generateMoneyMovements(user, dateKey, dayIndex, userIndex, { alcoholUser, spenderUser, secretComboUser: zombieUser, secretEconomyUser, batchId }, rng));
     });
   });
 
@@ -438,7 +440,7 @@ function generateDailyEntry(
   const sleepBedtime = sleepDidNotSleep
     ? null
     : minutesToTime(isCompetitionSeed ? 420 : isClubClosingRun ? randStep(rng, 420, 480) : isZombieRun ? randStep(rng, 420, 460) : randStep(rng, 240, 390));
-  const sleepWake = sleepDidNotSleep ? null : minutesToTime(isCompetitionSeed ? 480 : isClubClosingRun ? randStep(rng, 720, 900) : isZombieRun ? randStep(rng, 540, 600) : randStep(rng, 660, 840));
+  const sleepWake = sleepDidNotSleep ? null : minutesToTime(isCompetitionSeed ? 470 : isClubClosingRun ? randStep(rng, 720, 900) : isZombieRun ? randStep(rng, 540, 600) : randStep(rng, 660, 840));
   const wakeMinutes = sleepWake ? timeToMinutes(sleepWake) : null;
 
   const hasNap = !sleepDidNotSleep && wakeMinutes !== null && rng() < (isZombieRun ? 0.25 : 0.48);
@@ -482,7 +484,7 @@ function generateSurveyVote(
   favoriteUser: DemoUser,
   rng: Rng
 ): DemoSurveyVote {
-  let votedUser = dayIndex < 4 && user.id !== favoriteUser.id && rng() < 0.72
+  let votedUser = dayIndex < 4 && user.id !== favoriteUser.id
     ? favoriteUser
     : pick(rng, users.filter((candidate) => candidate.id !== user.id));
   if (votedUser.id === user.id) {
@@ -501,7 +503,7 @@ function generateMoneyMovements(
   dateKey: string,
   dayIndex: number,
   userIndex: number,
-  context: { alcoholUser: DemoUser; spenderUser: DemoUser; batchId: string },
+  context: { alcoholUser: DemoUser; spenderUser: DemoUser; secretComboUser: DemoUser; secretEconomyUser: DemoUser; batchId: string },
   rng: Rng
 ): DemoMoneyMovement[] {
   const movements: DemoMoneyMovement[] = [];
@@ -519,15 +521,24 @@ function generateMoneyMovements(
     });
   };
 
+  if (user.id === context.secretEconomyUser.id && dayIndex === 1) {
+    addMovement("income", randStep(rng, 5000, 20000, 500), null, "Ingreso sin gastar");
+    return movements;
+  }
+
   const requiredCategory = EXPENSE_CATEGORIES[(dayIndex + userIndex) % EXPENSE_CATEGORIES.length];
   const categories = new Set<(typeof EXPENSE_CATEGORIES)[number]>([requiredCategory, pick(rng, EXPENSE_CATEGORIES)]);
   if (user.id === context.alcoholUser.id && dayIndex < 4) categories.add("Alcohol");
+  if (user.id === context.secretComboUser.id && dayIndex === 0) categories.add("Alcohol");
   if (user.id === context.spenderUser.id && dayIndex < 4) categories.add(pick(rng, ["Boliche", "Actividades", "Comida"]));
 
   Array.from(categories).forEach((category) => {
+    const secretAlcohol = user.id === context.secretComboUser.id && category === "Alcohol" && dayIndex === 0;
     const dominantAlcohol = user.id === context.alcoholUser.id && category === "Alcohol" && dayIndex < 4;
     const dominantSpender = user.id === context.spenderUser.id && dayIndex < 4;
-    const baseAmount = dominantAlcohol
+    const baseAmount = secretAlcohol
+      ? randStep(rng, 30000, 42000, 500)
+      : dominantAlcohol
       ? randStep(rng, 15000, 26000, 500)
       : dominantSpender
         ? randStep(rng, 18000, 32000, 500)

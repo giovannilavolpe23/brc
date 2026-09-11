@@ -45,6 +45,14 @@ function candidate(key: string, candidates = collectAchievementCandidatesForDate
   return candidates.find((item) => item.key === key);
 }
 
+function completeEntries(days: string[], overridesForUser: (userId: string, dateKey: string, dayIndex: number) => Partial<DailyEntryStatsRow> = () => {}) {
+  return days.flatMap((dateKey, dayIndex) => [
+    entry(gioId, dateKey, overridesForUser(gioId, dateKey, dayIndex)),
+    entry(jereId, dateKey, overridesForUser(jereId, dateKey, dayIndex)),
+    entry(nataId, dateKey, overridesForUser(nataId, dateKey, dayIndex)),
+  ]);
+}
+
 describe("persistent achievement evaluation", () => {
   it("does not persist achievements before a day is complete", async () => {
     const queries: string[] = [];
@@ -306,5 +314,202 @@ describe("persistent achievement evaluation", () => {
     );
 
     assert.deepEqual(candidate("secret_came_to_break", candidates)?.userIds, [gioId]);
+  });
+
+  it("does not award ¿Quién te hizo tanto daño? after only three consecutive negative days", () => {
+    const days = ["2026-08-25", "2026-08-26", "2026-08-27"];
+    const candidates = collectAchievementCandidatesForDate(
+      "2026-08-27",
+      data({
+        dailyEntries: completeEntries(days, (userId) => userId === gioId ? { sleepBedtime: "04:00", sleepWake: "08:00" } : { sleepBedtime: "02:00", sleepWake: "10:00" }),
+      })
+    );
+
+    assert.equal(candidate("secret_who_hurt_you", candidates), undefined);
+  });
+
+  it("awards ¿Quién te hizo tanto daño? after four consecutive negative days", () => {
+    const days = ["2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28"];
+    const candidates = collectAchievementCandidatesForDate(
+      "2026-08-28",
+      data({
+        dailyEntries: completeEntries(days, (userId) => userId === gioId ? { sleepBedtime: "04:00", sleepWake: "08:00" } : { sleepBedtime: "02:00", sleepWake: "10:00" }),
+      })
+    );
+
+    assert.deepEqual(candidate("secret_who_hurt_you", candidates)?.userIds, [gioId]);
+  });
+
+  it("counts different negative conditions for ¿Quién te hizo tanto daño?", () => {
+    const days = ["2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28"];
+    const candidates = collectAchievementCandidatesForDate(
+      "2026-08-28",
+      data({
+        dailyEntries: completeEntries(days, (userId, _dateKey, dayIndex) =>
+          userId === gioId
+            ? dayIndex === 0
+              ? { sleepBedtime: "04:00", sleepWake: "08:00" }
+              : { sleepBedtime: "01:00", sleepWake: "11:00" }
+            : { sleepBedtime: "02:00", sleepWake: "10:00" }
+        ),
+        expenses: [
+          { userId: gioId, dateKey: "2026-08-26", category: "Alcohol", amount: 1000 },
+          { userId: jereId, dateKey: "2026-08-26", category: "Alcohol", amount: 1 },
+          { userId: gioId, dateKey: "2026-08-28", category: "Comida", amount: 1000 },
+          { userId: jereId, dateKey: "2026-08-28", category: "Comida", amount: 1 },
+        ],
+        surveyVotes: [
+          { surveyKey: "destroyed_vote", dateKey: "2026-08-27", votedUserId: gioId },
+          { surveyKey: "destroyed_vote", dateKey: "2026-08-27", votedUserId: gioId },
+          { surveyKey: "destroyed_vote", dateKey: "2026-08-27", votedUserId: jereId },
+        ],
+      })
+    );
+
+    assert.deepEqual(candidate("secret_who_hurt_you", candidates)?.userIds, [gioId]);
+  });
+
+  it("counts several negative wins on one date as only one day and cuts interrupted streaks", () => {
+    const days = ["2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28"];
+    const candidates = collectAchievementCandidatesForDate(
+      "2026-08-28",
+      data({
+        dailyEntries: completeEntries(days, (userId, _dateKey, dayIndex) =>
+          userId === gioId
+            ? dayIndex === 2
+              ? { sleepBedtime: "01:00", sleepWake: "11:00" }
+              : { sleepBedtime: "04:00", sleepWake: "08:00" }
+            : dayIndex === 2
+              ? { sleepBedtime: "04:00", sleepWake: "08:00" }
+              : { sleepBedtime: "02:00", sleepWake: "10:00" }
+        ),
+        expenses: [
+          { userId: gioId, dateKey: "2026-08-24", category: "Alcohol", amount: 2000 },
+          { userId: jereId, dateKey: "2026-08-24", category: "Alcohol", amount: 1 },
+        ],
+        surveyVotes: [
+          { surveyKey: "destroyed_vote", dateKey: "2026-08-24", votedUserId: gioId },
+          { surveyKey: "destroyed_vote", dateKey: "2026-08-24", votedUserId: gioId },
+        ],
+      })
+    );
+
+    assert.equal(candidate("secret_who_hurt_you", candidates), undefined);
+  });
+
+  it("counts tied negative daily wins for ¿Quién te hizo tanto daño?", () => {
+    const days = ["2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28"];
+    const candidates = collectAchievementCandidatesForDate(
+      "2026-08-28",
+      data({
+        dailyEntries: completeEntries(days, (userId) =>
+          userId === nataId ? { sleepBedtime: "02:00", sleepWake: "10:00" } : { sleepBedtime: "04:00", sleepWake: "08:00" }
+        ),
+      })
+    );
+
+    assert.deepEqual(candidate("secret_who_hurt_you", candidates)?.userIds, [gioId, jereId]);
+  });
+
+  it("awards Economía precaria only for complete days with zero expenses", () => {
+    const candidates = collectAchievementCandidatesForDate(
+      "2026-08-28",
+      data({
+        dailyEntries: completeEntries(["2026-08-28"]),
+        expenses: [
+          { userId: jereId, dateKey: "2026-08-28", category: "Comida", amount: 1 },
+          { userId: nataId, dateKey: "2026-08-28", category: "Comida", amount: 1 },
+        ],
+      })
+    );
+
+    assert.deepEqual(candidate("secret_broke_economy", candidates)?.userIds, [gioId]);
+  });
+
+  it("does not award Economía precaria with one peso spent or before the day is closed", () => {
+    const onePeso = collectAchievementCandidatesForDate(
+      "2026-08-28",
+      data({
+        dailyEntries: completeEntries(["2026-08-28"]),
+        expenses: [
+          { userId: gioId, dateKey: "2026-08-28", category: "Comida", amount: 1 },
+          { userId: jereId, dateKey: "2026-08-28", category: "Comida", amount: 1 },
+          { userId: nataId, dateKey: "2026-08-28", category: "Comida", amount: 1 },
+        ],
+      })
+    );
+    const openDay = collectAchievementCandidatesForDate("2026-08-28", data({ expenses: [] }));
+
+    assert.equal(candidate("secret_broke_economy", onePeso), undefined);
+    assert.equal(candidate("secret_broke_economy", openDay), undefined);
+  });
+
+  it("treats income-only days as zero-expense days for Economía precaria", () => {
+    const candidates = collectAchievementCandidatesForDate(
+      "2026-08-28",
+      data({
+        dailyEntries: completeEntries(["2026-08-28"]),
+        expenses: [
+          { userId: jereId, dateKey: "2026-08-28", category: "Comida", amount: 1 },
+          { userId: nataId, dateKey: "2026-08-28", category: "Comida", amount: 1 },
+        ],
+      })
+    );
+
+    assert.deepEqual(candidate("secret_broke_economy", candidates)?.userIds, [gioId]);
+  });
+
+  it("awards Outfit con consecuencias only when outfit and destroyed are won on the same date", () => {
+    const dailyEntries = completeEntries(["2026-08-28"]);
+    const outfitOnly = collectAchievementCandidatesForDate(
+      "2026-08-28",
+      data({ dailyEntries, surveyVotes: [{ surveyKey: "best_outfit", dateKey: "2026-08-28", votedUserId: gioId }] })
+    );
+    const destroyedOnly = collectAchievementCandidatesForDate(
+      "2026-08-28",
+      data({ dailyEntries, surveyVotes: [{ surveyKey: "destroyed_vote", dateKey: "2026-08-28", votedUserId: gioId }] })
+    );
+    const both = collectAchievementCandidatesForDate(
+      "2026-08-28",
+      data({
+        dailyEntries,
+        surveyVotes: [
+          { surveyKey: "best_outfit", dateKey: "2026-08-28", votedUserId: gioId },
+          { surveyKey: "destroyed_vote", dateKey: "2026-08-28", votedUserId: gioId },
+        ],
+      })
+    );
+    const differentDates = collectAchievementCandidatesForDate(
+      "2026-08-28",
+      data({
+        dailyEntries: completeEntries(["2026-08-27", "2026-08-28"]),
+        surveyVotes: [
+          { surveyKey: "best_outfit", dateKey: "2026-08-27", votedUserId: gioId },
+          { surveyKey: "destroyed_vote", dateKey: "2026-08-28", votedUserId: gioId },
+        ],
+      })
+    );
+
+    assert.equal(candidate("secret_outfit_consequences", outfitOnly), undefined);
+    assert.equal(candidate("secret_outfit_consequences", destroyedOnly), undefined);
+    assert.deepEqual(candidate("secret_outfit_consequences", both)?.userIds, [gioId]);
+    assert.equal(candidate("secret_outfit_consequences", differentDates), undefined);
+  });
+
+  it("counts tied outfit and destroyed winners for Outfit con consecuencias", () => {
+    const candidates = collectAchievementCandidatesForDate(
+      "2026-08-28",
+      data({
+        dailyEntries: completeEntries(["2026-08-28"]),
+        surveyVotes: [
+          { surveyKey: "best_outfit", dateKey: "2026-08-28", votedUserId: gioId },
+          { surveyKey: "best_outfit", dateKey: "2026-08-28", votedUserId: jereId },
+          { surveyKey: "destroyed_vote", dateKey: "2026-08-28", votedUserId: gioId },
+          { surveyKey: "destroyed_vote", dateKey: "2026-08-28", votedUserId: jereId },
+        ],
+      })
+    );
+
+    assert.deepEqual(candidate("secret_outfit_consequences", candidates)?.userIds, [gioId, jereId]);
   });
 });

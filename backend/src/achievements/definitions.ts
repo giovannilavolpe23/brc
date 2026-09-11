@@ -65,6 +65,27 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     description: "Cerrar 6 noches",
     condition: "Llegar a 6 noches con cierre de boliche acumuladas durante el viaje.",
   },
+  {
+    key: "secret_who_hurt_you",
+    type: "secret",
+    name: "¿Quién te hizo tanto daño?",
+    description: "Ganar una condición negativa durante 4 noches consecutivas",
+    condition: "Ser ganador de al menos una condición negativa durante 4 días cerrados consecutivos.",
+  },
+  {
+    key: "secret_broke_economy",
+    type: "secret",
+    name: "Economía precaria",
+    description: "Pasar un día completo sin gastar nada",
+    condition: "Tener $0 en movimientos de tipo expense durante un día cerrado.",
+  },
+  {
+    key: "secret_outfit_consequences",
+    type: "secret",
+    name: "Outfit con consecuencias",
+    description: "Ganar El mejor outfit y El más destruido el mismo día",
+    condition: "Ganar best_outfit y destroyed_vote durante el mismo día cerrado.",
+  },
 ];
 
 export const ACHIEVEMENT_BY_KEY = new Map(ACHIEVEMENTS.map((achievement) => [achievement.key, achievement]));

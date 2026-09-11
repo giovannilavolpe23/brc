@@ -69,7 +69,7 @@ function makeApp(user: AuthUser, repository: AchievementsRepository) {
 }
 
 function secretSummary() {
-  return { unlockedCount: 2, totalCount: 4 };
+  return { unlockedCount: 2, totalCount: 7 };
 }
 
 describe("achievement routes", () => {

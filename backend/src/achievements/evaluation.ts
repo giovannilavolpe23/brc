@@ -16,6 +16,9 @@ const SECRET_NO_SLEEP_REQUIRED_KEY = "secret_no_sleep_required";
 const SECRET_NOT_A_COMPETITION_KEY = "secret_not_a_competition";
 const SECRET_CAME_TO_BREAK_KEY = "secret_came_to_break";
 const SECRET_CLUB_STAFF_KEY = "secret_club_staff";
+const SECRET_WHO_HURT_YOU_KEY = "secret_who_hurt_you";
+const SECRET_BROKE_ECONOMY_KEY = "secret_broke_economy";
+const SECRET_OUTFIT_CONSEQUENCES_KEY = "secret_outfit_consequences";
 const WALLET_THRESHOLD = 350000;
 
 export async function evaluateAchievementsThroughDate(
@@ -59,6 +62,9 @@ export function collectAchievementCandidatesForDate(
   addCandidate(candidates, resolvedKeys, SECRET_NOT_A_COMPETITION_KEY, dateKey, fourDynamicStatsWinners(dateKey, data, activeUserIds));
   addCandidate(candidates, resolvedKeys, SECRET_CAME_TO_BREAK_KEY, dateKey, cameToBreakWinners(dateKey, data, activeUserIds));
   addCandidate(candidates, resolvedKeys, SECRET_CLUB_STAFF_KEY, dateKey, cumulativeClosedClubWinners(dateKey, data, activeUserIds, 6));
+  addCandidate(candidates, resolvedKeys, SECRET_WHO_HURT_YOU_KEY, dateKey, fourConsecutiveNegativeConditionWinners(dateKey, data, activeUserIds));
+  addCandidate(candidates, resolvedKeys, SECRET_BROKE_ECONOMY_KEY, dateKey, zeroExpenseWinners(dateKey, data, activeUserIds));
+  addCandidate(candidates, resolvedKeys, SECRET_OUTFIT_CONSEQUENCES_KEY, dateKey, outfitConsequencesWinners(dateKey, data, activeUserIds));
 
   return candidates;
 }
@@ -207,6 +213,58 @@ function cameToBreakWinners(dateKey: string, data: StatsData, activeUserIds: Set
   return Array.from(destroyed).filter((userId) => alcohol.has(userId));
 }
 
+function fourConsecutiveNegativeConditionWinners(dateKey: string, data: StatsData, activeUserIds: Set<string>): string[] {
+  const completeDays = completeDailyEntryDaysThrough(dateKey, data, activeUserIds);
+  if (completeDays.length < 4) return [];
+  return Array.from(activeUserIds).filter((userId) => longestStreak(completeDays, (day) => negativeConditionWinners(day, data, activeUserIds).has(userId)) >= 4);
+}
+
+function negativeConditionWinners(dateKey: string, data: StatsData, activeUserIds: Set<string>): Set<string> {
+  const stats = calculateStats("day", data, dateKey);
+  return new Set([
+    ...rankingWinners(stats.dailyEntries.leastSleepMinutes, "min"),
+    ...rankingWinners(stats.money.byCategoryAndUser.Alcohol ?? []),
+    ...rankingWinners(stats.surveys.destroyed_vote),
+    ...rankingWinners(stats.money.totalSpentByUser),
+  ].filter((userId) => activeUserIds.has(userId)));
+}
+
+function zeroExpenseWinners(dateKey: string, data: StatsData, activeUserIds: Set<string>): string[] {
+  if (!isCompleteDailyEntryDay(dateKey, data, activeUserIds)) return [];
+  const expenseTotals = new Map<string, number>();
+  data.expenses
+    .filter((expense) => expense.dateKey === dateKey && activeUserIds.has(expense.userId))
+    .forEach((expense) => expenseTotals.set(expense.userId, (expenseTotals.get(expense.userId) ?? 0) + expense.amount));
+  return Array.from(activeUserIds).filter((userId) => (expenseTotals.get(userId) ?? 0) === 0);
+}
+
+function outfitConsequencesWinners(dateKey: string, data: StatsData, activeUserIds: Set<string>): string[] {
+  if (!isCompleteDailyEntryDay(dateKey, data, activeUserIds)) return [];
+  const stats = calculateStats("day", data, dateKey);
+  const outfit = new Set(rankingWinners(stats.surveys.best_outfit).filter((userId) => activeUserIds.has(userId)));
+  const destroyed = new Set(rankingWinners(stats.surveys.destroyed_vote).filter((userId) => activeUserIds.has(userId)));
+  return Array.from(outfit).filter((userId) => destroyed.has(userId));
+}
+
+function completeDailyEntryDaysThrough(dateKey: string, data: StatsData, activeUserIds: Set<string>): string[] {
+  const entriesByDay = new Map<string, Set<string>>();
+  data.dailyEntries
+    .filter((entry) => entry.dateKey <= dateKey && activeUserIds.has(entry.userId))
+    .forEach((entry) => {
+      const users = entriesByDay.get(entry.dateKey) ?? new Set<string>();
+      users.add(entry.userId);
+      entriesByDay.set(entry.dateKey, users);
+    });
+  return Array.from(entriesByDay)
+    .filter(([, users]) => users.size === activeUserIds.size)
+    .map(([day]) => day)
+    .sort();
+}
+
+function isCompleteDailyEntryDay(dateKey: string, data: StatsData, activeUserIds: Set<string>): boolean {
+  return completeDailyEntryDaysThrough(dateKey, data, activeUserIds).includes(dateKey);
+}
+
 function rankingWinners(rows: RankingRow[], mode: "max" | "min" = "max"): string[] {
   const positiveRows = rows.filter((row) => row.value > 0);
   if (!positiveRows.length) return [];
@@ -230,6 +288,23 @@ function timeToMinutes(value: string): number {
 
 function uniqueSorted(userIds: string[]): string[] {
   return Array.from(new Set(userIds)).sort();
+}
+
+function longestStreak(days: string[], predicate: (day: string) => boolean): number {
+  let best = 0;
+  let current = 0;
+  let previous: string | null = null;
+  days.forEach((day) => {
+    const consecutive = previous !== null && addDays(previous, 1) === day;
+    if (predicate(day)) {
+      current = consecutive ? current + 1 : 1;
+      best = Math.max(best, current);
+    } else {
+      current = 0;
+    }
+    previous = day;
+  });
+  return best;
 }
 
 function addDays(dateKey: string, offset: number): string {
