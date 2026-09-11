@@ -2488,8 +2488,8 @@ function renderAdminAchievementsPanel() {
   }
 
   const groups = [
-    { type: "secret", title: "Secretos" },
     { type: "unique", title: "Únicos" },
+    { type: "secret", title: "Secretos" },
   ];
 
   panel.innerHTML = groups
@@ -8009,7 +8009,17 @@ function renderTitulosEspecialesScreen() {
         ? `<section class="permanent-achievements-section"><div class="section-label">Secretos</div><div class="permanent-achievement-list">${secretAchievements.map(renderPermanentAchievementCard).join("")}</div></section>`
         : ""
     }
+    ${renderSecretAchievementCounter()}
   `;
+}
+
+function renderSecretAchievementCounter() {
+  const summary = achievementsApiSnapshot && achievementsApiSnapshot.secretSummary;
+  if (!summary) return "";
+  const unlocked = Math.max(0, Number(summary.unlockedCount) || 0);
+  const total = Math.max(0, Number(summary.totalCount) || 0);
+  if (!total) return "";
+  return `<p class="secret-achievement-counter">Secretos desbloqueados: ${unlocked} de ${total}</p>`;
 }
 
 function renderKingProfileScreen() {
@@ -8905,6 +8915,7 @@ const screens = {
   personalizacion: document.getElementById("screen-personalizacion"),
   usage: document.getElementById("screen-usage"),
   ajustes: document.getElementById("screen-ajustes"),
+  "admin-achievements": document.getElementById("screen-admin-achievements"),
 };
 
 const bottomNav = document.getElementById("bottom-nav");
@@ -8955,7 +8966,8 @@ function navigate(route) {
   const isAdminOnlyRoute =
     route === "admin" ||
     route === "previas" ||
-    route === "ajustes";
+    route === "ajustes" ||
+    route === "admin-achievements";
   if (isAdminOnlyRoute && !user.isAdmin) {
     route = "home";
   }
@@ -9027,10 +9039,13 @@ function navigate(route) {
   } else if (route === "ajustes") {
     location.hash = "#/ajustes";
     renderPushSettingsPanel();
-    renderAdminAchievementsPanel();
-    requestAdminAchievementsRefresh();
     refreshPushSettings();
     showScreen("ajustes");
+  } else if (route === "admin-achievements") {
+    location.hash = "#/admin-achievements";
+    renderAdminAchievementsPanel();
+    requestAdminAchievementsRefresh();
+    showScreen("admin-achievements");
   } else if (route === "previas-jere") {
     location.hash = "#/previas-jere";
     previaMode = "local";
@@ -9078,6 +9093,7 @@ function navigate(route) {
       route === "personalizacion" ||
       route === "usage" ||
       route === "ajustes" ||
+      route === "admin-achievements" ||
       route === "money" ||
       route === "previas-jere" ||
       route === "export" ||
@@ -9092,7 +9108,7 @@ function navigate(route) {
       ? "home"
       : route === "usage"
       ? "home"
-      : route === "previas" || route === "ajustes"
+      : route === "previas" || route === "ajustes" || route === "admin-achievements"
       ? "admin"
       : route === "titulos" || route === "titulos-rey" || route === "titulos-especiales" || route === "titulos-estadistica" || route === "titulos-encuesta" || route === "titulos-racha"
       ? "titulos"
@@ -9123,6 +9139,7 @@ function routeFromHash() {
   if (hash === "personalizacion") return "personalizacion";
   if (hash === "usage") return "usage";
   if (hash === "ajustes") return "ajustes";
+  if (hash === "admin-achievements") return "admin-achievements";
   if (hash === "previas-jere") return "previas-jere";
   if (hash === "money") return "money";
   if (hash === "daily") return "daily";
@@ -9187,6 +9204,14 @@ document.getElementById("btn-admin-cancel-create-player").addEventListener("clic
 document.getElementById("btn-admin-reset-data").addEventListener("click", handleAdminResetDataClick);
 
 document.getElementById("btn-admin-generate-demo-data").addEventListener("click", handleAdminGenerateDemoDataClick);
+
+document.getElementById("card-admin-achievements").addEventListener("click", () => {
+  navigateBetweenScreensWithTransition("ajustes", "admin-achievements");
+});
+
+document.getElementById("btn-admin-achievements-back").addEventListener("click", () => {
+  navigateBetweenScreensWithTransition("admin-achievements", "ajustes");
+});
 
 document.getElementById("card-admin-previas").addEventListener("click", () => {
   navigateBetweenScreensWithTransition("admin", "previas");
@@ -9334,6 +9359,7 @@ bottomNav.addEventListener("click", (e) => {
       "titulos-encuesta",
       "titulos-racha",
       "ajustes",
+      "admin-achievements",
     ].find((r) => screens[r] && screens[r].classList.contains("active"));
     if (activeAnimatedRoute) {
       navigateScreenToHomeWithTransition(activeAnimatedRoute);
@@ -9358,6 +9384,7 @@ bottomNav.addEventListener("click", (e) => {
       "titulos-encuesta",
       "titulos-racha",
       "ajustes",
+      "admin-achievements",
     ].find((r) => screens[r] && screens[r].classList.contains("active"));
     if (activeAnimatedOrigin) {
       navigateBetweenScreensWithTransition(activeAnimatedOrigin, "admin");

@@ -28,6 +28,11 @@ export type AdminAchievement = {
   winners: AchievementUnlock["user"][];
 };
 
+export type SecretAchievementSummary = {
+  unlockedCount: number;
+  totalCount: number;
+};
+
 export type AchievementCandidate = {
   key: string;
   type: AchievementType;

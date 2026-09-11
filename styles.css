@@ -2717,6 +2717,20 @@ img, svg {
   color: var(--text-faint);
 }
 
+.secret-achievement-counter {
+  margin: 4px 0 20px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  width: fit-content;
+  max-width: 100%;
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 800;
+  color: var(--text-dim);
+  background: color-mix(in srgb, #c77dff 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, #c77dff 18%, var(--border));
+}
+
 .secret-achievement-reveal {
   display: grid;
   gap: 9px;
@@ -6502,6 +6516,12 @@ html[data-theme="dark"] .screen.admin-frost .titulo-badge.personalized-surface {
 html[data-theme="dark"] .screen.admin-frost .titulos-source-note {
   background: color-mix(in srgb, var(--titulos-source-accent, #5ec7ec) 10%, rgba(13, 31, 46, 0.88));
   border-color: color-mix(in srgb, var(--titulos-source-accent, #5ec7ec) 28%, rgba(127, 200, 231, 0.24));
+}
+
+html[data-theme="dark"] .secret-achievement-counter {
+  color: rgba(226, 242, 255, 0.74);
+  background: color-mix(in srgb, #c77dff 12%, rgba(13, 24, 41, 0.8));
+  border-color: color-mix(in srgb, #c77dff 24%, rgba(122, 201, 255, 0.16));
 }
 
 html[data-theme="dark"] .screen.admin-frost .king-profile-empty {

@@ -1,6 +1,6 @@
 import { pool } from "../db/pool";
 import { ACHIEVEMENTS, ACHIEVEMENT_BY_KEY } from "./definitions";
-import type { AchievementUnlock, AdminAchievement } from "./types";
+import type { AchievementUnlock, AdminAchievement, SecretAchievementSummary } from "./types";
 
 type AchievementUnlockRow = {
   achievement_key: string;
@@ -15,6 +15,7 @@ type AchievementUnlockRow = {
 
 export type AchievementsRepository = {
   listVisible(userId: string, canViewPrivate: boolean): Promise<AchievementUnlock[]>;
+  getSecretSummary(): Promise<SecretAchievementSummary>;
   listPendingSecretReveals(userId: string, canViewPrivate: boolean): Promise<AchievementUnlock[]>;
   markSecretRevealed(userId: string, achievementKey: string): Promise<boolean>;
   listAdmin(): Promise<AdminAchievement[]>;
@@ -40,6 +41,21 @@ export const postgresAchievementsRepository: AchievementsRepository = {
       `
     );
     return result.rows.map(toAchievementUnlock).filter(Boolean) as AchievementUnlock[];
+  },
+
+  async getSecretSummary() {
+    const result = await pool.query<{ count: string }>(
+      `
+        select count(distinct achievement_key)::int as count
+        from achievement_unlocks
+        where achievement_type = 'secret'
+      `
+    );
+    const totalCount = ACHIEVEMENTS.filter((achievement) => achievement.type === "secret").length;
+    return {
+      unlockedCount: Number(result.rows[0]?.count ?? 0),
+      totalCount,
+    };
   },
 
   async listPendingSecretReveals(userId, canViewPrivate) {

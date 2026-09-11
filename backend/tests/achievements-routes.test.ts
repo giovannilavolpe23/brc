@@ -68,6 +68,10 @@ function makeApp(user: AuthUser, repository: AchievementsRepository) {
   return app;
 }
 
+function secretSummary() {
+  return { unlockedCount: 2, totalCount: 4 };
+}
+
 describe("achievement routes", () => {
   it("returns unique and secret achievements only for Gio", async () => {
     const repository: AchievementsRepository = {
@@ -78,6 +82,9 @@ describe("achievement routes", () => {
           unlock({ type: "unique", key: "first_bottom", name: "Primero en tocar fondo", user: { id: jere.id, legacyId: jere.legacyId, displayName: jere.displayName } }),
           unlock({ key: "secret_no_sleep_required", type: "secret", user: { id: gio.id, legacyId: gio.legacyId, displayName: gio.displayName }, isDuplicate: true }),
         ];
+      },
+      async getSecretSummary() {
+        return secretSummary();
       },
       async listPendingSecretReveals() {
         return [];
@@ -97,6 +104,7 @@ describe("achievement routes", () => {
     assert.equal(response.body.achievements[0].type, "unique");
     assert.equal(response.body.achievements[1].type, "secret");
     assert.equal(response.body.achievements[1].isDuplicate, true);
+    assert.deepEqual(response.body.secretSummary, secretSummary());
   });
 
   it("does not expose unique or secret achievements to regular users", async () => {
@@ -104,6 +112,9 @@ describe("achievement routes", () => {
       async listVisible(_userId, canViewPrivate) {
         assert.equal(canViewPrivate, false);
         return [];
+      },
+      async getSecretSummary() {
+        return secretSummary();
       },
       async listPendingSecretReveals() {
         return [unlock()];
@@ -120,6 +131,8 @@ describe("achievement routes", () => {
 
     assert.equal(response.status, 200);
     assert.deepEqual(response.body.achievements, []);
+    assert.deepEqual(response.body.secretSummary, secretSummary());
+    assert.equal(JSON.stringify(response.body).includes("¿Dormir era obligatorio?"), false);
   });
 
   it("marks a secret reveal as viewed only for Gio", async () => {
@@ -127,6 +140,9 @@ describe("achievement routes", () => {
     const repository: AchievementsRepository = {
       async listVisible() {
         return [];
+      },
+      async getSecretSummary() {
+        return secretSummary();
       },
       async listPendingSecretReveals(userId, canViewPrivate) {
         assert.equal(userId, gio.id);
@@ -159,6 +175,9 @@ describe("achievement routes", () => {
       async listVisible() {
         return [];
       },
+      async getSecretSummary() {
+        return secretSummary();
+      },
       async listPendingSecretReveals(_userId, canViewPrivate) {
         assert.equal(canViewPrivate, false);
         return [];
@@ -186,6 +205,9 @@ describe("achievement routes", () => {
       async listVisible() {
         return [];
       },
+      async getSecretSummary() {
+        return secretSummary();
+      },
       async listPendingSecretReveals() {
         return [];
       },
@@ -209,6 +231,9 @@ describe("achievement routes", () => {
     const repository: AchievementsRepository = {
       async listVisible() {
         return [];
+      },
+      async getSecretSummary() {
+        return secretSummary();
       },
       async listPendingSecretReveals() {
         return [];
