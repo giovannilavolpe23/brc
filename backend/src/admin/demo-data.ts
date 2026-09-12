@@ -9,7 +9,7 @@ import type { DevResetSummary } from "./dev-reset";
 
 const EXPENSE_CATEGORIES = ["Chocolates", "Alcohol", "Boliche", "Comida", "Bebida", "Actividades", "Otros"] as const;
 const DEMO_SURVEY_KEYS = ["destroyed_vote", "most_flirty", "best_outfit"] as const;
-const PRESERVED_TABLES = ["users", "roles", "permissions", "user_permissions", "survey_questions", "initial_balances"];
+const PRESERVED_TABLES = ["users", "roles", "permissions", "user_permissions", "survey_questions", "initial_balances", "push_subscriptions"];
 const FULL_TRIP_NIGHTS = 8;
 const BOLICHE_CLOSED_CLUB_TIME = "06:45";
 const LATEST_REGULAR_BOLICHE_EXIT_MINUTES = timeToMinutes(BOLICHE_CLOSED_CLUB_TIME) - 1;
@@ -397,6 +397,8 @@ async function deleteDemoDataWithClient(client: DemoQueryClient, mode: DemoSimul
   return {
     achievementUnlocks: achievementUnlocks.rowCount ?? 0,
     achievementResolutions: achievementResolutions.rowCount ?? 0,
+    pushDailyReminders: 0,
+    pushStatsReadyNotifications: 0,
     moneyMovements: moneyMovements.rowCount ?? 0,
     dailyEntries: dailyEntries.rowCount ?? 0,
     surveyVotes: surveyVotes.rowCount ?? 0,

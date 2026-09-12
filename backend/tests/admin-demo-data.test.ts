@@ -149,6 +149,8 @@ describe("admin demo data generation", () => {
           deleted: {
             achievementUnlocks: 0,
             achievementResolutions: 0,
+            pushDailyReminders: 0,
+            pushStatsReadyNotifications: 0,
             moneyMovements: 1,
             dailyEntries: 2,
             surveyVotes: 3,
@@ -165,7 +167,7 @@ describe("admin demo data generation", () => {
             previaProducts: 3,
             previaParticipants: 4,
           },
-          preserved: ["users", "roles", "permissions", "user_permissions", "survey_questions", "initial_balances"],
+          preserved: ["users", "roles", "permissions", "user_permissions", "survey_questions", "initial_balances", "push_subscriptions"],
         };
       },
     };
@@ -177,7 +179,7 @@ describe("admin demo data generation", () => {
     assert.equal(response.body.mode, "full_trip");
     assert.equal(response.body.nights, 8);
     assert.equal(response.body.deleted.initialBalances, 0);
-    assert.deepEqual(response.body.preserved, ["users", "roles", "permissions", "user_permissions", "survey_questions", "initial_balances"]);
+    assert.deepEqual(response.body.preserved, ["users", "roles", "permissions", "user_permissions", "survey_questions", "initial_balances", "push_subscriptions"]);
   });
 
   it("generates exactly 8 valid consecutive closed days for the full trip", () => {

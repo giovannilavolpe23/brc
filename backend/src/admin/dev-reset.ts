@@ -7,6 +7,8 @@ import { pool } from "../db/pool";
 export type DevResetSummary = {
   achievementUnlocks: number;
   achievementResolutions: number;
+  pushDailyReminders: number;
+  pushStatsReadyNotifications: number;
   moneyMovements: number;
   dailyEntries: number;
   surveyVotes: number;
@@ -26,6 +28,8 @@ type ResetQueryClient = Pick<PoolClient, "query">;
 export async function deleteDevDataWithClient(client: ResetQueryClient): Promise<DevResetSummary> {
   const achievementUnlocks = await client.query("delete from achievement_unlocks");
   const achievementResolutions = await client.query("delete from achievement_resolutions");
+  const pushDailyReminders = await client.query("delete from push_daily_reminders");
+  const pushStatsReadyNotifications = await client.query("delete from push_stats_ready_notifications");
   const surveyVotes = await client.query("delete from survey_votes");
   const previaParticipants = await client.query("delete from previa_participants");
   const previaProducts = await client.query("delete from previa_products");
@@ -36,6 +40,8 @@ export async function deleteDevDataWithClient(client: ResetQueryClient): Promise
   return {
     achievementUnlocks: achievementUnlocks.rowCount ?? 0,
     achievementResolutions: achievementResolutions.rowCount ?? 0,
+    pushDailyReminders: pushDailyReminders.rowCount ?? 0,
+    pushStatsReadyNotifications: pushStatsReadyNotifications.rowCount ?? 0,
     moneyMovements: moneyMovements.rowCount ?? 0,
     dailyEntries: dailyEntries.rowCount ?? 0,
     surveyVotes: surveyVotes.rowCount ?? 0,
@@ -89,7 +95,7 @@ export function createAdminDevRouter(
       res.json({
         ok: true,
         deleted,
-        preserved: ["users", "roles", "permissions", "user_permissions", "survey_questions", "initial_balances"],
+        preserved: ["users", "roles", "permissions", "user_permissions", "survey_questions", "initial_balances", "push_subscriptions"],
       });
     } catch (error) {
       if (error instanceof DevResetValidationError) {

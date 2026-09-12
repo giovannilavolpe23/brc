@@ -19,7 +19,15 @@ export type PushService = {
   publicKey(): string | null;
   sendTest(userId: string, endpoint?: string): Promise<number>;
   sendGlobalTest(): Promise<{ usersChecked: number; sent: number }>;
-  sendDailyReminders(now?: Date): Promise<{ dateKey: string; usersChecked: number; sent: number }>;
+  sendDailyReminders(now?: Date): Promise<{
+    dateKey: string;
+    usersChecked: number;
+    activeUsers: number;
+    missingUsers: number;
+    subscribedUsers: number;
+    sent: number;
+    failed: number;
+  }>;
   notifyStatsReadyIfComplete(dateKey: string): Promise<{ sent: boolean; deliveries: number }>;
 };
 
@@ -48,9 +56,13 @@ export function createPushService(
     }
   }
 
-  async function sendPayload(subscriptions: PushSubscriptionRecord[], payload: PushPayload): Promise<number> {
+  async function sendPayloadDetailed(
+    subscriptions: PushSubscriptionRecord[],
+    payload: PushPayload
+  ): Promise<{ sent: number; failed: number }> {
     ensureConfigured();
     let sent = 0;
+    let failed = 0;
     const body = JSON.stringify(payload);
     for (const subscription of subscriptions) {
       try {
@@ -61,10 +73,15 @@ export function createPushService(
           await repository.deleteSubscriptionByEndpoint(subscription.endpoint);
           continue;
         }
+        failed += 1;
         console.warn("Web Push delivery failed.", safePushError(error));
       }
     }
-    return sent;
+    return { sent, failed };
+  }
+
+  async function sendPayload(subscriptions: PushSubscriptionRecord[], payload: PushPayload): Promise<number> {
+    return (await sendPayloadDetailed(subscriptions, payload)).sent;
   }
 
   return {
@@ -97,20 +114,41 @@ export function createPushService(
 
     async sendDailyReminders(now = new Date()) {
       const dateKey = dateKeyDaysBeforeArgentina(1, now);
+      const activeUserIds = await repository.listActiveUserIds();
       const missingUserIds = await repository.listActiveUserIdsMissingDailyEntry(dateKey);
+      let subscribedUsers = 0;
       let sent = 0;
+      let failed = 0;
       for (const userId of missingUserIds) {
-        const shouldSend = await repository.markDailyReminderIfNew(dateKey, userId);
-        if (!shouldSend) continue;
+        if (await repository.hasDailyReminderBeenSent(dateKey, userId)) continue;
+
         const subscriptions = await repository.listSubscriptionsForUsers([userId]);
-        sent += await sendPayload(subscriptions, {
+        if (!subscriptions.length) continue;
+        subscribedUsers += 1;
+
+        const result = await sendPayloadDetailed(subscriptions, {
           title: "¡No olvides de hacer tu registro!",
           body: "Completá lo de ayer cuando puedas.",
           url: "#/daily",
           type: "daily-reminder",
         });
+        sent += result.sent;
+        failed += result.failed;
+        if (result.sent > 0) await repository.markDailyReminderIfNew(dateKey, userId);
       }
-      return { dateKey, usersChecked: missingUserIds.length, sent };
+      const summary = {
+        dateKey,
+        usersChecked: activeUserIds.length,
+        activeUsers: activeUserIds.length,
+        missingUsers: missingUserIds.length,
+        subscribedUsers,
+        sent,
+        failed,
+      };
+      console.info(
+        `[push] daily-reminder dateKey=${summary.dateKey} activeUsers=${summary.activeUsers} missingDaily=${summary.missingUsers} subscribedUsers=${summary.subscribedUsers} sent=${summary.sent} failed=${summary.failed}`
+      );
+      return summary;
     },
 
     async notifyStatsReadyIfComplete(dateKey) {

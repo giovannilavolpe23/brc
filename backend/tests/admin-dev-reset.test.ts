@@ -24,6 +24,8 @@ const user: AuthUser = {
 const emptySummary: DevResetSummary = {
   achievementUnlocks: 0,
   achievementResolutions: 0,
+  pushDailyReminders: 0,
+  pushStatsReadyNotifications: 0,
   moneyMovements: 0,
   dailyEntries: 0,
   surveyVotes: 0,
@@ -84,6 +86,8 @@ describe("admin development data reset", () => {
     const summary: DevResetSummary = {
       achievementUnlocks: 7,
       achievementResolutions: 2,
+      pushDailyReminders: 8,
+      pushStatsReadyNotifications: 1,
       moneyMovements: 2,
       dailyEntries: 3,
       surveyVotes: 4,
@@ -106,6 +110,7 @@ describe("admin development data reset", () => {
       "user_permissions",
       "survey_questions",
       "initial_balances",
+      "push_subscriptions",
     ]);
   });
 
@@ -128,6 +133,8 @@ describe("admin development data reset", () => {
       "begin",
       "delete from achievement_unlocks",
       "delete from achievement_resolutions",
+      "delete from push_daily_reminders",
+      "delete from push_stats_ready_notifications",
       "delete from survey_votes",
       "delete from previa_participants",
       "delete from previa_products",
@@ -140,7 +147,9 @@ describe("admin development data reset", () => {
     assert.equal(summary.initialBalances, 0);
     assert.equal(summary.achievementUnlocks, 1);
     assert.equal(summary.achievementResolutions, 1);
-    assert.equal(queries.some((query) => /delete from (users|roles|permissions|initial_balances|survey_questions)/.test(query)), false);
+    assert.equal(summary.pushDailyReminders, 1);
+    assert.equal(summary.pushStatsReadyNotifications, 1);
+    assert.equal(queries.some((query) => /delete from (users|roles|permissions|initial_balances|survey_questions|push_subscriptions)/.test(query)), false);
   });
 
   it("rolls back and releases the connection if the reset fails", async () => {

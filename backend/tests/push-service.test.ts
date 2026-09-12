@@ -70,6 +70,10 @@ function makeRepository(
       calls.push(`ready:${dateKey}`);
       return options.allReady ?? true;
     },
+    async hasDailyReminderBeenSent(dateKey, userId) {
+      calls.push(`sent-reminder:${dateKey}:${userId}`);
+      return options.dailyAlreadySent ?? false;
+    },
     async markDailyReminderIfNew(dateKey, userId) {
       calls.push(`mark-reminder:${dateKey}:${userId}`);
       return !options.dailyAlreadySent;
@@ -159,14 +163,21 @@ describe("push service", () => {
 
     assert.equal(result.dateKey, "2026-08-28");
     assert.equal(result.usersChecked, 2);
+    assert.equal(result.activeUsers, 2);
+    assert.equal(result.missingUsers, 2);
+    assert.equal(result.subscribedUsers, 2);
     assert.equal(result.sent, 2);
+    assert.equal(result.failed, 0);
     assert.equal(sender.payloads.length, 2);
     assert.deepEqual(repo.calls, [
+      "active-users",
       "missing:2026-08-28",
-      `mark-reminder:2026-08-28:${userA}`,
+      `sent-reminder:2026-08-28:${userA}`,
       `list-users:${userA}`,
-      `mark-reminder:2026-08-28:${userB}`,
+      `mark-reminder:2026-08-28:${userA}`,
+      `sent-reminder:2026-08-28:${userB}`,
       `list-users:${userB}`,
+      `mark-reminder:2026-08-28:${userB}`,
     ]);
   });
 
@@ -179,7 +190,51 @@ describe("push service", () => {
 
     assert.equal(result.sent, 0);
     assert.equal(sender.payloads.length, 0);
-    assert.deepEqual(repo.calls, ["missing:2026-08-28", `mark-reminder:2026-08-28:${userA}`]);
+    assert.deepEqual(repo.calls, ["active-users", "missing:2026-08-28", `sent-reminder:2026-08-28:${userA}`]);
+  });
+
+  it("does not mark a daily reminder as sent when the missing user has no subscriptions", async () => {
+    const repo = makeRepository({ missing: [userA], subscriptionsByUser: { [userA]: [] } });
+    const sender = makeSender();
+    const service = createPushService(repo, sender, makeConfig());
+
+    const result = await service.sendDailyReminders(new Date("2026-08-29T13:00:00.000Z"));
+
+    assert.equal(result.missingUsers, 1);
+    assert.equal(result.subscribedUsers, 0);
+    assert.equal(result.sent, 0);
+    assert.equal(sender.payloads.length, 0);
+    assert.deepEqual(repo.calls, [
+      "active-users",
+      "missing:2026-08-28",
+      `sent-reminder:2026-08-28:${userA}`,
+      `list-users:${userA}`,
+    ]);
+  });
+
+  it("uses Argentina's date boundary for reminders around 10:00", async () => {
+    const service = createPushService(makeRepository({ missing: [] }), makeSender(), makeConfig());
+
+    const before = await service.sendDailyReminders(new Date("2026-09-12T12:59:00.000Z"));
+    const exact = await service.sendDailyReminders(new Date("2026-09-12T13:00:00.000Z"));
+    const after = await service.sendDailyReminders(new Date("2026-09-12T13:01:00.000Z"));
+
+    assert.equal(before.dateKey, "2026-09-11");
+    assert.equal(exact.dateKey, "2026-09-11");
+    assert.equal(after.dateKey, "2026-09-11");
+  });
+
+  it("does not mark failed daily reminder deliveries so a later cron can retry", async () => {
+    const repo = makeRepository({ missing: [userA] });
+    const sender = makeSender(500);
+    const service = createPushService(repo, sender, makeConfig());
+
+    const result = await service.sendDailyReminders(new Date("2026-08-29T13:00:00.000Z"));
+
+    assert.equal(result.subscribedUsers, 1);
+    assert.equal(result.sent, 0);
+    assert.equal(result.failed, 1);
+    assert.equal(repo.calls.includes(`mark-reminder:2026-08-28:${userA}`), false);
   });
 
   it("sends stats-ready once when every active user has the daily entry", async () => {

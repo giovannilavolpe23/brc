@@ -2803,6 +2803,7 @@ async function handleAdminResetDataConfirm() {
     }
 
     clearStatsApiCache();
+    clearDailyEntryLocalCaches();
     requestAdminAchievementsRefresh(true);
     closeSheet();
     const error = document.getElementById("admin-reset-data-error");
@@ -2981,6 +2982,22 @@ function clearApiBackedLocalCaches() {
   PARTICIPANTS.forEach((participant) => {
     localStorage.removeItem(STORAGE_KEYS.userData(participant.id));
     localStorage.removeItem(STORAGE_KEYS.localPrevias(participant.id));
+  });
+}
+
+function clearDailyEntryLocalCaches() {
+  dailyApiLoadedKeys.clear();
+  dailyApiLoadingKeys.clear();
+  dailyApiFailedKeys.clear();
+  dailyEntriesSummaryByUser.clear();
+  dailyEntriesSummaryLoadedUsers.clear();
+  dailyEntriesSummaryLoadingUsers.clear();
+  dailyEntriesSummaryFailedUsers.clear();
+  PARTICIPANTS.forEach((participant) => {
+    const data = getUserData(participant.id);
+    if (!data || !data.dailyLog) return;
+    delete data.dailyLog;
+    saveUserData(participant.id, data);
   });
 }
 
@@ -5370,6 +5387,9 @@ function latestLocalDailyEntryDate(userId) {
 }
 
 function latestRegisteredDailyDate(userId) {
+  if (dailyEntriesSummaryLoadedUsers.has(userId)) {
+    return (dailyEntriesSummaryByUser.get(userId) || []).slice().sort().pop() || null;
+  }
   const dates = new Set(dailyEntriesSummaryByUser.get(userId) || []);
   const localDate = latestLocalDailyEntryDate(userId);
   if (localDate) dates.add(localDate);

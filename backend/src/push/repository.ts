@@ -22,6 +22,7 @@ export type PushRepository = {
   listActiveUserIds(): Promise<string[]>;
   listActiveUserIdsMissingDailyEntry(dateKey: string): Promise<string[]>;
   allActiveUsersHaveDailyEntry(dateKey: string): Promise<boolean>;
+  hasDailyReminderBeenSent(dateKey: string, userId: string): Promise<boolean>;
   markDailyReminderIfNew(dateKey: string, userId: string): Promise<boolean>;
   markStatsReadyIfNew(dateKey: string): Promise<boolean>;
 };
@@ -123,6 +124,14 @@ export const postgresPushRepository: PushRepository = {
     const activeCount = Number(row?.active_count || 0);
     const entryCount = Number(row?.entry_count || 0);
     return activeCount > 0 && activeCount === entryCount;
+  },
+
+  async hasDailyReminderBeenSent(dateKey, userId) {
+    const result = await pool.query<{ exists: boolean }>(
+      "select exists(select 1 from push_daily_reminders where date_key = $1 and user_id = $2) as exists",
+      [dateKey, userId]
+    );
+    return result.rows[0]?.exists === true;
   },
 
   async markDailyReminderIfNew(dateKey, userId) {

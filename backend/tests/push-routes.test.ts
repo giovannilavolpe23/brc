@@ -104,6 +104,10 @@ function makeRepository(): PushRepository & { calls: string[] } {
       calls.push(`ready:${dateKey}`);
       return true;
     },
+    async hasDailyReminderBeenSent(dateKey, userId) {
+      calls.push(`sent-reminder:${dateKey}:${userId}`);
+      return false;
+    },
     async markDailyReminderIfNew(dateKey, userId) {
       calls.push(`mark-reminder:${dateKey}:${userId}`);
       return true;
@@ -131,7 +135,15 @@ function makeService(configured = true): PushService & { calls: string[] } {
     },
     async sendDailyReminders() {
       calls.push("daily-reminders");
-      return { dateKey: "2026-08-28", usersChecked: 1, sent: 1 };
+      return {
+        dateKey: "2026-08-28",
+        usersChecked: 2,
+        activeUsers: 2,
+        missingUsers: 1,
+        subscribedUsers: 1,
+        sent: 1,
+        failed: 0,
+      };
     },
     async notifyStatsReadyIfComplete(dateKey) {
       calls.push(`stats-ready:${dateKey}`);
@@ -230,6 +242,10 @@ describe("push routes", () => {
     assert.equal(rejected.status, 401);
     assert.equal(accepted.status, 200);
     assert.equal(accepted.body.dateKey, "2026-08-28");
+    assert.equal(accepted.body.activeUsers, 2);
+    assert.equal(accepted.body.missingUsers, 1);
+    assert.equal(accepted.body.subscribedUsers, 1);
+    assert.equal(accepted.body.failed, 0);
     assert.deepEqual(service.calls, ["daily-reminders"]);
   });
 });
