@@ -78,7 +78,7 @@ describe("persistent achievement evaluation", () => {
         dailyEntries: [
           entry(gioId, "2026-08-28", { sleepBedtime: "04:00", sleepWake: "06:59" }),
           entry(jereId, "2026-08-28", { sleepBedtime: "04:00", sleepWake: "07:00" }),
-          entry(nataId, "2026-08-28", { sleepBedtime: "05:00", sleepWake: "07:59" }),
+          entry(nataId, "2026-08-28", { sleepDidNotSleep: true, sleepBedtime: null, sleepWake: null }),
         ],
       })
     );
@@ -187,11 +187,12 @@ describe("persistent achievement evaluation", () => {
         dailyEntries: [
           entry(gioId, "2026-08-28", { sleepBedtime: "04:00", sleepWake: "04:59" }),
           entry(jereId, "2026-08-28", { sleepBedtime: "04:00", sleepWake: "05:00" }),
+          entry(nataId, "2026-08-28", { sleepDidNotSleep: true, sleepBedtime: null, sleepWake: null }),
         ],
       })
     );
 
-    assert.deepEqual(candidate("secret_no_sleep_required", candidates)?.userIds, [gioId]);
+    assert.deepEqual(candidate("secret_no_sleep_required", candidates)?.userIds, [gioId, nataId]);
   });
 
   it("awards Parte del personal bolichero at six closures, including same-day duplicates", () => {
@@ -274,6 +275,37 @@ describe("persistent achievement evaluation", () => {
     );
 
     assert.deepEqual(candidate("secret_not_a_competition", candidates)?.userIds, [gioId, jereId]);
+  });
+
+  it("counts No dormí as a zero-minute least sleep win for No era una competencia", () => {
+    const candidates = collectAchievementCandidatesForDate(
+      "2026-08-28",
+      data({
+        dailyEntries: [
+          entry(gioId, "2026-08-28", {
+            sleepBedtime: "03:00",
+            sleepWake: "11:00",
+            bathroom: 1,
+            bolicheDidNotGo: false,
+            bolicheEntryTime: "01:00",
+            bolicheExitTime: "02:00",
+          }),
+          entry(jereId, "2026-08-28", { sleepBedtime: "04:00", sleepWake: "11:00", bathroom: 0 }),
+          entry(nataId, "2026-08-28", {
+            sleepDidNotSleep: true,
+            sleepBedtime: null,
+            sleepWake: null,
+            bathroom: 5,
+            bolicheDidNotGo: false,
+            bolicheEntryTime: "01:00",
+            bolicheExitTime: "05:00",
+          }),
+        ],
+        surveyVotes: [{ surveyKey: "best_outfit", dateKey: "2026-08-28", votedUserId: nataId }],
+      })
+    );
+
+    assert.deepEqual(candidate("secret_not_a_competition", candidates)?.userIds, [nataId]);
   });
 
   it("does not count the same statistic twice for No era una competencia", () => {

@@ -266,15 +266,16 @@ function isCompleteDailyEntryDay(dateKey: string, data: StatsData, activeUserIds
 }
 
 function rankingWinners(rows: RankingRow[], mode: "max" | "min" = "max"): string[] {
-  const positiveRows = rows.filter((row) => row.value > 0);
-  if (!positiveRows.length) return [];
-  const values = positiveRows.map((row) => row.value);
+  const eligibleRows = mode === "min" ? rows : rows.filter((row) => row.value > 0);
+  if (!eligibleRows.length) return [];
+  const values = eligibleRows.map((row) => row.value);
   const target = mode === "min" ? Math.min(...values) : Math.max(...values);
-  return positiveRows.filter((row) => row.value === target).map((row) => row.userId);
+  return eligibleRows.filter((row) => row.value === target).map((row) => row.userId);
 }
 
 function sleepDurationMinutes(entry: DailyEntryStatsRow): number | null {
-  if (entry.sleepDidNotSleep || !entry.sleepBedtime || !entry.sleepWake) return null;
+  if (entry.sleepDidNotSleep) return 0;
+  if (!entry.sleepBedtime || !entry.sleepWake) return null;
   const bedtime = timeToMinutes(entry.sleepBedtime);
   let wake = timeToMinutes(entry.sleepWake);
   if (wake <= bedtime) wake += 24 * 60;

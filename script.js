@@ -2599,8 +2599,15 @@ function hasPendingApiOperation(operationId) {
   return getPendingApiOperations().some((op) => op.id === operationId);
 }
 
-function hasPendingApiOperationPrefix(prefix) {
-  return getPendingApiOperations().some((op) => op.id.startsWith(prefix));
+function pendingApiOperationBelongsToUser(operation, userId) {
+  const operationUserId = pendingOperationUserId(operation);
+  return !operationUserId || operationUserId === userId;
+}
+
+function hasPendingApiOperationPrefixForUser(prefix, userId) {
+  return getPendingApiOperations().some(
+    (op) => op.id.startsWith(prefix) && pendingApiOperationBelongsToUser(op, userId)
+  );
 }
 
 function setAdminCreatePlayerPanel(open) {
@@ -3389,10 +3396,16 @@ function previaDeleteApiId(previa) {
   return previa.apiId || previa.id;
 }
 
-function mergePreviasCache(storageKey, apiPrevias) {
+function mergePreviasCache(storageKey, apiPrevias, userId) {
   const pendingIds = new Set(
     getPendingApiOperations()
-      .filter((op) => op.type === "previa_create" && op.payload && op.payload.id)
+      .filter(
+        (op) =>
+          pendingApiOperationBelongsToUser(op, userId) &&
+          op.type === "previa_create" &&
+          op.payload &&
+          op.payload.id
+      )
       .map((op) => op.payload.id)
   );
   let localPrevias = [];
@@ -3422,7 +3435,7 @@ async function loadPreviasFromApi() {
   const loadedKey = `${user.id}:${previaMode}`;
   if (previasApiLoadedKeys.has(loadedKey)) return;
   if (previasApiLoadingKeys.has(loadedKey) || previasApiFailedKeys.has(loadedKey)) return;
-  if (hasPendingApiOperationPrefix("previa:create:")) return;
+  if (hasPendingApiOperationPrefixForUser("previa:create:", user.id)) return;
 
   previasApiLoadedKeys.add(loadedKey);
   previasApiLoadingKeys.add(loadedKey);
@@ -3435,7 +3448,7 @@ async function loadPreviasFromApi() {
     }
 
     const payload = await response.json();
-    mergePreviasCache(cacheKey, payload.previas || []);
+    mergePreviasCache(cacheKey, payload.previas || [], user.id);
   } catch (e) {
     previasApiLoadedKeys.delete(loadedKey);
     previasApiFailedKeys.add(loadedKey);
@@ -3980,7 +3993,14 @@ function mergeMoneyFromApi(userId, apiMoney) {
   const data = ensureMoneyData(userId);
   const pendingIds = new Set(
     getPendingApiOperations()
-      .filter((op) => op.type && op.type.startsWith("money_movement_") && op.payload && op.payload.legacyId)
+      .filter(
+        (op) =>
+          pendingApiOperationBelongsToUser(op, userId) &&
+          op.type &&
+          op.type.startsWith("money_movement_") &&
+          op.payload &&
+          op.payload.legacyId
+      )
       .map((op) => op.payload.legacyId)
   );
   const localPending = data.money.movements.filter((movement) => !movement.apiSynced || pendingIds.has(movement.id));
@@ -4000,7 +4020,7 @@ function mergeMoneyFromApi(userId, apiMoney) {
 async function loadMoneyFromApi(userId) {
   if (moneyApiLoadedUsers.has(userId)) return;
   if (moneyApiLoadingUsers.has(userId) || moneyApiFailedUsers.has(userId)) return;
-  if (hasPendingApiOperationPrefix("money:")) return;
+  if (hasPendingApiOperationPrefixForUser("money:", userId)) return;
 
   moneyApiLoadedUsers.add(userId);
   moneyApiLoadingUsers.add(userId);
@@ -4896,7 +4916,7 @@ const TIME_RANGES = {
   bedtime: { start: 22 * 60, end: (24 + 9) * 60 }, // 22:00 -> 09:00 (+1 día)
   wake: { start: 6 * 60, end: 16 * 60 }, // 06:00 -> 16:00
   nap: { start: 11 * 60, end: 22 * 60 }, // 11:00 -> 22:00
-  boliche: { start: 1 * 60, end: 7 * 60 }, // 01:00 -> 07:00
+  boliche: { start: 1 * 60, end: BOLICHE_CLOSED_CLUB_MINUTES }, // 01:00 -> 06:45
 };
 
 function minutesToTimeLabel(minutes) {
@@ -4943,7 +4963,7 @@ function isNapEndAfterStart(napStart, napEnd) {
 }
 
 function bolicheLatestExitForSleep(sleep) {
-  const closing = DAY_MINUTES + TIME_RANGES.boliche.end;
+  const closing = DAY_MINUTES + BOLICHE_CLOSED_CLUB_MINUTES - 1;
   if (sleep && sleep.didNotSleep) return closing;
   const bed = sleep && !sleep.didNotSleep ? bedtimeAbsoluteMinutes(sleep.bedtime) : null;
   if (sleep && !sleep.didNotSleep && bed === null) return null;
@@ -5149,9 +5169,9 @@ function totalSleepMinutes(sleepMin, napMin) {
 // guarda dentro de la entrada (`entry.computed`) para que /admin y
 // futuras estadísticas no tengan que reinterpretar horarios crudos.
 function computeDailyDerived(entry) {
-  const sleepMin = entry.sleep.didNotSleep ? null : sleepDurationMinutes(entry.sleep.bedtime, entry.sleep.wake);
+  const sleepMin = entry.sleep.didNotSleep ? 0 : sleepDurationMinutes(entry.sleep.bedtime, entry.sleep.wake);
   const napMin = napDurationMinutes(entry.nap);
-  const bolicheEntry = entry.boliche.entryTime || (!entry.boliche.didNotGo && bolicheEffectiveExitTime(entry.boliche) ? "01:00" : null);
+  const bolicheEntry = entry.boliche.entryTime || null;
   const bolicheMin = entry.boliche.didNotGo ? null : bolicheDurationMinutes(bolicheEntry, bolicheEffectiveExitTime(entry.boliche));
   return {
     sleepMinutes: sleepMin,
@@ -5201,7 +5221,7 @@ function dailyEntryApiPayload(entry) {
 function dailyEntryOperation(dateKey, entry) {
   const user = getCurrentUser();
   return {
-    id: `daily-entry:put:${dateKey}`,
+    id: `daily-entry:put:${user ? user.id : "unknown"}:${dateKey}`,
     type: "daily_entry_put",
     userId: user && user.id,
     method: "PUT",
@@ -5213,7 +5233,7 @@ function dailyEntryOperation(dateKey, entry) {
 function dailySurveyVoteOperation(survey, dateKey, votedUserId) {
   const user = getCurrentUser();
   return {
-    id: `survey-vote:${survey.key}:${dateKey}`,
+    id: `survey-vote:${user ? user.id : "unknown"}:${survey.key}:${dateKey}`,
     type: `${survey.key}_vote_put`,
     userId: user && user.id,
     method: "PUT",
@@ -5222,8 +5242,8 @@ function dailySurveyVoteOperation(survey, dateKey, votedUserId) {
   };
 }
 
-function hasPendingDailySurveyOperation(dateKey) {
-  return DAILY_SURVEYS.some((survey) => hasPendingApiOperation(`survey-vote:${survey.key}:${dateKey}`));
+function hasPendingDailySurveyOperation(userId, dateKey) {
+  return DAILY_SURVEYS.some((survey) => hasPendingApiOperation(`survey-vote:${userId}:${survey.key}:${dateKey}`));
 }
 
 async function syncDailyEntryToApi(dateKey, entry) {
@@ -5285,7 +5305,7 @@ async function loadDailyEntryFromApi(userId, dateKey) {
   const key = `${userId}:${dateKey}`;
   if (dailyApiLoadedKeys.has(key)) return;
   if (dailyApiLoadingKeys.has(key) || dailyApiFailedKeys.has(key)) return;
-  if (hasPendingApiOperation(`daily-entry:put:${dateKey}`) || hasPendingDailySurveyOperation(dateKey)) return;
+  if (hasPendingApiOperation(`daily-entry:put:${userId}:${dateKey}`) || hasPendingDailySurveyOperation(userId, dateKey)) return;
 
   dailyApiLoadedKeys.add(key);
   dailyApiLoadingKeys.add(key);

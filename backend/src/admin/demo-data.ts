@@ -12,6 +12,7 @@ const DEMO_SURVEY_KEYS = ["destroyed_vote", "most_flirty", "best_outfit"] as con
 const PRESERVED_TABLES = ["users", "roles", "permissions", "user_permissions", "survey_questions", "initial_balances"];
 const FULL_TRIP_NIGHTS = 8;
 const BOLICHE_CLOSED_CLUB_TIME = "06:45";
+const LATEST_REGULAR_BOLICHE_EXIT_MINUTES = timeToMinutes(BOLICHE_CLOSED_CLUB_TIME) - 1;
 
 export type DemoUser = {
   id: string;
@@ -453,8 +454,13 @@ function generateDailyEntry(
     napEnd = minutesToTime(Math.max(endMinutes, startMinutes + 10));
   }
 
-  const bolicheLatest = sleepDidNotSleep ? 420 : sleepBedtime ? timeToMinutes(sleepBedtime) - 10 : 0;
-  const closedClub = isClubClosingRun && bolicheLatest >= timeToMinutes(BOLICHE_CLOSED_CLUB_TIME);
+  const bolicheClosingCapacity = sleepDidNotSleep ? timeToMinutes(BOLICHE_CLOSED_CLUB_TIME) : sleepBedtime ? timeToMinutes(sleepBedtime) - 10 : 0;
+  const bolicheLatest = sleepDidNotSleep
+    ? LATEST_REGULAR_BOLICHE_EXIT_MINUTES
+    : sleepBedtime
+      ? Math.min(LATEST_REGULAR_BOLICHE_EXIT_MINUTES, timeToMinutes(sleepBedtime) - 10)
+      : 0;
+  const closedClub = isClubClosingRun && bolicheClosingCapacity >= timeToMinutes(BOLICHE_CLOSED_CLUB_TIME);
   const wentToBoliche = closedClub || (bolicheLatest >= 80 && (isCompetitionSeed || rng() < (isZombieRun ? 0.82 : 0.62)));
   const bolicheEntryTime = wentToBoliche ? minutesToTime(closedClub ? randStep(rng, 70, 180) : randStep(rng, 70, Math.min(220, bolicheLatest - 20))) : null;
 

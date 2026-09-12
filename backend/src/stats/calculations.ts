@@ -211,7 +211,9 @@ function collectClosedDays(data: StatsData, upToDateKey?: string): string[] {
 }
 
 function sleepDurationMinutes(entry: DailyEntryStatsRow | undefined): number | null {
-  if (!entry || entry.sleepDidNotSleep || !entry.sleepBedtime || !entry.sleepWake) return null;
+  if (!entry) return null;
+  if (entry.sleepDidNotSleep) return 0;
+  if (!entry.sleepBedtime || !entry.sleepWake) return null;
   const bedtime = timeToMinutes(entry.sleepBedtime);
   let wake = timeToMinutes(entry.sleepWake);
   if (wake <= bedtime) wake += 24 * 60;

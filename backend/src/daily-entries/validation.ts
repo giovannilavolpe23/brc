@@ -142,9 +142,12 @@ function validateLogicalTimes(
     const exitAbsolute = exit + 24 * 60;
     const entryAbsolute = entry + 24 * 60;
     const openAbsolute = 25 * 60;
-    const closeAbsolute = 31 * 60;
+    const closeAbsolute = 24 * 60 + timeToMinutes(BOLICHE_CLOSED_CLUB_TIME);
     const latestExit = sleep.didNotSleep ? closeAbsolute : bedtimeAbsoluteMinutes(sleep.bedtime as string) - 10;
     if (entryAbsolute < openAbsolute || entryAbsolute >= closeAbsolute || exitAbsolute < openAbsolute || exitAbsolute > latestExit) {
+      throw new DailyEntryValidationError("invalid_boliche_time_range");
+    }
+    if (!boliche.closedClub && exitAbsolute >= closeAbsolute) {
       throw new DailyEntryValidationError("invalid_boliche_time_range");
     }
   }

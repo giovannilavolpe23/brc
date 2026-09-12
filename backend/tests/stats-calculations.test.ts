@@ -140,30 +140,34 @@ describe("stats calculations", () => {
     assert.equal(stats.dailyEntries.bathroom.some((row) => row.userId === jereId && row.value === 0), true);
   });
 
-  it("ranks least sleep ascending by total sleep and ignores entries without valid sleep data", () => {
+  it("ranks no sleep as zero and ignores entries without valid sleep data", () => {
     const stats = calculateStats("day", {
       users: [
         { id: gioId, legacyId: "gio", displayName: "Gio" },
         { id: jereId, legacyId: "jere", displayName: "Jere" },
         { id: laraId, legacyId: "lara", displayName: "Lara" },
+        { id: "44444444-4444-4444-8444-444444444444", legacyId: "sebas", displayName: "Sebas" },
       ],
       expenses: [],
       dailyEntries: [
         entry(gioId, "2026-08-28", { sleepBedtime: "02:00", sleepWake: "10:00", napStart: "16:00", napEnd: "17:00" }),
         entry(jereId, "2026-08-28", { sleepBedtime: "04:00", sleepWake: "09:00" }),
         entry(laraId, "2026-08-28", { sleepDidNotSleep: true, sleepBedtime: null, sleepWake: null }),
+        entry("44444444-4444-4444-8444-444444444444", "2026-08-28", { sleepBedtime: null, sleepWake: null }),
       ],
       surveyVotes: [],
       previaParticipants: [],
     }, "2026-08-28");
 
     assert.deepEqual(stats.dailyEntries.leastSleepMinutes, [
+      { userId: laraId, value: 0 },
       { userId: jereId, value: 300 },
       { userId: gioId, value: 540 },
     ]);
     assert.deepEqual(stats.dailyEntries.sleepMinutes, [
       { userId: gioId, value: 480 },
       { userId: jereId, value: 300 },
+      { userId: laraId, value: 0 },
     ]);
   });
 
