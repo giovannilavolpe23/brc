@@ -46,8 +46,8 @@ const DAILY_SURVEYS = [
     field: "mostFlirtyVote",
     groupId: "most-flirty-vote-group",
     label: "¿Quién fue el más chamuyero anoche?",
-    title: "El más chamullero",
-    caption: "El más votado como chamullero",
+    title: "El más chamuyero",
+    caption: "El más votado como chamuyero",
     icon: "💋",
     accent: "#ff5470",
   },
@@ -676,7 +676,7 @@ function pendingOperationUserId(operation) {
 
 function canProcessPendingApiOperation(operation, currentUser) {
   const operationUserId = pendingOperationUserId(operation);
-  return !operationUserId || (currentUser && operationUserId === currentUser.id);
+  return !!operationUserId && !!currentUser && operationUserId === currentUser.id;
 }
 
 function isRetryableApiResponse(response) {
@@ -1970,7 +1970,7 @@ function presetByKey(key) {
 
 function isGioUser(user) {
   if (!user) return false;
-  return [user.id, user.legacyId, user.apiId, user.name, user.displayName].some((value) => String(value || "").trim().toLowerCase() === "gio");
+  return [user.id, user.legacyId, user.apiId].some((value) => String(value || "").trim().toLowerCase() === "gio");
 }
 
 function canViewPrivateAchievements(user = getCurrentUser()) {
@@ -2601,7 +2601,7 @@ function hasPendingApiOperation(operationId) {
 
 function pendingApiOperationBelongsToUser(operation, userId) {
   const operationUserId = pendingOperationUserId(operation);
-  return !operationUserId || operationUserId === userId;
+  return !!operationUserId && operationUserId === userId;
 }
 
 function hasPendingApiOperationPrefixForUser(prefix, userId) {
@@ -5206,7 +5206,7 @@ function defaultDailyEntry() {
     bathroom: null, // 0-5 | null
     boliche: { didNotGo: false, entryTime: null, time: null, closedClub: false },
     destroyedVote: null, // id de PARTICIPANTS | null — encuesta "¿Quién estuvo más destruido anoche?"
-    mostFlirtyVote: null, // encuesta "¿Quién fue el más chamullero anoche?"
+    mostFlirtyVote: null, // encuesta "¿Quién fue el más chamuyero anoche?"
     bestOutfitVote: null, // encuesta "¿Quién tuvo el mejor outfit anoche?"
   };
 }
@@ -5331,7 +5331,17 @@ async function loadDailyEntryFromApi(userId, dateKey) {
       apiFetch(`/daily-entries/${encodeURIComponent(dateKey)}`),
       apiFetch(`/surveys/${encodeURIComponent(dateKey)}/my-votes`),
     ]);
-    if (entryResponse.status === 404) return;
+    if (entryResponse.status === 404) {
+      const data = ensureDailyLogData(userId);
+      if (data.dailyLog.entries[dateKey]) {
+        delete data.dailyLog.entries[dateKey];
+        saveUserData(userId, data);
+      }
+      if (screens.daily && screens.daily.classList.contains("active") && dailyDateKey === dateKey) {
+        dailyState = defaultDailyEntry();
+      }
+      return;
+    }
     if (!entryResponse.ok) {
       dailyApiLoadedKeys.delete(key);
       dailyApiFailedKeys.add(key);
@@ -7825,7 +7835,7 @@ function renderTitulosSourceNote(icon, accent, html) {
   `;
 }
 
-// Recorre TITULOS_CONFIG, resuelve el ganador de cada título
+// Recorre TITULOS_CONFIG, resuelve los ganadores de cada título
 // (idéntico cálculo que antes) y agrupa esos resultados por nombre
 // de jugador. Un título sin datos en el período mostrado
 // simplemente no se reparte (no se inventa un ganador, igual que
@@ -7837,7 +7847,7 @@ function buildTitulosByPlayer(getRows) {
     const rows = getRows(config);
     if (!rows.length) return;
     const topValue = rows[0].value;
-    const winners = config.allTied ? rows.filter((row) => row.value === topValue) : [rows[0]];
+    const winners = rows.filter((row) => row.value === topValue);
     winners.forEach((winner) => {
       if (!wonByName.has(winner.name)) wonByName.set(winner.name, []);
       wonByName.get(winner.name).push({ config, winner, group: "stats" });
@@ -8003,7 +8013,7 @@ function mergeAchievementProfiles(profileGroups) {
 function buildTotalAchievementProfiles() {
   if (statsApiTotal) {
     return mergeAchievementProfiles([
-      buildTitulosProfilesFromApi(statsApiTotal, TITULOS_CONFIG, false, "stats"),
+      buildTitulosProfilesFromApi(statsApiTotal, TITULOS_CONFIG, true, "stats"),
       buildTitulosProfilesFromApi(statsApiTotal, ENCUESTAS_CONFIG, true, "surveys"),
       buildTitulosProfilesFromApi(statsApiTotal, ALL_RACHAS_CONFIG, true, "streaks"),
     ]);
@@ -8464,7 +8474,7 @@ function renderKingProfileScreen() {
 function renderTitulosDayReal(dateKey) {
   const configs = TITULOS_CONFIG.filter((config) => !config.totalOnly);
   const profilesHtml = statsApiDays[dateKey]
-    ? renderTitulosProfilesFromApi(statsApiDays[dateKey], configs, false)
+    ? renderTitulosProfilesFromApi(statsApiDays[dateKey], configs, true)
     : buildTitulosByPlayer((config) => (config.totalOnly ? [] : config.dayFn(dateKey))).map(renderTituloProfileCard).join("");
   if (!profilesHtml) {
     return `
@@ -8481,7 +8491,7 @@ function renderTitulosDayReal(dateKey) {
 // disponibles (mismas funciones totalRanking* que usa Estadísticas).
 function renderTitulosTotalReal(closedDays) {
   const profilesHtml = statsApiTotal
-    ? renderTitulosProfilesFromApi(statsApiTotal, TITULOS_CONFIG, false)
+    ? renderTitulosProfilesFromApi(statsApiTotal, TITULOS_CONFIG, true)
     : renderTitulosProfiles((config) => config.totalFn(closedDays));
   if (!profilesHtml) {
     return `
@@ -8586,7 +8596,7 @@ function renderTitulosEstadisticaPanel() {
 function renderTitulosEstadisticaScreen() {
   const main = document.getElementById("titulos-estadistica-main");
   main.innerHTML = `
-    ${renderTitulosSourceNote("📊", "#4cc9f0", "Estos títulos salen de las <strong>estadísticas</strong> que ya mide la app (sueño, gastos, boliche, baño, previas...): se lo lleva quien tenga el mejor resultado en cada una.")}
+    ${renderTitulosSourceNote("📊", "#4cc9f0", "Estos títulos salen de las <strong>estadísticas</strong> que ya mide la app (sueño, gastos, boliche, baño, previas...): se los lleva quien tenga el mejor resultado en cada una, incluyendo empates.")}
     <div class="stats-tabs" role="tablist">
       <button type="button" class="stats-tab${titulosEstadisticaTab === "dia" ? " active" : ""}" data-tab="dia" role="tab" aria-selected="${titulosEstadisticaTab === "dia"}">Día</button>
       <button type="button" class="stats-tab${titulosEstadisticaTab === "total" ? " active" : ""}" data-tab="total" role="tab" aria-selected="${titulosEstadisticaTab === "total"}">Total</button>
@@ -8871,7 +8881,7 @@ function renderTitulosEncuestaPanel() {
 function renderTitulosEncuestaScreen() {
   const main = document.getElementById("titulos-encuesta-main");
   main.innerHTML = `
-    ${renderTitulosSourceNote("🗳️", "#c77dff", "Estos títulos salen de las <strong>encuestas votadas por los participantes</strong> en Registro diario: destruido, chamullero y outfit. Se lo lleva quien reciba más votos.")}
+    ${renderTitulosSourceNote("🗳️", "#c77dff", "Estos títulos salen de las <strong>encuestas votadas por los participantes</strong> en Registro diario: destruido, chamuyero y outfit. Se lo lleva quien reciba más votos.")}
     <div class="stats-tabs" role="tablist">
       <button type="button" class="stats-tab${titulosEncuestaTab === "dia" ? " active" : ""}" data-tab="dia" role="tab" aria-selected="${titulosEncuestaTab === "dia"}">Día</button>
       <button type="button" class="stats-tab${titulosEncuestaTab === "total" ? " active" : ""}" data-tab="total" role="tab" aria-selected="${titulosEncuestaTab === "total"}">Total</button>

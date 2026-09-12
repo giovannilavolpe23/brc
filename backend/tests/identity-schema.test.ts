@@ -12,6 +12,7 @@ const pushMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/008
 const kingPhraseMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/009_user_king_phrase.sql"), "utf8");
 const demoFlagsMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/010_demo_data_flags.sql"), "utf8");
 const dailySurveyQuestionsMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/011_add_daily_survey_questions.sql"), "utf8");
+const chamuyeroSurveyTitleMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/017_update_chamuyero_survey_title.sql"), "utf8");
 const achievementsMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/012_persistent_achievements.sql"), "utf8");
 const gioPremiumAppearanceMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/013_gio_premium_appearance.sql"), "utf8");
 const gioMotionAppearanceMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/014_gio_motion_appearance.sql"), "utf8");
@@ -148,8 +149,9 @@ describe("daily entries and surveys schema", () => {
   it("adds the chamuyo and outfit survey questions", () => {
     assert.match(dailySurveyQuestionsMigration, /'most_flirty'/);
     assert.match(dailySurveyQuestionsMigration, /'best_outfit'/);
-    assert.match(dailySurveyQuestionsMigration, /¿Quién fue el más chamullero anoche\?/);
+    assert.match(dailySurveyQuestionsMigration, /¿Quién fue el más chamuyero anoche\?/);
     assert.match(dailySurveyQuestionsMigration, /¿Quién tuvo el mejor outfit anoche\?/);
+    assert.match(chamuyeroSurveyTitleMigration, /¿Quién fue el más chamuyero anoche\?/);
   });
 });
 

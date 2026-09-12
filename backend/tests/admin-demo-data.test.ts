@@ -350,6 +350,23 @@ describe("admin demo data generation", () => {
     assert.equal(candidates.some((candidate) => candidate.key === "secret_who_hurt_you"), true);
     assert.equal(candidates.some((candidate) => candidate.key === "secret_broke_economy"), true);
     assert.equal(candidates.some((candidate) => candidate.key === "secret_outfit_consequences"), true);
+
+    const resolved = new Set<string>();
+    const chronologicalCandidates = dataset.days.flatMap((dateKey) => {
+      const dailyCandidates = collectAchievementCandidatesForDate(dateKey, toStatsData(dataset), resolved);
+      dailyCandidates.forEach((candidate) => {
+        if (candidate.type === "unique") resolved.add(candidate.key);
+      });
+      return dailyCandidates;
+    });
+    const uniqueKeys = new Set(chronologicalCandidates.filter((candidate) => candidate.type === "unique").map((candidate) => candidate.key));
+    assert.equal(uniqueKeys.has("first_bottom"), true);
+    assert.equal(uniqueKeys.has("first_extra_sleep"), true);
+    assert.equal(uniqueKeys.has("first_broke_wallet"), true);
+    assert.equal(uniqueKeys.has("first_three_closed_clubs"), true);
+    const closedClubDuplicate = chronologicalCandidates.find((candidate) => candidate.key === "first_three_closed_clubs");
+    assert.equal(closedClubDuplicate?.type, "unique");
+    assert.equal(closedClubDuplicate?.userIds.length, 2);
   });
 
   it("resets and inserts the dataset in one transaction", async () => {

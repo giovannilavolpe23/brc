@@ -42,7 +42,7 @@ const destroyedVote: SurveyQuestion = {
 const mostFlirty: SurveyQuestion = {
   id: "55555555-5555-4555-8555-555555555555",
   key: "most_flirty",
-  title: "¿Quién fue el más chamullero anoche?",
+  title: "¿Quién fue el más chamuyero anoche?",
 };
 
 const bestOutfit: SurveyQuestion = {
@@ -218,6 +218,18 @@ describe("survey routes", () => {
 
     const response = await request(app).put("/surveys/destroyed_vote/2026-08-28/vote").send({
       votedUserId: "99999999-9999-4999-8999-999999999999",
+    });
+
+    assert.equal(response.status, 400);
+    assert.equal(response.body.error, "voted_user_not_found");
+  });
+
+  it("rejects votes to inactive users because only active users are valid candidates", async () => {
+    const repo = makeRepository();
+    const app = makeApp(jere, repo);
+
+    const response = await request(app).put("/surveys/most_flirty/2026-08-28/vote").send({
+      votedUserId: "inactive-player",
     });
 
     assert.equal(response.status, 400);

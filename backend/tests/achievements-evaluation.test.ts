@@ -71,6 +71,123 @@ describe("persistent achievement evaluation", () => {
     assert.equal(queries.some((sql) => /insert into achievement_resolutions/.test(sql)), false);
   });
 
+  it("keeps uniques globally closed but lets secrets unlock for new users on later closed days", async () => {
+    const days = ["2026-08-28", "2026-08-29"];
+    const users = data().users;
+    const dailyEntries = [
+      entry(gioId, "2026-08-28", { sleepBedtime: "04:00", sleepWake: "04:30" }),
+      entry(jereId, "2026-08-28"),
+      entry(nataId, "2026-08-28"),
+      entry(gioId, "2026-08-29"),
+      entry(jereId, "2026-08-29", { sleepBedtime: "04:00", sleepWake: "04:30" }),
+      entry(nataId, "2026-08-29"),
+    ];
+    const expenses = days.flatMap((dateKey) =>
+      [gioId, jereId, nataId].map((userId) => ({ userId, dateKey, category: "Comida", amount: 1 }))
+    );
+    const resolutions = new Map<string, { type: "unique" | "secret"; dateKey: string; isDuplicate: boolean }>();
+    const unlocks = new Set<string>();
+
+    const client = {
+      async query(sql: string, params: unknown[] = []) {
+        if (sql.includes("with active_users")) return { rows: days.map((date_key) => ({ date_key })) };
+        if (sql.includes("select achievement_key from achievement_resolutions")) {
+          return {
+            rows: Array.from(resolutions, ([achievement_key, resolution]) => ({ achievement_key, achievement_type: resolution.type }))
+              .filter((row) => row.achievement_type === "unique"),
+          };
+        }
+        if (sql.includes("left join user_appearances")) {
+          return {
+            rows: users.map((user) => ({
+              id: user.id,
+              legacy_id: user.legacyId,
+              display_name: user.displayName,
+              preset: null,
+              primary_color: null,
+              secondary_color: null,
+              gradient_direction: null,
+              intensity: null,
+              visual_style: null,
+              avatar_border_style: null,
+              king_phrase: null,
+              premium_glow: null,
+              premium_shadow: null,
+              premium_border: null,
+              premium_intensity: null,
+              premium_motion: null,
+              premium_border_animation: null,
+              premium_shimmer: null,
+            })),
+          };
+        }
+        if (sql.includes("from money_movements")) {
+          return {
+            rows: expenses
+              .filter((expense) => expense.dateKey < String(params[0]))
+              .map((expense) => ({
+                user_id: expense.userId,
+                category: expense.category,
+                amount_pesos: expense.amount,
+                date_key: expense.dateKey,
+              })),
+          };
+        }
+        if (sql.includes("from daily_entries")) {
+          return {
+            rows: dailyEntries
+              .filter((item) => item.dateKey < String(params[0]))
+              .map((item) => ({
+                user_id: item.userId,
+                date_key: item.dateKey,
+                sleep_did_not_sleep: item.sleepDidNotSleep,
+                sleep_bedtime: item.sleepBedtime,
+                sleep_wake: item.sleepWake,
+                nap_start: item.napStart,
+                nap_end: item.napEnd,
+                fifth_meal: item.fifthMeal,
+                bathroom_count: item.bathroom,
+                boliche_did_not_go: item.bolicheDidNotGo,
+                boliche_entry_time: item.bolicheEntryTime,
+                boliche_exit_time: item.bolicheExitTime,
+                boliche_closed_club: item.bolicheClosedClub,
+              })),
+          };
+        }
+        if (sql.includes("from survey_votes")) return { rows: [] };
+        if (sql.includes("from previa_participants")) return { rows: [] };
+        if (sql.includes("insert into achievement_resolutions")) {
+          const [key, type, dateKey, isDuplicate] = params as [string, "unique" | "secret", string, boolean];
+          if (resolutions.has(key)) return { rows: [], rowCount: 0 };
+          resolutions.set(key, { type, dateKey, isDuplicate });
+          return { rows: [{ achievement_key: key }], rowCount: 1 };
+        }
+        if (sql.includes("insert into achievement_unlocks")) {
+          const [key, userId] = params as [string, string];
+          const unlockKey = `${key}:${userId}`;
+          if (unlocks.has(unlockKey)) return { rows: [], rowCount: 0 };
+          unlocks.add(unlockKey);
+          return { rows: [{ user_id: userId }], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+      },
+    };
+
+    const inserted = await evaluateAchievementsThroughDate("2026-08-29", client);
+    const retried = await evaluateAchievementsThroughDate("2026-08-29", client);
+
+    assert.equal(inserted.filter((item) => item.key === "first_bottom").length, 1);
+    assert.deepEqual(inserted.find((item) => item.key === "first_bottom")?.userIds, [gioId]);
+    assert.deepEqual(
+      inserted.filter((item) => item.key === "secret_no_sleep_required").map((item) => item.userIds),
+      [[gioId], [jereId]]
+    );
+    assert.equal(unlocks.has(`first_bottom:${jereId}`), false);
+    assert.equal(unlocks.has(`secret_no_sleep_required:${gioId}`), true);
+    assert.equal(unlocks.has(`secret_no_sleep_required:${jereId}`), true);
+    assert.deepEqual(retried, []);
+  });
+
   it("awards Primero en tocar fondo below 3 hours, including duplicates, but not at 3 hours", () => {
     const candidates = collectAchievementCandidatesForDate(
       "2026-08-28",

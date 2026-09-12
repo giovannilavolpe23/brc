@@ -19,7 +19,7 @@ const permissions = [
 
 const surveyQuestions = [
   { key: "destroyed_vote", title: "Quien estuvo mas destruido anoche" },
-  { key: "most_flirty", title: "¿Quién fue el más chamullero anoche?" },
+  { key: "most_flirty", title: "¿Quién fue el más chamuyero anoche?" },
   { key: "best_outfit", title: "¿Quién tuvo el mejor outfit anoche?" },
 ];
 

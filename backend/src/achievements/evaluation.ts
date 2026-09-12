@@ -28,7 +28,7 @@ export async function evaluateAchievementsThroughDate(
 ): Promise<AchievementCandidate[]> {
   const completeDays = await loadCompleteDaysThrough(dateKey, client);
   const inserted: AchievementCandidate[] = [];
-  const resolvedKeys = await loadResolvedKeys(client);
+  const resolvedKeys = await loadResolvedUniqueKeys(client);
 
   for (const day of completeDays) {
     const data = await loadStatsData(addDays(day, 1), client);
@@ -36,7 +36,7 @@ export async function evaluateAchievementsThroughDate(
     for (const candidate of candidates) {
       const persisted = await persistCandidate(candidate, client, options.isDemo ?? false);
       if (persisted) {
-        resolvedKeys.add(candidate.key);
+        if (candidate.type === "unique") resolvedKeys.add(candidate.key);
         inserted.push(candidate);
       }
     }
@@ -95,8 +95,10 @@ async function loadCompleteDaysThrough(dateKey: string, client: QueryClient): Pr
   return result.rows.map((row) => toDateOnly(row.date_key));
 }
 
-async function loadResolvedKeys(client: QueryClient): Promise<Set<string>> {
-  const result = await client.query<{ achievement_key: string }>("select achievement_key from achievement_resolutions");
+async function loadResolvedUniqueKeys(client: QueryClient): Promise<Set<string>> {
+  const result = await client.query<{ achievement_key: string }>(
+    "select achievement_key from achievement_resolutions where achievement_type = 'unique'"
+  );
   return new Set(result.rows.map((row) => row.achievement_key));
 }
 
@@ -105,6 +107,33 @@ async function persistCandidate(candidate: AchievementCandidate, client: QueryCl
   if (!definition || candidate.userIds.length === 0) return false;
 
   const duplicate = candidate.userIds.length > 1;
+  if (candidate.type === "secret") {
+    await client.query(
+      `
+        insert into achievement_resolutions (achievement_key, achievement_type, unlocked_date, is_duplicate, is_demo)
+        values ($1, $2, $3, $4, false)
+        on conflict (achievement_key) do nothing
+      `,
+      [candidate.key, candidate.type, candidate.dateKey, duplicate]
+    );
+
+    let insertedUnlocks = 0;
+    for (const userId of candidate.userIds) {
+      const inserted = await client.query<{ user_id: string }>(
+        `
+          insert into achievement_unlocks (achievement_key, user_id, achievement_type, unlocked_date, is_duplicate, is_demo)
+          values ($1, $2, $3, $4, $5, $6)
+          on conflict (achievement_key, user_id) do nothing
+          returning user_id
+        `,
+        [candidate.key, userId, candidate.type, candidate.dateKey, duplicate, isDemo]
+      );
+      insertedUnlocks += inserted.rows.length;
+    }
+
+    return insertedUnlocks > 0;
+  }
+
   const inserted = await client.query<{ achievement_key: string }>(
     `
       insert into achievement_resolutions (achievement_key, achievement_type, unlocked_date, is_duplicate, is_demo)

@@ -584,4 +584,20 @@ describe("stats calculations", () => {
     assert.deepEqual(stats.surveys.best_outfit, []);
     assert.deepEqual(stats.previas.byParticipant, []);
   });
+
+  it("ignores source data that belongs only to inactive users omitted from the active user list", () => {
+    const stats = calculateStats("total", {
+      users: baseData().users,
+      expenses: [{ userId: laraId, dateKey: "2026-08-28", category: "Alcohol", amount: 999999 }],
+      dailyEntries: [entry(laraId, "2026-08-28", { bathroom: 9, fifthMeal: "yes" })],
+      surveyVotes: [{ surveyKey: "destroyed_vote", dateKey: "2026-08-28", votedUserId: laraId }],
+      previaParticipants: [{ previaId: "previa-inactive", userId: laraId, dateKey: "2026-08-28" }],
+    });
+
+    assert.deepEqual(stats.closedDays, []);
+    assert.deepEqual(stats.money.totalSpentByUser, []);
+    assert.deepEqual(stats.dailyEntries.bathroom, []);
+    assert.deepEqual(stats.surveys.destroyed_vote, []);
+    assert.deepEqual(stats.previas.byParticipant, []);
+  });
 });

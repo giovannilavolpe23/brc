@@ -108,12 +108,14 @@ describe("achievement routes", () => {
   });
 
   it("does not expose unique or secret achievements to regular users", async () => {
+    let summaryCalled = false;
     const repository: AchievementsRepository = {
       async listVisible(_userId, canViewPrivate) {
         assert.equal(canViewPrivate, false);
         return [];
       },
       async getSecretSummary() {
+        summaryCalled = true;
         return secretSummary();
       },
       async listPendingSecretReveals() {
@@ -131,8 +133,9 @@ describe("achievement routes", () => {
 
     assert.equal(response.status, 200);
     assert.deepEqual(response.body.achievements, []);
-    assert.deepEqual(response.body.secretSummary, secretSummary());
+    assert.equal("secretSummary" in response.body, false);
     assert.equal(JSON.stringify(response.body).includes("¿Dormir era obligatorio?"), false);
+    assert.equal(summaryCalled, false);
   });
 
   it("marks a secret reveal as viewed only for Gio", async () => {

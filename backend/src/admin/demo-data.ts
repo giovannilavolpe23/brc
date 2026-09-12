@@ -199,6 +199,8 @@ export function buildDemoDataset(users: DemoUser[], mode: DemoSimulationMode, to
   const zombieUser = orderedUsers[0];
   const alcoholUser = orderedUsers[1 % orderedUsers.length];
   const clubCloserUser = orderedUsers[2 % orderedUsers.length];
+  const clubCloserDuplicateUser = orderedUsers[3 % orderedUsers.length];
+  const extraSleepUser = orderedUsers[4 % orderedUsers.length];
   const secretEconomyUser = orderedUsers[5 % orderedUsers.length];
   const surveyFavorites = {
     destroyed_vote: zombieUser,
@@ -214,12 +216,12 @@ export function buildDemoDataset(users: DemoUser[], mode: DemoSimulationMode, to
 
   days.forEach((dateKey, dayIndex) => {
     users.forEach((user, userIndex) => {
-      dailyEntries.push(generateDailyEntry(user, dateKey, dayIndex, { zombieUser, clubCloserUser }, rng));
+      dailyEntries.push(generateDailyEntry(user, dateKey, dayIndex, userIndex, { zombieUser, clubCloserUser, clubCloserDuplicateUser, extraSleepUser }, rng));
       DEMO_SURVEY_KEYS.forEach((surveyKey) => {
         const favoriteUser = surveyKey === "best_outfit" && dayIndex === 0 ? surveyFavorites.most_flirty : surveyFavorites[surveyKey];
         surveyVotes.push(generateSurveyVote(surveyKey, user, users, dateKey, dayIndex, favoriteUser, rng));
       });
-      moneyMovements.push(...generateMoneyMovements(user, dateKey, dayIndex, userIndex, { alcoholUser, spenderUser, secretComboUser: zombieUser, secretEconomyUser, batchId }, rng));
+      moneyMovements.push(...generateMoneyMovements(user, dateKey, dayIndex, userIndex, { alcoholUser, spenderUser, walletBreakerUser: spenderUser, secretComboUser: zombieUser, secretEconomyUser, batchId }, rng));
     });
   });
 
@@ -432,18 +434,24 @@ function generateDailyEntry(
   user: DemoUser,
   dateKey: string,
   dayIndex: number,
-  specialUsers: { zombieUser: DemoUser; clubCloserUser: DemoUser },
+  userIndex: number,
+  specialUsers: { zombieUser: DemoUser; clubCloserUser: DemoUser; clubCloserDuplicateUser: DemoUser; extraSleepUser: DemoUser },
   rng: Rng
 ): DemoDailyEntry {
-  const { zombieUser, clubCloserUser } = specialUsers;
+  const { zombieUser, clubCloserUser, clubCloserDuplicateUser, extraSleepUser } = specialUsers;
   const isZombieRun = user.id === zombieUser.id && dayIndex < 4;
   const isCompetitionSeed = user.id === zombieUser.id && dayIndex === 0;
-  const isClubClosingRun = user.id === clubCloserUser.id && dayIndex < 6;
-  const sleepDidNotSleep = !isZombieRun && rng() < 0.04;
+  const isClubClosingRun =
+    (user.id === clubCloserUser.id && dayIndex < 6) ||
+    (user.id === clubCloserDuplicateUser.id && dayIndex < 3);
+  const isExtraSleepSeed = user.id === extraSleepUser.id && dayIndex === 0;
+  const sleepDidNotSleep = !isZombieRun && !isExtraSleepSeed && rng() < 0.04;
+  const regularBedtime = Math.min(390, randStep(rng, 240, 390) + (userIndex % 4) * 10);
+  const regularWake = Math.min(840, randStep(rng, 660, 840) + ((userIndex + dayIndex) % 5) * 10);
   const sleepBedtime = sleepDidNotSleep
     ? null
-    : minutesToTime(isCompetitionSeed ? 420 : isClubClosingRun ? randStep(rng, 420, 480) : isZombieRun ? randStep(rng, 420, 460) : randStep(rng, 240, 390));
-  const sleepWake = sleepDidNotSleep ? null : minutesToTime(isCompetitionSeed ? 470 : isClubClosingRun ? randStep(rng, 720, 900) : isZombieRun ? randStep(rng, 540, 600) : randStep(rng, 660, 840));
+    : minutesToTime(isExtraSleepSeed ? 240 : isCompetitionSeed ? 420 : isClubClosingRun ? randStep(rng, 420, 480) : isZombieRun ? randStep(rng, 420, 460) : regularBedtime);
+  const sleepWake = sleepDidNotSleep ? null : minutesToTime(isExtraSleepSeed ? 800 : isCompetitionSeed ? 470 : isClubClosingRun ? randStep(rng, 720, 900) : isZombieRun ? randStep(rng, 540, 600) : regularWake);
   const wakeMinutes = sleepWake ? timeToMinutes(sleepWake) : null;
 
   const hasNap = !sleepDidNotSleep && wakeMinutes !== null && rng() < (isZombieRun ? 0.25 : 0.48);
@@ -475,7 +483,7 @@ function generateDailyEntry(
     napStart,
     napEnd,
     fifthMeal: isCompetitionSeed || rng() < (isZombieRun ? 0.65 : 0.46) ? "yes" : "no",
-    bathroomCount: isCompetitionSeed ? 4 : randInt(rng, 0, 4),
+    bathroomCount: isCompetitionSeed ? 4 : (randInt(rng, 0, 4) + userIndex + dayIndex) % 5,
     bolicheDidNotGo: !wentToBoliche,
     bolicheEntryTime,
     bolicheExitTime: wentToBoliche && !closedClub && bolicheEntryTime ? minutesToTime(isCompetitionSeed ? bolicheLatest : randStep(rng, timeToMinutes(bolicheEntryTime) + 10, bolicheLatest)) : null,
@@ -511,7 +519,7 @@ function generateMoneyMovements(
   dateKey: string,
   dayIndex: number,
   userIndex: number,
-  context: { alcoholUser: DemoUser; spenderUser: DemoUser; secretComboUser: DemoUser; secretEconomyUser: DemoUser; batchId: string },
+  context: { alcoholUser: DemoUser; spenderUser: DemoUser; walletBreakerUser: DemoUser; secretComboUser: DemoUser; secretEconomyUser: DemoUser; batchId: string },
   rng: Rng
 ): DemoMoneyMovement[] {
   const movements: DemoMoneyMovement[] = [];
@@ -539,19 +547,25 @@ function generateMoneyMovements(
   if (user.id === context.alcoholUser.id && dayIndex < 4) categories.add("Alcohol");
   if (user.id === context.secretComboUser.id && dayIndex === 0) categories.add("Alcohol");
   if (user.id === context.spenderUser.id && dayIndex < 4) categories.add(pick(rng, ["Boliche", "Actividades", "Comida"]));
+  if (user.id === context.spenderUser.id) EXPENSE_CATEGORIES.forEach((category) => categories.add(category));
+  if (user.id === context.walletBreakerUser.id && dayIndex === 2) categories.add("Actividades");
 
   Array.from(categories).forEach((category) => {
     const secretAlcohol = user.id === context.secretComboUser.id && category === "Alcohol" && dayIndex === 0;
     const dominantAlcohol = user.id === context.alcoholUser.id && category === "Alcohol" && dayIndex < 4;
-    const dominantSpender = user.id === context.spenderUser.id && dayIndex < 4;
+    const dominantSpender = user.id === context.spenderUser.id;
+    const walletBreaker = user.id === context.walletBreakerUser.id && category === "Actividades" && dayIndex === 2;
     const baseAmount = secretAlcohol
       ? randStep(rng, 30000, 42000, 500)
+      : walletBreaker
+        ? randStep(rng, 360000, 385000, 500)
       : dominantAlcohol
       ? randStep(rng, 15000, 26000, 500)
       : dominantSpender
         ? randStep(rng, 18000, 32000, 500)
         : randStep(rng, 1200, 12000, 100);
-    addMovement("expense", baseAmount, category, expenseDescription(category, rng));
+    const variance = secretAlcohol || dominantAlcohol || dominantSpender || walletBreaker ? 0 : (userIndex + 1) * 137 + dayIndex * 211;
+    addMovement("expense", baseAmount + variance, category, expenseDescription(category, rng));
   });
 
   if (rng() < 0.28) {

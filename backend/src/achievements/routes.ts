@@ -14,10 +14,12 @@ export function createAchievementsRouter(
   router.get("/", async (req, res, next) => {
     try {
       const canViewPrivate = canViewPrivateAchievements(req.user);
-      const [achievements, secretSummary] = await Promise.all([
-        repository.listVisible(req.user.id, canViewPrivate),
-        repository.getSecretSummary(),
-      ]);
+      const achievements = await repository.listVisible(req.user.id, canViewPrivate);
+      if (!canViewPrivate) {
+        res.json({ achievements });
+        return;
+      }
+      const secretSummary = await repository.getSecretSummary();
       res.json({ achievements, secretSummary });
     } catch (error) {
       next(error);

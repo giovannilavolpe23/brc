@@ -11,18 +11,26 @@ import type {
 const BOLICHE_CLOSED_CLUB_TIME = "06:45";
 
 export function calculateStats(scope: "day" | "total", data: StatsData, dateKey?: string): StatsResponse {
-  const closedDays = collectClosedDays(data, dateKey);
+  const activeUserIds = new Set(data.users.map((user) => user.id));
+  const activeData: StatsData = {
+    users: data.users,
+    expenses: data.expenses.filter((expense) => activeUserIds.has(expense.userId)),
+    dailyEntries: data.dailyEntries.filter((entry) => activeUserIds.has(entry.userId)),
+    surveyVotes: data.surveyVotes.filter((vote) => activeUserIds.has(vote.votedUserId)),
+    previaParticipants: data.previaParticipants.filter((participant) => activeUserIds.has(participant.userId)),
+  };
+  const closedDays = collectClosedDays(activeData, dateKey);
   const daySet = new Set(scope === "day" && dateKey ? [dateKey] : closedDays);
-  const expenses = data.expenses.filter((expense) => daySet.has(expense.dateKey));
-  const entries = data.dailyEntries.filter((entry) => daySet.has(entry.dateKey));
-  const votes = data.surveyVotes.filter((vote) => daySet.has(vote.dateKey));
-  const previaParticipants = data.previaParticipants.filter((participant) => daySet.has(participant.dateKey));
+  const expenses = activeData.expenses.filter((expense) => daySet.has(expense.dateKey));
+  const entries = activeData.dailyEntries.filter((entry) => daySet.has(entry.dateKey));
+  const votes = activeData.surveyVotes.filter((vote) => daySet.has(vote.dateKey));
+  const previaParticipants = activeData.previaParticipants.filter((participant) => daySet.has(participant.dateKey));
 
   return {
     scope,
     ...(dateKey ? { dateKey } : {}),
     closedDays,
-    users: data.users,
+    users: activeData.users,
     money: moneyStats(expenses),
     dailyEntries: dailyEntryStats(entries),
     surveys: {
@@ -31,7 +39,7 @@ export function calculateStats(scope: "day" | "total", data: StatsData, dateKey?
       best_outfit: rankingFromCounts(countBy(votes.filter((vote) => vote.surveyKey === "best_outfit"), "votedUserId")),
     },
     previas: previaStats(previaParticipants),
-    streaks: scope === "total" ? streakStats(closedDays, data) : emptyStreakStats(),
+    streaks: scope === "total" ? streakStats(closedDays, activeData) : emptyStreakStats(),
   };
 }
 
