@@ -384,9 +384,16 @@ const moneyApiLoadingUsers = new Set();
 const moneyApiFailedUsers = new Set();
 const dailyApiLoadingKeys = new Set();
 const dailyApiFailedKeys = new Set();
+const dailyEntriesSummaryLoadedUsers = new Set();
+const dailyEntriesSummaryLoadingUsers = new Set();
+const dailyEntriesSummaryFailedUsers = new Set();
+const dailyEntriesSummaryByUser = new Map();
 const previasApiLoadingKeys = new Set();
 const previasApiFailedKeys = new Set();
 const statsApiFailed = {};
+let adminDailyProgressSnapshot = null;
+let adminDailyProgressLoading = false;
+let adminDailyProgressFailed = false;
 let achievementsApiSnapshot = null;
 let achievementsApiLoading = false;
 let achievementsApiFailed = false;
@@ -560,8 +567,10 @@ function updateApiSyncIndicator() {
 function resetApiReadFailures() {
   moneyApiFailedUsers.clear();
   dailyApiFailedKeys.clear();
+  dailyEntriesSummaryFailedUsers.clear();
   previasApiFailedKeys.clear();
   Object.keys(statsApiFailed).forEach((key) => delete statsApiFailed[key]);
+  adminDailyProgressFailed = false;
 }
 
 function handleExpiredApiSession() {
@@ -2406,6 +2415,9 @@ function renderAdmin() {
   const panel = document.getElementById("admin-create-player-panel");
   const showCreateBtn = document.getElementById("btn-admin-show-create-player");
 
+  renderAdminDailyProgress();
+  loadAdminDailyProgress();
+
   if (panel) panel.hidden = !adminCreatePlayerOpen;
   if (showCreateBtn) showCreateBtn.hidden = adminCreatePlayerOpen;
   if (participantsApiLoading) {
@@ -2463,6 +2475,61 @@ function renderAdmin() {
 
     list.appendChild(row);
   });
+}
+
+async function loadAdminDailyProgress({ force = false } = {}) {
+  if (adminDailyProgressLoading) return;
+  if (!force && (adminDailyProgressSnapshot || adminDailyProgressFailed)) return;
+  adminDailyProgressLoading = true;
+  renderAdminDailyProgress();
+  try {
+    const response = await apiFetch("/admin/daily-progress");
+    if (!response.ok) throw new Error("admin_daily_progress_failed");
+    adminDailyProgressSnapshot = await response.json();
+    adminDailyProgressFailed = false;
+  } catch (e) {
+    adminDailyProgressFailed = true;
+  } finally {
+    adminDailyProgressLoading = false;
+    renderAdminDailyProgress();
+  }
+}
+
+function renderAdminDailyProgress() {
+  const card = document.getElementById("admin-daily-progress");
+  if (!card) return;
+  card.hidden = false;
+  if (adminDailyProgressLoading && !adminDailyProgressSnapshot) {
+    card.innerHTML = renderApiLoadingBanner("Revisando registro de ayer...");
+    return;
+  }
+  if (adminDailyProgressFailed && !adminDailyProgressSnapshot) {
+    card.innerHTML = `
+      <div class="admin-daily-progress-main">
+        <span>Registro de ayer</span>
+        <strong>No se pudo cargar</strong>
+      </div>
+      <small>Probá refrescar cuando vuelva la conexión.</small>
+    `;
+    return;
+  }
+  const progress = adminDailyProgressSnapshot;
+  if (!progress) {
+    card.hidden = true;
+    card.innerHTML = "";
+    return;
+  }
+  const total = Number(progress.totalActiveUsers || 0);
+  const registered = Number(progress.registeredCount || 0);
+  const pending = Number(progress.pendingCount || Math.max(0, total - registered));
+  const pendingUsers = Array.isArray(progress.pendingUsers) ? progress.pendingUsers : [];
+  card.innerHTML = `
+    <div class="admin-daily-progress-main">
+      <span>Registro de ayer</span>
+      <strong>${registered} / ${total} completados</strong>
+    </div>
+    <small>${pending === 0 ? "Todos registraron." : `Faltan ${pending}${pendingUsers.length ? `: ${escapeHtml(pendingUsers.map((user) => user.displayName || user.legacyId || user.id).join(", "))}` : ""}`}</small>
+  `;
 }
 
 function renderAdminAchievementsPanel() {
@@ -2615,6 +2682,8 @@ async function handleAdminCreatePlayerClick() {
     }
     setAdminCreatePlayerPanel(false);
     renderParticipantGrid();
+    adminDailyProgressSnapshot = null;
+    adminDailyProgressFailed = false;
     renderAdmin();
     if (msg) {
       msg.textContent = "✓ Jugador agregado";
@@ -2660,6 +2729,8 @@ async function handleAdminDeletePlayerConfirm() {
     const index = PARTICIPANTS.findIndex((p) => p.id === participant.id);
     if (index >= 0) PARTICIPANTS.splice(index, 1);
     adminDeletePlayerTarget = null;
+    adminDailyProgressSnapshot = null;
+    adminDailyProgressFailed = false;
     closeSheet();
     renderParticipantGrid();
     renderAdmin();
@@ -4993,6 +5064,12 @@ function formatDailyDate(dateKey) {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
+function formatDateKeyShort(dateKey) {
+  if (typeof dateKey !== "string") return "";
+  const [, month, day] = dateKey.split("-");
+  return `${day}/${month}`;
+}
+
 function ensureDailyLogData(userId) {
   const data = getUserData(userId) || { id: userId, createdAt: new Date().toISOString() };
   if (!data.dailyLog) {
@@ -5246,6 +5323,50 @@ async function loadDailyEntryFromApi(userId, dateKey) {
   }
 }
 
+async function loadDailyEntriesSummaryFromApi(userId) {
+  if (dailyEntriesSummaryLoadedUsers.has(userId) || dailyEntriesSummaryLoadingUsers.has(userId) || dailyEntriesSummaryFailedUsers.has(userId)) return;
+  dailyEntriesSummaryLoadingUsers.add(userId);
+  try {
+    const response = await apiFetch("/daily-entries");
+    if (!response.ok) throw new Error("daily_entries_summary_failed");
+    const payload = await response.json();
+    const dates = Array.isArray(payload.entries)
+      ? payload.entries.map((entry) => entry && entry.dateKey).filter((dateKey) => typeof dateKey === "string")
+      : [];
+    dailyEntriesSummaryByUser.set(userId, dates);
+    dailyEntriesSummaryLoadedUsers.add(userId);
+  } catch (e) {
+    dailyEntriesSummaryFailedUsers.add(userId);
+  } finally {
+    dailyEntriesSummaryLoadingUsers.delete(userId);
+    if (screens.daily && screens.daily.classList.contains("active")) renderDailyScreen();
+  }
+}
+
+function latestLocalDailyEntryDate(userId) {
+  const data = getUserData(userId);
+  const entries = data && data.dailyLog && data.dailyLog.entries ? data.dailyLog.entries : {};
+  return Object.keys(entries).filter((dateKey) => entries[dateKey]).sort().pop() || null;
+}
+
+function latestRegisteredDailyDate(userId) {
+  const dates = new Set(dailyEntriesSummaryByUser.get(userId) || []);
+  const localDate = latestLocalDailyEntryDate(userId);
+  if (localDate) dates.add(localDate);
+  return Array.from(dates).sort().pop() || null;
+}
+
+function renderLastDailyEntryPill(userId) {
+  const loading = dailyEntriesSummaryLoadingUsers.has(userId);
+  const latestDate = latestRegisteredDailyDate(userId);
+  const text = latestDate
+    ? `Último día registrado: ${formatDateKeyShort(latestDate)}`
+    : loading
+      ? "Revisando último registro..."
+      : "Todavía no hiciste ningún registro";
+  return `<div class="daily-last-entry-pill">${escapeHtml(text)}</div>`;
+}
+
 function renderTimeScroll(containerId, rangeKey, selectedValue, options = buildTimeOptions(rangeKey)) {
   return `<div class="time-scroll" id="${containerId}" data-range="${rangeKey}">${options
     .map(
@@ -5293,6 +5414,7 @@ function renderDailyScreen() {
     dailyState = existing ? JSON.parse(JSON.stringify(existing)) : defaultDailyEntry();
   }
   loadDailyEntryFromApi(user.id, dailyDateKey);
+  loadDailyEntriesSummaryFromApi(user.id);
   const dailyLoading = dailyApiLoadingKeys.has(`${user.id}:${dailyDateKey}`);
 
   const s = dailyState;
@@ -5312,6 +5434,7 @@ function renderDailyScreen() {
       <span class="daily-date-eyebrow">Registrando el día de ayer</span>
       <strong>${formatDailyDate(dailyDateKey)}</strong>
     </div>
+    ${renderLastDailyEntryPill(user.id)}
     ${dailyLoading ? renderApiLoadingBanner("Cargando tu registro guardado...") : ""}
 
     <div class="daily-section">
@@ -5604,6 +5727,15 @@ async function saveDailyEntry() {
   // crear un duplicado (misma clave = mismo día).
   data.dailyLog.entries[dailyDateKey] = entryToSave;
   saveUserData(user.id, data);
+  const summaryDates = new Set(dailyEntriesSummaryByUser.get(user.id) || []);
+  summaryDates.add(dailyDateKey);
+  dailyEntriesSummaryByUser.set(user.id, Array.from(summaryDates));
+  dailyEntriesSummaryLoadedUsers.delete(user.id);
+  dailyEntriesSummaryFailedUsers.delete(user.id);
+  adminDailyProgressSnapshot = null;
+  adminDailyProgressFailed = false;
+  const lastEntryPill = document.querySelector(".daily-last-entry-pill");
+  if (lastEntryPill) lastEntryPill.textContent = `Último día registrado: ${formatDateKeyShort(dailyDateKey)}`;
   try {
     await syncDailyEntryToApi(dailyDateKey, entryToSave);
 

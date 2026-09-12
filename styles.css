@@ -1939,6 +1939,49 @@ img, svg {
   gap: 8px;
 }
 
+.admin-daily-progress-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent-2) 22%, var(--border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  box-shadow: 0 9px 20px -18px color-mix(in srgb, var(--accent-2) 34%, transparent);
+  animation: uxFadeUp 0.16s ease both;
+}
+
+.admin-daily-progress-card[hidden] {
+  display: none;
+}
+
+.admin-daily-progress-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.admin-daily-progress-main span {
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-daily-progress-main strong {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.admin-daily-progress-card small {
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
 .admin-participant-row {
   display: flex;
   align-items: center;
@@ -4337,6 +4380,21 @@ img, svg {
   font-family: var(--font-display);
   font-size: 16px;
   color: var(--text);
+}
+
+.daily-last-entry-pill {
+  align-self: flex-start;
+  max-width: 100%;
+  margin-top: -2px;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent-2) 18%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-2) 78%, transparent);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.2;
+  animation: uxFadeUp 0.14s ease both;
 }
 
 .daily-section {
