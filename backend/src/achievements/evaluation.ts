@@ -19,7 +19,9 @@ const SECRET_CLUB_STAFF_KEY = "secret_club_staff";
 const SECRET_WHO_HURT_YOU_KEY = "secret_who_hurt_you";
 const SECRET_BROKE_ECONOMY_KEY = "secret_broke_economy";
 const SECRET_OUTFIT_CONSEQUENCES_KEY = "secret_outfit_consequences";
+const SECRET_CAME_FOR_THIS_KEY = "secret_came_for_this";
 const WALLET_THRESHOLD = 350000;
+const FULL_TRIP_NIGHTS = 8;
 
 export async function evaluateAchievementsThroughDate(
   dateKey: string,
@@ -65,6 +67,7 @@ export function collectAchievementCandidatesForDate(
   addCandidate(candidates, resolvedKeys, SECRET_WHO_HURT_YOU_KEY, dateKey, fourConsecutiveNegativeConditionWinners(dateKey, data, activeUserIds));
   addCandidate(candidates, resolvedKeys, SECRET_BROKE_ECONOMY_KEY, dateKey, zeroExpenseWinners(dateKey, data, activeUserIds));
   addCandidate(candidates, resolvedKeys, SECRET_OUTFIT_CONSEQUENCES_KEY, dateKey, outfitConsequencesWinners(dateKey, data, activeUserIds));
+  addCandidate(candidates, resolvedKeys, SECRET_CAME_FOR_THIS_KEY, dateKey, fullTripFifthMealWinners(dateKey, data, activeUserIds));
 
   return candidates;
 }
@@ -260,11 +263,16 @@ function negativeConditionWinners(dateKey: string, data: StatsData, activeUserId
 
 function zeroExpenseWinners(dateKey: string, data: StatsData, activeUserIds: Set<string>): string[] {
   if (!isCompleteDailyEntryDay(dateKey, data, activeUserIds)) return [];
+  const registeredUserIds = new Set(
+    data.dailyEntries
+      .filter((entry) => entry.dateKey === dateKey && activeUserIds.has(entry.userId))
+      .map((entry) => entry.userId)
+  );
   const expenseTotals = new Map<string, number>();
   data.expenses
     .filter((expense) => expense.dateKey === dateKey && activeUserIds.has(expense.userId))
     .forEach((expense) => expenseTotals.set(expense.userId, (expenseTotals.get(expense.userId) ?? 0) + expense.amount));
-  return Array.from(activeUserIds).filter((userId) => (expenseTotals.get(userId) ?? 0) === 0);
+  return Array.from(registeredUserIds).filter((userId) => (expenseTotals.get(userId) ?? 0) === 0);
 }
 
 function outfitConsequencesWinners(dateKey: string, data: StatsData, activeUserIds: Set<string>): string[] {
@@ -273,6 +281,22 @@ function outfitConsequencesWinners(dateKey: string, data: StatsData, activeUserI
   const outfit = new Set(rankingWinners(stats.surveys.best_outfit).filter((userId) => activeUserIds.has(userId)));
   const mostFlirty = new Set(rankingWinners(stats.surveys.most_flirty).filter((userId) => activeUserIds.has(userId)));
   return Array.from(outfit).filter((userId) => mostFlirty.has(userId));
+}
+
+function fullTripFifthMealWinners(dateKey: string, data: StatsData, activeUserIds: Set<string>): string[] {
+  const completeDays = completeDailyEntryDaysThrough(dateKey, data, activeUserIds);
+  if (completeDays.length < FULL_TRIP_NIGHTS) return [];
+  const tripDays = completeDays.slice(0, FULL_TRIP_NIGHTS);
+  if (dateKey !== tripDays[FULL_TRIP_NIGHTS - 1]) return [];
+
+  const entriesByUserAndDay = new Map<string, DailyEntryStatsRow>();
+  data.dailyEntries
+    .filter((entry) => activeUserIds.has(entry.userId))
+    .forEach((entry) => entriesByUserAndDay.set(`${entry.userId}:${entry.dateKey}`, entry));
+
+  return Array.from(activeUserIds).filter((userId) =>
+    tripDays.every((day) => entriesByUserAndDay.get(`${userId}:${day}`)?.fifthMeal === "yes")
+  );
 }
 
 function completeDailyEntryDaysThrough(dateKey: string, data: StatsData, activeUserIds: Set<string>): string[] {

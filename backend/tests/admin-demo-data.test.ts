@@ -350,6 +350,15 @@ describe("admin demo data generation", () => {
     assert.equal(candidates.some((candidate) => candidate.key === "secret_who_hurt_you"), true);
     assert.equal(candidates.some((candidate) => candidate.key === "secret_broke_economy"), true);
     assert.equal(candidates.some((candidate) => candidate.key === "secret_outfit_consequences"), true);
+    assert.equal(candidates.some((candidate) => candidate.key === "secret_came_for_this"), true);
+
+    const fifthMealsByUser = new Map<string, number>();
+    dataset.dailyEntries.forEach((entry) => {
+      if (entry.fifthMeal !== "yes") return;
+      fifthMealsByUser.set(entry.userId, (fifthMealsByUser.get(entry.userId) ?? 0) + 1);
+    });
+    assert.equal(Array.from(fifthMealsByUser.values()).some((count) => count === 8), true);
+    assert.equal(Array.from(fifthMealsByUser.values()).some((count) => count === 7), true);
 
     const resolved = new Set<string>();
     const chronologicalCandidates = dataset.days.flatMap((dateKey) => {

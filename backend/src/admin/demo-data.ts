@@ -202,6 +202,8 @@ export function buildDemoDataset(users: DemoUser[], mode: DemoSimulationMode, to
   const clubCloserDuplicateUser = orderedUsers[3 % orderedUsers.length];
   const extraSleepUser = orderedUsers[4 % orderedUsers.length];
   const secretEconomyUser = orderedUsers[5 % orderedUsers.length];
+  const fifthMealPerfectUser = orderedUsers[6 % orderedUsers.length];
+  const fifthMealAlmostUser = orderedUsers[7 % orderedUsers.length];
   const surveyFavorites = {
     destroyed_vote: zombieUser,
     most_flirty: orderedUsers[3 % orderedUsers.length],
@@ -216,7 +218,7 @@ export function buildDemoDataset(users: DemoUser[], mode: DemoSimulationMode, to
 
   days.forEach((dateKey, dayIndex) => {
     users.forEach((user, userIndex) => {
-      dailyEntries.push(generateDailyEntry(user, dateKey, dayIndex, userIndex, { zombieUser, clubCloserUser, clubCloserDuplicateUser, extraSleepUser }, rng));
+      dailyEntries.push(generateDailyEntry(user, dateKey, dayIndex, userIndex, { zombieUser, clubCloserUser, clubCloserDuplicateUser, extraSleepUser, fifthMealPerfectUser, fifthMealAlmostUser }, rng));
       DEMO_SURVEY_KEYS.forEach((surveyKey) => {
         const favoriteUser = surveyKey === "best_outfit" && dayIndex === 0 ? surveyFavorites.most_flirty : surveyFavorites[surveyKey];
         surveyVotes.push(generateSurveyVote(surveyKey, user, users, dateKey, dayIndex, favoriteUser, rng));
@@ -435,10 +437,10 @@ function generateDailyEntry(
   dateKey: string,
   dayIndex: number,
   userIndex: number,
-  specialUsers: { zombieUser: DemoUser; clubCloserUser: DemoUser; clubCloserDuplicateUser: DemoUser; extraSleepUser: DemoUser },
+  specialUsers: { zombieUser: DemoUser; clubCloserUser: DemoUser; clubCloserDuplicateUser: DemoUser; extraSleepUser: DemoUser; fifthMealPerfectUser: DemoUser; fifthMealAlmostUser: DemoUser },
   rng: Rng
 ): DemoDailyEntry {
-  const { zombieUser, clubCloserUser, clubCloserDuplicateUser, extraSleepUser } = specialUsers;
+  const { zombieUser, clubCloserUser, clubCloserDuplicateUser, extraSleepUser, fifthMealPerfectUser, fifthMealAlmostUser } = specialUsers;
   const isZombieRun = user.id === zombieUser.id && dayIndex < 4;
   const isCompetitionSeed = user.id === zombieUser.id && dayIndex === 0;
   const isClubClosingRun =
@@ -473,6 +475,11 @@ function generateDailyEntry(
   const closedClub = isClubClosingRun && bolicheClosingCapacity >= timeToMinutes(BOLICHE_CLOSED_CLUB_TIME);
   const wentToBoliche = closedClub || (bolicheLatest >= 80 && (isCompetitionSeed || rng() < (isZombieRun ? 0.82 : 0.62)));
   const bolicheEntryTime = wentToBoliche ? minutesToTime(closedClub ? randStep(rng, 70, 180) : randStep(rng, 70, Math.min(220, bolicheLatest - 20))) : null;
+  const fifthMeal = user.id === fifthMealPerfectUser.id
+    ? "yes"
+    : user.id === fifthMealAlmostUser.id
+      ? dayIndex === 0 ? "no" : "yes"
+      : isCompetitionSeed || rng() < (isZombieRun ? 0.65 : 0.46) ? "yes" : "no";
 
   return {
     userId: user.id,
@@ -482,7 +489,7 @@ function generateDailyEntry(
     sleepWake,
     napStart,
     napEnd,
-    fifthMeal: isCompetitionSeed || rng() < (isZombieRun ? 0.65 : 0.46) ? "yes" : "no",
+    fifthMeal,
     bathroomCount: isCompetitionSeed ? 4 : (randInt(rng, 0, 4) + userIndex + dayIndex) % 5,
     bolicheDidNotGo: !wentToBoliche,
     bolicheEntryTime,

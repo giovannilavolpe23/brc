@@ -6,6 +6,7 @@ import type { DailyEntryStatsRow, StatsData } from "../src/stats/types";
 const gioId = "11111111-1111-4111-8111-111111111111";
 const jereId = "22222222-2222-4222-8222-222222222222";
 const nataId = "33333333-3333-4333-8333-333333333333";
+const laraId = "44444444-4444-4444-8444-444444444444";
 
 function entry(userId: string, dateKey: string, overrides: Partial<DailyEntryStatsRow> = {}): DailyEntryStatsRow {
   return {
@@ -41,6 +42,26 @@ function data(overrides: Partial<StatsData> = {}): StatsData {
   };
 }
 
+function activeUsers(count = 13): StatsData["users"] {
+  const baseUsers = data().users;
+  return Array.from({ length: count }, (_, index) => {
+    const base = baseUsers[index];
+    return base ?? {
+      id: `99999999-9999-4999-8999-${String(index).padStart(12, "0")}`,
+      legacyId: `player-${index + 1}`,
+      displayName: `Player ${index + 1}`,
+    };
+  });
+}
+
+function entriesForUsers(
+  users: StatsData["users"],
+  dateKey: string,
+  overridesForUser: (userId: string, index: number) => Partial<DailyEntryStatsRow> = () => {}
+): DailyEntryStatsRow[] {
+  return users.map((user, index) => entry(user.id, dateKey, overridesForUser(user.id, index)));
+}
+
 function candidate(key: string, candidates = collectAchievementCandidatesForDate("2026-08-28", data())) {
   return candidates.find((item) => item.key === key);
 }
@@ -51,6 +72,114 @@ function completeEntries(days: string[], overridesForUser: (userId: string, date
     entry(jereId, dateKey, overridesForUser(jereId, dateKey, dayIndex)),
     entry(nataId, dateKey, overridesForUser(nataId, dateKey, dayIndex)),
   ]);
+}
+
+function statsClientForEvaluation(options: {
+  days: string[];
+  users: StatsData["users"];
+  dailyEntries: DailyEntryStatsRow[];
+  expenses?: StatsData["expenses"];
+  surveyVotes?: StatsData["surveyVotes"];
+  previaParticipants?: StatsData["previaParticipants"];
+  unlocks: Set<string>;
+}) {
+  const resolutions = new Map<string, { type: "unique" | "secret"; dateKey: string; isDuplicate: boolean }>();
+  return {
+    async query(sql: string, params: unknown[] = []) {
+      if (sql.includes("with active_users")) return { rows: options.days.map((date_key) => ({ date_key })) };
+      if (sql.includes("select achievement_key from achievement_resolutions")) {
+        return {
+          rows: Array.from(resolutions, ([achievement_key, resolution]) => ({ achievement_key, achievement_type: resolution.type }))
+            .filter((row) => row.achievement_type === "unique"),
+        };
+      }
+      if (sql.includes("left join user_appearances")) {
+        return {
+          rows: options.users.map((user) => ({
+            id: user.id,
+            legacy_id: user.legacyId,
+            display_name: user.displayName,
+            preset: null,
+            primary_color: null,
+            secondary_color: null,
+            gradient_direction: null,
+            intensity: null,
+            visual_style: null,
+            avatar_border_style: null,
+            king_phrase: null,
+            premium_glow: null,
+            premium_shadow: null,
+            premium_border: null,
+            premium_intensity: null,
+            premium_motion: null,
+            premium_border_animation: null,
+            premium_shimmer: null,
+          })),
+        };
+      }
+      if (sql.includes("from money_movements")) {
+        return {
+          rows: (options.expenses ?? [])
+            .filter((expense) => expense.dateKey < String(params[0]))
+            .map((expense) => ({
+              user_id: expense.userId,
+              category: expense.category,
+              amount_pesos: expense.amount,
+              date_key: expense.dateKey,
+            })),
+        };
+      }
+      if (sql.includes("from daily_entries")) {
+        return {
+          rows: options.dailyEntries
+            .filter((item) => item.dateKey < String(params[0]))
+            .map((item) => ({
+              user_id: item.userId,
+              date_key: item.dateKey,
+              sleep_did_not_sleep: item.sleepDidNotSleep,
+              sleep_bedtime: item.sleepBedtime,
+              sleep_wake: item.sleepWake,
+              nap_start: item.napStart,
+              nap_end: item.napEnd,
+              fifth_meal: item.fifthMeal,
+              bathroom_count: item.bathroom,
+              boliche_did_not_go: item.bolicheDidNotGo,
+              boliche_entry_time: item.bolicheEntryTime,
+              boliche_exit_time: item.bolicheExitTime,
+              boliche_closed_club: item.bolicheClosedClub,
+            })),
+        };
+      }
+      if (sql.includes("from survey_votes")) {
+        return {
+          rows: (options.surveyVotes ?? [])
+            .filter((vote) => vote.dateKey < String(params[0]))
+            .map((vote) => ({ survey_key: vote.surveyKey, date_key: vote.dateKey, voted_user_id: vote.votedUserId })),
+        };
+      }
+      if (sql.includes("from previa_participants")) {
+        return {
+          rows: (options.previaParticipants ?? [])
+            .filter((participant) => participant.dateKey < String(params[0]))
+            .map((participant) => ({ previa_id: participant.previaId, user_id: participant.userId, date_key: participant.dateKey })),
+        };
+      }
+      if (sql.includes("insert into achievement_resolutions")) {
+        const [key, type, dateKey, isDuplicate] = params as [string, "unique" | "secret", string, boolean];
+        if (resolutions.has(key)) return { rows: [], rowCount: 0 };
+        resolutions.set(key, { type, dateKey, isDuplicate });
+        return { rows: [{ achievement_key: key }], rowCount: 1 };
+      }
+      if (sql.includes("insert into achievement_unlocks")) {
+        const [key, userId] = params as [string, string];
+        const unlockKey = `${key}:${userId}`;
+        if (options.unlocks.has(unlockKey)) return { rows: [], rowCount: 0 };
+        options.unlocks.add(unlockKey);
+        return { rows: [{ user_id: userId }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    },
+  };
 }
 
 describe("persistent achievement evaluation", () => {
@@ -575,6 +704,51 @@ describe("persistent achievement evaluation", () => {
     assert.deepEqual(candidate("secret_broke_economy", candidates)?.userIds, [gioId]);
   });
 
+  it("does not award Economía precaria on a clean install or before the day is closed", () => {
+    const users = activeUsers(13);
+    const cleanInstall = collectAchievementCandidatesForDate("2026-08-28", data({ users }));
+    const partialDay = collectAchievementCandidatesForDate(
+      "2026-08-28",
+      data({
+        users,
+        dailyEntries: entriesForUsers(users.slice(0, 12), "2026-08-28"),
+      })
+    );
+
+    assert.equal(candidate("secret_broke_economy", cleanInstall), undefined);
+    assert.equal(candidate("secret_broke_economy", partialDay), undefined);
+  });
+
+  it("awards Economía precaria to every registered user with zero expenses only after the last Daily closes the day", () => {
+    const users = activeUsers(13);
+    users[3] = { id: laraId, legacyId: "lara", displayName: "Lara" };
+    const dailyEntries = entriesForUsers(users, "2026-08-28");
+    const expenses = users
+      .filter((user) => ![gioId, nataId, laraId].includes(user.id))
+      .map((user, index) => ({ userId: user.id, dateKey: "2026-08-28", category: "Comida", amount: index === 0 ? 10000 : 1 }));
+
+    const candidates = collectAchievementCandidatesForDate(
+      "2026-08-28",
+      data({ users, dailyEntries, expenses })
+    );
+
+    assert.deepEqual(candidate("secret_broke_economy", candidates)?.userIds, [gioId, nataId, laraId]);
+  });
+
+  it("does not consider a user without Daily as an Economía precaria candidate", () => {
+    const users = activeUsers(4);
+    const partialDay = collectAchievementCandidatesForDate(
+      "2026-08-28",
+      data({
+        users,
+        dailyEntries: entriesForUsers(users.slice(0, 3), "2026-08-28"),
+        expenses: users.slice(0, 3).map((user) => ({ userId: user.id, dateKey: "2026-08-28", category: "Comida", amount: 1 })),
+      })
+    );
+
+    assert.equal(candidate("secret_broke_economy", partialDay), undefined);
+  });
+
   it("does not award Economía precaria with one peso spent or before the day is closed", () => {
     const onePeso = collectAchievementCandidatesForDate(
       "2026-08-28",
@@ -606,6 +780,88 @@ describe("persistent achievement evaluation", () => {
     );
 
     assert.deepEqual(candidate("secret_broke_economy", candidates)?.userIds, [gioId]);
+  });
+
+  it("does not duplicate Economía precaria unlocks when evaluation is retried", async () => {
+    const days = ["2026-08-28"];
+    const users = data().users;
+    const dailyEntries = completeEntries(days);
+    const expenses = [
+      { userId: jereId, dateKey: "2026-08-28", category: "Comida", amount: 10000 },
+      { userId: nataId, dateKey: "2026-08-28", category: "Comida", amount: 1 },
+    ];
+    const unlocks = new Set<string>();
+
+    const client = statsClientForEvaluation({ days, users, dailyEntries, expenses, unlocks });
+    const inserted = await evaluateAchievementsThroughDate("2026-08-28", client);
+    const retried = await evaluateAchievementsThroughDate("2026-08-28", client);
+
+    assert.deepEqual(inserted.find((item) => item.key === "secret_broke_economy")?.userIds, [gioId]);
+    assert.equal(unlocks.has(`secret_broke_economy:${gioId}`), true);
+    assert.equal(retried.some((item) => item.key === "secret_broke_economy"), false);
+  });
+
+  it("awards Viniste para esto only after the eighth closed night with fifthMeal in all 8 dates", () => {
+    const days = ["2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31"];
+    const dailyEntries = completeEntries(days, (userId, _dateKey, dayIndex) => {
+      if (userId === gioId) return { fifthMeal: "yes" };
+      if (userId === jereId) return { fifthMeal: dayIndex < 7 ? "yes" : "no" };
+      return { fifthMeal: "no" };
+    });
+
+    const before = collectAchievementCandidatesForDate("2026-08-30", data({ dailyEntries }));
+    const after = collectAchievementCandidatesForDate("2026-08-31", data({ dailyEntries }));
+
+    assert.equal(candidate("secret_came_for_this", before), undefined);
+    assert.deepEqual(candidate("secret_came_for_this", after)?.userIds, [gioId]);
+  });
+
+  it("does not award Viniste para esto for 0/8, 1/8, 7/8, or one false fifthMeal", () => {
+    const days = ["2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31"];
+    const dailyEntries = completeEntries(days, (userId, _dateKey, dayIndex) => {
+      if (userId === gioId) return { fifthMeal: dayIndex === 0 ? "yes" : "no" };
+      if (userId === jereId) return { fifthMeal: dayIndex < 7 ? "yes" : "no" };
+      return { fifthMeal: "no" };
+    });
+
+    const candidates = collectAchievementCandidatesForDate("2026-08-31", data({ dailyEntries }));
+
+    assert.equal(candidate("secret_came_for_this", candidates), undefined);
+  });
+
+  it("does not award Viniste para esto while the eighth night is still open", () => {
+    const days = ["2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31"];
+    const users = data().users;
+    const dailyEntries = days.flatMap((dateKey, dayIndex) =>
+      dayIndex === 7
+        ? [entry(gioId, dateKey, { fifthMeal: "yes" }), entry(jereId, dateKey, { fifthMeal: "yes" })]
+        : entriesForUsers(users, dateKey, () => ({ fifthMeal: "yes" }))
+    );
+
+    const candidates = collectAchievementCandidatesForDate("2026-08-31", data({ users, dailyEntries }));
+
+    assert.equal(candidate("secret_came_for_this", candidates), undefined);
+  });
+
+  it("awards Viniste para esto to multiple users, including dynamic users, and does not duplicate on retry", async () => {
+    const days = ["2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31"];
+    const users = [
+      ...data().users,
+      { id: laraId, legacyId: "lara", displayName: "Lara" },
+    ];
+    const dailyEntries = days.flatMap((dateKey) =>
+      entriesForUsers(users, dateKey, (userId) => ({ fifthMeal: userId === gioId || userId === laraId ? "yes" : "no" }))
+    );
+    const unlocks = new Set<string>();
+    const client = statsClientForEvaluation({ days, users, dailyEntries, unlocks });
+
+    const inserted = await evaluateAchievementsThroughDate("2026-08-31", client);
+    const retried = await evaluateAchievementsThroughDate("2026-08-31", client);
+
+    assert.deepEqual(inserted.find((item) => item.key === "secret_came_for_this")?.userIds, [gioId, laraId]);
+    assert.equal(unlocks.has(`secret_came_for_this:${gioId}`), true);
+    assert.equal(unlocks.has(`secret_came_for_this:${laraId}`), true);
+    assert.equal(retried.some((item) => item.key === "secret_came_for_this"), false);
   });
 
   it("awards Outfit con consecuencias only when outfit and most flirty are won on the same date", () => {

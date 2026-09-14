@@ -77,7 +77,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     type: "secret",
     name: "Economía precaria",
     description: "Pasar un día completo sin gastar nada",
-    condition: "Tener $0 en movimientos de tipo expense durante un día cerrado.",
+    condition: "Tener Daily Entry en un día cerrado y $0 en movimientos de tipo expense para esa fecha.",
   },
   {
     key: "secret_outfit_consequences",
@@ -85,6 +85,13 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: "Outfit con consecuencias",
     description: "Ganar El mejor outfit y El más chamuyero el mismo día",
     condition: "Ganar best_outfit y most_flirty durante el mismo día cerrado.",
+  },
+  {
+    key: "secret_came_for_this",
+    type: "secret",
+    name: "Viniste para esto",
+    description: "Devorar la 5ta comida todas las noches",
+    condition: "Marcar quinta comida en las 8 noches cerradas del viaje.",
   },
 ];
 
