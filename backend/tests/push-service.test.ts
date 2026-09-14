@@ -7,6 +7,7 @@ import type { PushSubscriptionRecord } from "../src/push/types";
 
 const userA = "11111111-1111-4111-8111-111111111111";
 const userB = "22222222-2222-4222-8222-222222222222";
+const userC = "33333333-3333-4333-8333-333333333333";
 
 function subscription(id: string, userId: string, endpoint = `https://push.example/${id}`): PushSubscriptionRecord {
   return {
@@ -27,13 +28,18 @@ function makeRepository(
   options: {
     missing?: string[];
     allReady?: boolean;
-    dailyAlreadySent?: boolean;
+    dailyAlreadySent?: boolean | string[];
     statsAlreadySent?: boolean;
     activeUserIds?: string[];
     subscriptionsByUser?: Record<string, PushSubscriptionRecord[]>;
   } = {}
 ) {
   const calls: string[] = [];
+  const sentReminders = new Set(
+    Array.isArray(options.dailyAlreadySent)
+      ? options.dailyAlreadySent
+      : []
+  );
   const repo: PushRepository & { calls: string[] } = {
     calls,
     async upsertSubscription() {
@@ -72,11 +78,13 @@ function makeRepository(
     },
     async hasDailyReminderBeenSent(dateKey, userId) {
       calls.push(`sent-reminder:${dateKey}:${userId}`);
-      return options.dailyAlreadySent ?? false;
+      return options.dailyAlreadySent === true || sentReminders.has(`${dateKey}:${userId}`);
     },
     async markDailyReminderIfNew(dateKey, userId) {
       calls.push(`mark-reminder:${dateKey}:${userId}`);
-      return !options.dailyAlreadySent;
+      if (options.dailyAlreadySent === true || sentReminders.has(`${dateKey}:${userId}`)) return false;
+      sentReminders.add(`${dateKey}:${userId}`);
+      return true;
     },
     async markStatsReadyIfNew(dateKey) {
       calls.push(`mark-stats:${dateKey}`);
@@ -162,6 +170,7 @@ describe("push service", () => {
     const result = await service.sendDailyReminders(new Date("2026-08-29T13:00:00.000Z"));
 
     assert.equal(result.dateKey, "2026-08-28");
+    assert.equal(result.source, "cron");
     assert.equal(result.usersChecked, 2);
     assert.equal(result.activeUsers, 2);
     assert.equal(result.missingUsers, 2);
@@ -181,6 +190,44 @@ describe("push service", () => {
     ]);
   });
 
+  it("sends daily reminder fallback for an explicit date after the first successful daily entry", async () => {
+    const repo = makeRepository({ missing: [userB, userC], activeUserIds: [userA, userB, userC] });
+    const sender = makeSender();
+    const service = createPushService(repo, sender, makeConfig());
+
+    const result = await service.sendDailyRemindersForDate("2026-08-28", "daily-fallback");
+
+    assert.equal(result.source, "daily-fallback");
+    assert.equal(result.activeUsers, 3);
+    assert.equal(result.missingUsers, 2);
+    assert.equal(result.sent, 2);
+    assert.deepEqual(sender.endpoints, ["https://push.example/sub-0", "https://push.example/sub-0"]);
+    assert.deepEqual(repo.calls, [
+      "active-users",
+      "missing:2026-08-28",
+      `sent-reminder:2026-08-28:${userB}`,
+      `list-users:${userB}`,
+      `mark-reminder:2026-08-28:${userB}`,
+      `sent-reminder:2026-08-28:${userC}`,
+      `list-users:${userC}`,
+      `mark-reminder:2026-08-28:${userC}`,
+    ]);
+  });
+
+  it("does not duplicate fallback reminders on a later daily entry retry", async () => {
+    const repo = makeRepository({ missing: [userB, userC], activeUserIds: [userA, userB, userC] });
+    const sender = makeSender();
+    const service = createPushService(repo, sender, makeConfig());
+
+    const first = await service.sendDailyRemindersForDate("2026-08-28", "daily-fallback");
+    const second = await service.sendDailyRemindersForDate("2026-08-28", "daily-fallback");
+
+    assert.equal(first.sent, 2);
+    assert.equal(second.sent, 0);
+    assert.equal(sender.payloads.length, 2);
+    assert.equal(repo.calls.filter((call) => call.startsWith("mark-reminder:")).length, 2);
+  });
+
   it("does not resend daily reminders already marked for the date", async () => {
     const repo = makeRepository({ missing: [userA], dailyAlreadySent: true });
     const sender = makeSender();
@@ -191,6 +238,24 @@ describe("push service", () => {
     assert.equal(result.sent, 0);
     assert.equal(sender.payloads.length, 0);
     assert.deepEqual(repo.calls, ["active-users", "missing:2026-08-28", `sent-reminder:2026-08-28:${userA}`]);
+  });
+
+  it("does not resend fallback reminders when cron already marked the date", async () => {
+    const repo = makeRepository({ missing: [userA, userB], dailyAlreadySent: true });
+    const sender = makeSender();
+    const service = createPushService(repo, sender, makeConfig());
+
+    const result = await service.sendDailyRemindersForDate("2026-08-28", "daily-fallback");
+
+    assert.equal(result.sent, 0);
+    assert.equal(result.subscribedUsers, 0);
+    assert.equal(sender.payloads.length, 0);
+    assert.deepEqual(repo.calls, [
+      "active-users",
+      "missing:2026-08-28",
+      `sent-reminder:2026-08-28:${userA}`,
+      `sent-reminder:2026-08-28:${userB}`,
+    ]);
   });
 
   it("does not mark a daily reminder as sent when the missing user has no subscriptions", async () => {
@@ -235,6 +300,59 @@ describe("push service", () => {
     assert.equal(result.sent, 0);
     assert.equal(result.failed, 1);
     assert.equal(repo.calls.includes(`mark-reminder:2026-08-28:${userA}`), false);
+  });
+
+  it("retries failed fallback deliveries on a later daily entry", async () => {
+    let attempts = 0;
+    const repo = makeRepository({ missing: [userA] });
+    const sender = makeSender(() => {
+      attempts += 1;
+      return attempts === 1 ? 500 : undefined;
+    });
+    const service = createPushService(repo, sender, makeConfig());
+
+    const failed = await service.sendDailyRemindersForDate("2026-08-28", "daily-fallback");
+    const retried = await service.sendDailyRemindersForDate("2026-08-28", "daily-fallback");
+
+    assert.equal(failed.sent, 0);
+    assert.equal(failed.failed, 1);
+    assert.equal(retried.sent, 1);
+    assert.equal(retried.failed, 0);
+    assert.equal(repo.calls.filter((call) => call === `mark-reminder:2026-08-28:${userA}`).length, 1);
+  });
+
+  it("keeps users without subscriptions retryable for future fallback runs", async () => {
+    const subscriptionsByUser: Record<string, PushSubscriptionRecord[]> = { [userA]: [] };
+    const repo = makeRepository({ missing: [userA], subscriptionsByUser });
+    const sender = makeSender();
+    const service = createPushService(repo, sender, makeConfig());
+
+    const withoutSubscription = await service.sendDailyRemindersForDate("2026-08-28", "daily-fallback");
+    subscriptionsByUser[userA] = [subscription("phone", userA)];
+    const afterSubscription = await service.sendDailyRemindersForDate("2026-08-28", "daily-fallback");
+
+    assert.equal(withoutSubscription.sent, 0);
+    assert.equal(afterSubscription.sent, 1);
+    assert.equal(sender.payloads.length, 1);
+    assert.equal(repo.calls.filter((call) => call === `mark-reminder:2026-08-28:${userA}`).length, 1);
+  });
+
+  it("removes expired daily reminder subscriptions without marking the user as sent", async () => {
+    const repo = makeRepository({ missing: [userA] });
+    const sender = makeSender(410);
+    const service = createPushService(repo, sender, makeConfig());
+
+    const result = await service.sendDailyRemindersForDate("2026-08-28", "daily-fallback");
+
+    assert.equal(result.sent, 0);
+    assert.equal(result.failed, 0);
+    assert.deepEqual(repo.calls, [
+      "active-users",
+      "missing:2026-08-28",
+      `sent-reminder:2026-08-28:${userA}`,
+      `list-users:${userA}`,
+      "delete:https://push.example/sub-0",
+    ]);
   });
 
   it("sends stats-ready once when every active user has the daily entry", async () => {

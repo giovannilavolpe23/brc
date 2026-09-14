@@ -133,10 +133,24 @@ function makeService(configured = true): PushService & { calls: string[] } {
       calls.push("test-global");
       return { usersChecked: 2, sent: 2 };
     },
+    async sendDailyRemindersForDate(dateKey, source = "cron") {
+      calls.push(`daily-reminders-for-date:${source}:${dateKey}`);
+      return {
+        dateKey,
+        source,
+        usersChecked: 2,
+        activeUsers: 2,
+        missingUsers: 1,
+        subscribedUsers: 1,
+        sent: 1,
+        failed: 0,
+      };
+    },
     async sendDailyReminders() {
       calls.push("daily-reminders");
       return {
         dateKey: "2026-08-28",
+        source: "cron",
         usersChecked: 2,
         activeUsers: 2,
         missingUsers: 1,

@@ -1,26 +1,50 @@
 import { Router, type NextFunction, type RequestHandler, type Response } from "express";
 import { requireAuth } from "../auth/middleware";
 import { evaluateAchievementsThroughDate } from "../achievements/evaluation";
-import { DateKeyError, validatePastDateKey } from "../dates/trip-date";
-import { pushService } from "../push/service";
+import { DateKeyError, dateKeyDaysBeforeArgentina, validatePastDateKey } from "../dates/trip-date";
+import { pushService, type PushService } from "../push/service";
 import { postgresDailyEntriesRepository, type DailyEntriesRepository } from "./repository";
 import { parseDailyEntryInput, DailyEntryValidationError } from "./validation";
 
 type AfterDailyEntryUpsert = (dateKey: string) => Promise<unknown>;
+type AchievementEvaluator = (dateKey: string) => Promise<unknown>;
+
+type DailyEntryFollowUpOptions = {
+  now?: () => Date;
+  push?: Pick<PushService, "sendDailyRemindersForDate" | "notifyStatsReadyIfComplete">;
+  evaluateAchievements?: AchievementEvaluator;
+};
+
+export async function runDailyEntryFollowUps(
+  dateKey: string,
+  {
+    now = () => new Date(),
+    push = pushService,
+    evaluateAchievements = evaluateAchievementsThroughDate,
+  }: DailyEntryFollowUpOptions = {}
+): Promise<void> {
+  if (dateKey === dateKeyDaysBeforeArgentina(1, now())) {
+    try {
+      await push.sendDailyRemindersForDate(dateKey, "daily-fallback");
+    } catch (error) {
+      console.warn("Daily reminder fallback failed after daily entry save.", safeFollowUpError(error));
+    }
+  }
+
+  const results = await Promise.allSettled([
+    push.notifyStatsReadyIfComplete(dateKey),
+    evaluateAchievements(dateKey),
+  ]);
+  results.forEach((result) => {
+    if (result.status === "rejected") throw result.reason;
+  });
+}
 
 export function createDailyEntriesRouter(
   repository: DailyEntriesRepository = postgresDailyEntriesRepository,
   authMiddleware: RequestHandler = requireAuth,
   now: () => Date = () => new Date(),
-  afterUpsert: AfterDailyEntryUpsert = async (dateKey) => {
-    const results = await Promise.allSettled([
-      pushService.notifyStatsReadyIfComplete(dateKey),
-      evaluateAchievementsThroughDate(dateKey),
-    ]);
-    results.forEach((result) => {
-      if (result.status === "rejected") throw result.reason;
-    });
-  }
+  afterUpsert: AfterDailyEntryUpsert = async (dateKey) => runDailyEntryFollowUps(dateKey, { now })
 ): Router {
   const router = Router();
 
@@ -64,6 +88,16 @@ export function createDailyEntriesRouter(
   });
 
   return router;
+}
+
+function safeFollowUpError(error: unknown): Record<string, unknown> {
+  if (!error || typeof error !== "object") return { message: String(error) };
+  const maybeError = error as { name?: unknown; message?: unknown; statusCode?: unknown };
+  return {
+    name: maybeError.name,
+    message: maybeError.message,
+    statusCode: maybeError.statusCode,
+  };
 }
 
 export const dailyEntriesRouter = createDailyEntriesRouter();

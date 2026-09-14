@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import express, { type RequestHandler } from "express";
 import request from "supertest";
-import { createDailyEntriesRouter } from "../src/daily-entries/routes";
+import { createDailyEntriesRouter, runDailyEntryFollowUps } from "../src/daily-entries/routes";
 import type { DailyEntriesRepository } from "../src/daily-entries/repository";
 import type { DailyEntry, DailyEntryInput } from "../src/daily-entries/types";
 import type { AuthUser } from "../src/auth/types";
@@ -125,6 +125,122 @@ describe("daily entries routes", () => {
     } finally {
       console.warn = originalWarn;
     }
+  });
+
+  it("runs daily reminder fallback only for yesterday before stats-ready and achievements", async () => {
+    const calls: string[] = [];
+
+    await runDailyEntryFollowUps("2026-08-28", {
+      now,
+      push: {
+        async sendDailyRemindersForDate(dateKey, source) {
+          calls.push(`fallback:${source}:${dateKey}`);
+          return {
+            dateKey,
+            source: source || "cron",
+            usersChecked: 13,
+            activeUsers: 13,
+            missingUsers: 12,
+            subscribedUsers: 12,
+            sent: 12,
+            failed: 0,
+          };
+        },
+        async notifyStatsReadyIfComplete(dateKey) {
+          calls.push(`stats:${dateKey}`);
+          return { sent: false, deliveries: 0 };
+        },
+      },
+      async evaluateAchievements(dateKey) {
+        calls.push(`achievements:${dateKey}`);
+      },
+    });
+
+    assert.deepEqual(calls, ["fallback:daily-fallback:2026-08-28", "stats:2026-08-28", "achievements:2026-08-28"]);
+  });
+
+  it("does not run daily reminder fallback for historical daily entries", async () => {
+    const calls: string[] = [];
+
+    await runDailyEntryFollowUps("2026-08-27", {
+      now,
+      push: {
+        async sendDailyRemindersForDate(dateKey) {
+          calls.push(`fallback:${dateKey}`);
+          throw new Error("fallback should not run");
+        },
+        async notifyStatsReadyIfComplete(dateKey) {
+          calls.push(`stats:${dateKey}`);
+          return { sent: false, deliveries: 0 };
+        },
+      },
+      async evaluateAchievements(dateKey) {
+        calls.push(`achievements:${dateKey}`);
+      },
+    });
+
+    assert.deepEqual(calls, ["stats:2026-08-27", "achievements:2026-08-27"]);
+  });
+
+  it("continues stats-ready and achievements when the fallback push fails", async () => {
+    const calls: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = () => {};
+
+    try {
+      await runDailyEntryFollowUps("2026-08-28", {
+        now,
+        push: {
+          async sendDailyRemindersForDate(dateKey) {
+            calls.push(`fallback:${dateKey}`);
+            throw new Error("render woke up too slowly");
+          },
+          async notifyStatsReadyIfComplete(dateKey) {
+            calls.push(`stats:${dateKey}`);
+            return { sent: true, deliveries: 13 };
+          },
+        },
+        async evaluateAchievements(dateKey) {
+          calls.push(`achievements:${dateKey}`);
+        },
+      });
+    } finally {
+      console.warn = originalWarn;
+    }
+
+    assert.deepEqual(calls, ["fallback:2026-08-28", "stats:2026-08-28", "achievements:2026-08-28"]);
+  });
+
+  it("does not send reminders when the last active user completes yesterday", async () => {
+    const calls: string[] = [];
+
+    await runDailyEntryFollowUps("2026-08-28", {
+      now,
+      push: {
+        async sendDailyRemindersForDate(dateKey, source) {
+          calls.push(`fallback:${source}:${dateKey}:missing=0`);
+          return {
+            dateKey,
+            source: source || "cron",
+            usersChecked: 13,
+            activeUsers: 13,
+            missingUsers: 0,
+            subscribedUsers: 0,
+            sent: 0,
+            failed: 0,
+          };
+        },
+        async notifyStatsReadyIfComplete(dateKey) {
+          calls.push(`stats:${dateKey}`);
+          return { sent: true, deliveries: 13 };
+        },
+      },
+      async evaluateAchievements(dateKey) {
+        calls.push(`achievements:${dateKey}`);
+      },
+    });
+
+    assert.deepEqual(calls, ["fallback:daily-fallback:2026-08-28:missing=0", "stats:2026-08-28", "achievements:2026-08-28"]);
   });
 
   it("updates the same user/date instead of creating duplicates", async () => {
