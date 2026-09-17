@@ -358,6 +358,7 @@ const STORAGE_KEYS = {
   apiAccessToken: "apiAccessToken",
   themePreference: "barilocheThemePreference",
   pendingApiOperations: "pendingApiOperations",
+  tripConfig: "tripConfig",
   pushPromptDismissed: "pushPromptDismissed",
   userData: (id) => `userData:${id}`,
   adminPlayers: "adminPlayers",
@@ -424,6 +425,11 @@ let pushActionSubmitting = false;
 let pushPromptShowing = false;
 let pushPromptCheckRunning = false;
 let statsTargetDateKey = null;
+const DEFAULT_TRIP_CONFIG = { openTime: "01:00", closeTime: "06:45" };
+let tripConfigSnapshot = loadCachedTripConfig();
+let tripConfigLoading = false;
+let tripConfigFailed = false;
+let tripConfigSaving = false;
 
 function getSavedThemePreference() {
   const saved = localStorage.getItem(STORAGE_KEYS.themePreference);
@@ -611,6 +617,55 @@ async function apiFetch(path, options = {}) {
     handleExpiredApiSession();
   }
   return response;
+}
+
+function normalizeTripConfig(config) {
+  const openTime = config && typeof config.openTime === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(config.openTime)
+    ? config.openTime
+    : DEFAULT_TRIP_CONFIG.openTime;
+  const closeTime = config && typeof config.closeTime === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(config.closeTime)
+    ? config.closeTime
+    : DEFAULT_TRIP_CONFIG.closeTime;
+  if (openTime === closeTime) return { ...DEFAULT_TRIP_CONFIG };
+  return { openTime, closeTime };
+}
+
+function loadCachedTripConfig() {
+  const raw = localStorage.getItem(STORAGE_KEYS.tripConfig);
+  if (!raw) return { ...DEFAULT_TRIP_CONFIG };
+  try {
+    return normalizeTripConfig(JSON.parse(raw));
+  } catch (e) {
+    return { ...DEFAULT_TRIP_CONFIG };
+  }
+}
+
+function saveCachedTripConfig(config) {
+  tripConfigSnapshot = normalizeTripConfig(config);
+  localStorage.setItem(STORAGE_KEYS.tripConfig, JSON.stringify(tripConfigSnapshot));
+  return tripConfigSnapshot;
+}
+
+async function loadTripConfig({ force = false } = {}) {
+  if (tripConfigLoading) return tripConfigSnapshot;
+  if (!force && !tripConfigFailed && localStorage.getItem(STORAGE_KEYS.tripConfig)) return tripConfigSnapshot;
+  tripConfigLoading = true;
+  if (screens.daily && screens.daily.classList.contains("active")) renderDailyScreen();
+  renderAdminTripConfigPanel();
+  try {
+    const response = await apiFetch("/trip-config");
+    if (!response.ok) throw new Error("trip_config_failed");
+    const payload = await response.json();
+    tripConfigFailed = false;
+    return saveCachedTripConfig(payload.config);
+  } catch (e) {
+    tripConfigFailed = true;
+    return tripConfigSnapshot;
+  } finally {
+    tripConfigLoading = false;
+    if (screens.daily && screens.daily.classList.contains("active")) renderDailyScreen();
+    renderAdminTripConfigPanel();
+  }
 }
 
 function getPendingApiOperations() {
@@ -1900,7 +1955,7 @@ function renderHome(user) {
 
 function queueSecretAchievementReveals() {
   if (secretRevealLoading || secretRevealShowing) return;
-  if (!getCurrentUser() || !canViewPrivateAchievements() || !localStorage.getItem(STORAGE_KEYS.apiAccessToken)) return;
+  if (!getCurrentUser() || !canViewSpecialAchievements() || !localStorage.getItem(STORAGE_KEYS.apiAccessToken)) return;
 
   secretRevealLoading = true;
   apiFetch("/achievements/secret-reveals")
@@ -1973,8 +2028,8 @@ function isGioUser(user) {
   return [user.id, user.legacyId, user.apiId].some((value) => String(value || "").trim().toLowerCase() === "gio");
 }
 
-function canViewPrivateAchievements(user = getCurrentUser()) {
-  return isGioUser(user);
+function canViewSpecialAchievements(user = getCurrentUser()) {
+  return Boolean(user);
 }
 
 function cloneAppearance(appearance) {
@@ -2530,6 +2585,90 @@ function renderAdminDailyProgress() {
     </div>
     <small>${pending === 0 ? "Todos registraron." : `Faltan ${pending}${pendingUsers.length ? `: ${escapeHtml(pendingUsers.map((user) => user.displayName || user.legacyId || user.id).join(", "))}` : ""}`}</small>
   `;
+}
+
+function adminTripTimeOptions() {
+  const options = [];
+  for (let m = 0; m < DAY_MINUTES; m += 10) options.push(minutesToTimeLabel(m));
+  const config = activeClubConfig();
+  [config.openTime, config.closeTime].forEach((time) => {
+    if (time && !options.includes(time)) options.push(time);
+  });
+  return options.sort();
+}
+
+function renderAdminTripConfigPanel() {
+  const panel = document.getElementById("admin-trip-config-panel");
+  if (!panel) return;
+  const openSelect = document.getElementById("admin-club-open-time");
+  const closeSelect = document.getElementById("admin-club-close-time");
+  if (!openSelect || !closeSelect) return;
+  const config = activeClubConfig();
+  const options = adminTripTimeOptions();
+  const renderOptions = (selected) => options.map((time) => `<option value="${time}"${time === selected ? " selected" : ""}>${time}</option>`).join("");
+  openSelect.innerHTML = renderOptions(config.openTime);
+  closeSelect.innerHTML = renderOptions(config.closeTime);
+  const button = document.getElementById("btn-admin-save-club-times");
+  if (button) {
+    button.disabled = tripConfigSaving || tripConfigLoading;
+    button.textContent = tripConfigSaving ? "Guardando..." : "Guardar horarios";
+  }
+  const error = document.getElementById("admin-trip-config-error");
+  if (error && tripConfigFailed) error.textContent = "Usando última configuración conocida.";
+}
+
+function handleAdminSaveClubTimesClick() {
+  const error = document.getElementById("admin-trip-config-error");
+  const msg = document.getElementById("admin-trip-config-msg");
+  if (error) error.textContent = "";
+  if (msg) msg.classList.remove("visible");
+  openSheet("admin-club-times-confirm");
+}
+
+async function handleAdminClubTimesConfirm() {
+  if (tripConfigSaving) return;
+  const openSelect = document.getElementById("admin-club-open-time");
+  const closeSelect = document.getElementById("admin-club-close-time");
+  const openTime = openSelect ? openSelect.value : activeClubConfig().openTime;
+  const closeTime = closeSelect ? closeSelect.value : activeClubConfig().closeTime;
+  const submitBtn = document.getElementById("sheet-submit-btn");
+  tripConfigSaving = true;
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Guardando...";
+  }
+  renderAdminTripConfigPanel();
+  try {
+    const response = await apiFetch("/trip-config/club-times", {
+      method: "PATCH",
+      body: JSON.stringify({ openTime, closeTime }),
+    });
+    if (!response.ok) throw new Error("trip_config_save_failed");
+    const payload = await response.json();
+    saveCachedTripConfig(payload.config);
+    tripConfigFailed = false;
+    closeSheet();
+    const msg = document.getElementById("admin-trip-config-msg");
+    if (msg) {
+      msg.textContent = "✓ Horarios guardados";
+      msg.classList.add("visible");
+      setTimeout(() => msg.classList.remove("visible"), 2200);
+    }
+    if (screens.daily && screens.daily.classList.contains("active")) renderDailyScreen();
+    if (screens.stats && screens.stats.classList.contains("active")) renderStatsPanel();
+  } catch (e) {
+    const sheetError = document.getElementById("sheet-error");
+    if (sheetError) sheetError.textContent = "Revisá los horarios del boliche.";
+    const error = document.getElementById("admin-trip-config-error");
+    if (error) error.textContent = "Revisá los horarios del boliche.";
+  } finally {
+    tripConfigSaving = false;
+    renderAdminTripConfigPanel();
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Guardar horarios";
+    }
+  }
 }
 
 function renderAdminAchievementsPanel() {
@@ -4483,6 +4622,20 @@ function openSheet(type, movement) {
     return;
   }
 
+  if (type === "admin-club-times-confirm") {
+    sheetContent.innerHTML = `
+      <h2 class="sheet-title">¿Actualizar los horarios del boliche?</h2>
+      <p class="sheet-sub">Se van a aplicar a todas las noches del viaje y a los cálculos derivados del Registro.</p>
+      <p class="sheet-error" id="sheet-error"></p>
+      <button class="sheet-submit" id="sheet-submit-btn" type="button">Guardar horarios</button>
+      <button class="sheet-cancel-link" id="sheet-cancel-btn" type="button">Cancelar</button>
+    `;
+    document.getElementById("sheet-submit-btn").addEventListener("click", handleAdminClubTimesConfirm);
+    document.getElementById("sheet-cancel-btn").addEventListener("click", closeSheet);
+    sheetOverlay.classList.add("visible");
+    return;
+  }
+
   if (type === "movement-actions") {
     const m = data ? findMovement(data.money, activeMovementId) : null;
     if (!m) {
@@ -4921,9 +5074,6 @@ function pad2(n) {
 }
 
 const DAY_MINUTES = 24 * 60;
-const BOLICHE_ARRIVAL_MINUTES = 60; // 01:00
-const BOLICHE_CLOSED_CLUB_TIME = "06:45";
-const BOLICHE_CLOSED_CLUB_MINUTES = 6 * 60 + 45;
 
 // Rangos de cada selector de hora, en minutos desde las 00:00 del día
 // en que arranca el rango (pueden superar 1440 para representar que
@@ -4933,7 +5083,6 @@ const TIME_RANGES = {
   bedtime: { start: 22 * 60, end: (24 + 9) * 60 }, // 22:00 -> 09:00 (+1 día)
   wake: { start: 6 * 60, end: 16 * 60 }, // 06:00 -> 16:00
   nap: { start: 11 * 60, end: 22 * 60 }, // 11:00 -> 22:00
-  boliche: { start: 1 * 60, end: BOLICHE_CLOSED_CLUB_MINUTES }, // 01:00 -> 06:45
 };
 
 function minutesToTimeLabel(minutes) {
@@ -4979,19 +5128,45 @@ function isNapEndAfterStart(napStart, napEnd) {
   return timeToMinutes(napEnd) > timeToMinutes(napStart);
 }
 
+function activeClubConfig() {
+  return normalizeTripConfig(tripConfigSnapshot);
+}
+
+function normalizeTimeAfterOpen(value, openMinutes) {
+  const minutes = timeToMinutes(value);
+  return minutes < openMinutes ? minutes + DAY_MINUTES : minutes;
+}
+
+function nightTimelineMinutes(value) {
+  const minutes = timeToMinutes(value);
+  return minutes < 12 * 60 ? minutes + DAY_MINUTES : minutes;
+}
+
+function clubNightRange(config = activeClubConfig()) {
+  const open = nightTimelineMinutes(config.openTime);
+  const close = normalizeTimeAfterOpen(config.closeTime, open);
+  return { open, close };
+}
+
+function clubTimelineMinutes(value, config = activeClubConfig()) {
+  return normalizeTimeAfterOpen(value, nightTimelineMinutes(config.openTime));
+}
+
 function bolicheLatestExitForSleep(sleep) {
-  const closing = DAY_MINUTES + BOLICHE_CLOSED_CLUB_MINUTES - 1;
-  if (sleep && sleep.didNotSleep) return closing;
+  const range = clubNightRange();
+  const latestRegularExit = range.close - 10;
+  if (sleep && sleep.didNotSleep) return latestRegularExit;
   const bed = sleep && !sleep.didNotSleep ? bedtimeAbsoluteMinutes(sleep.bedtime) : null;
   if (sleep && !sleep.didNotSleep && bed === null) return null;
-  return Math.min(closing, bed - 10);
+  return Math.min(latestRegularExit, bed - 10);
 }
 
 function bolicheEntryOptionsForSleep(sleep) {
-  const start = DAY_MINUTES + BOLICHE_ARRIVAL_MINUTES;
+  const range = clubNightRange();
+  const start = range.open;
   const latestExit = bolicheLatestExitForSleep(sleep);
   if (latestExit === null) return [];
-  const end = Math.min(DAY_MINUTES + BOLICHE_CLOSED_CLUB_MINUTES - 10, latestExit - 10);
+  const end = Math.min(range.close - 10, latestExit - 10);
   const options = [];
   for (let m = start; m <= end; m += 10) {
     options.push(minutesToTimeLabel(m));
@@ -5004,9 +5179,10 @@ function bolicheExitOptionsForState(state) {
   if (!entryTime) return [];
   const latestExit = bolicheLatestExitForSleep(state.sleep);
   if (latestExit === null) return [];
-  const start = DAY_MINUTES + timeToMinutes(entryTime) + 10;
+  const start = clubTimelineMinutes(entryTime) + 10;
+  const end = Math.min(latestExit, clubNightRange().close - 10);
   const options = [];
-  for (let m = start; m <= latestExit; m += 10) {
+  for (let m = start; m <= end; m += 10) {
     options.push(minutesToTimeLabel(m));
   }
   return options;
@@ -5016,13 +5192,14 @@ function canCloseClubWithSleep(sleep) {
   if (!sleep || sleep.didNotSleep) return true;
   const bed = bedtimeAbsoluteMinutes(sleep.bedtime);
   if (bed === null) return false;
-  const closedClubExit = DAY_MINUTES + timeToMinutes(BOLICHE_CLOSED_CLUB_TIME);
-  return closedClubExit <= bed - 10;
+  return clubNightRange().close <= bed - 10;
 }
 
 function canCloseClubWithState(state) {
   if (!state || state.boliche.didNotGo || !state.boliche.entryTime) return false;
-  return canCloseClubWithSleep(state.sleep) && timeToMinutes(state.boliche.entryTime) < BOLICHE_CLOSED_CLUB_MINUTES;
+  const range = clubNightRange();
+  const entry = clubTimelineMinutes(state.boliche.entryTime);
+  return canCloseClubWithSleep(state.sleep) && entry >= range.open && entry < range.close;
 }
 
 function dailyTimeOptions(rangeKey, state) {
@@ -5165,13 +5342,13 @@ function napDurationMinutes(nap) {
 
 function bolicheDurationMinutes(entryTime, exitTime) {
   if (!entryTime || !exitTime) return null;
-  const duration = timeToMinutes(exitTime) - timeToMinutes(entryTime);
+  const duration = clubTimelineMinutes(exitTime) - clubTimelineMinutes(entryTime);
   return duration > 0 ? duration : null;
 }
 
 function bolicheEffectiveExitTime(boliche) {
   if (!boliche || boliche.didNotGo) return null;
-  return boliche.closedClub ? BOLICHE_CLOSED_CLUB_TIME : boliche.time;
+  return boliche.closedClub ? activeClubConfig().closeTime : boliche.time;
 }
 
 // Combina sueño nocturno + siesta en un total, para el ejemplo del
@@ -5463,6 +5640,7 @@ function renderDailyScreen() {
     const existing = data.dailyLog.entries[dailyDateKey];
     dailyState = existing ? JSON.parse(JSON.stringify(existing)) : defaultDailyEntry();
   }
+  loadTripConfig();
   loadDailyEntryFromApi(user.id, dailyDateKey);
   loadDailyEntriesSummaryFromApi(user.id);
   const dailyLoading = dailyApiLoadingKeys.has(`${user.id}:${dailyDateKey}`);
@@ -8308,15 +8486,18 @@ function participantFromAchievementUser(user) {
 }
 
 function renderSpecialAchievementsAccess() {
-  if (!canViewPrivateAchievements()) return "";
+  if (!canViewSpecialAchievements()) return "";
   const achievements = achievementsApiSnapshot && Array.isArray(achievementsApiSnapshot.achievements)
     ? achievementsApiSnapshot.achievements
     : [];
   const groupedCount = groupPermanentAchievements(achievements).length;
+  const summary = achievementsApiSnapshot && achievementsApiSnapshot.secretSummary;
   const countText = achievementsApiLoading && !achievementsApiSnapshot
     ? "Cargando logros especiales"
     : groupedCount
     ? `${groupedCount} logro${groupedCount === 1 ? "" : "s"} desbloqueado${groupedCount === 1 ? "" : "s"}`
+    : summary && Number(summary.totalCount) > 0
+    ? `Secretos desbloqueados: ${Math.max(0, Number(summary.unlockedCount) || 0)} de ${Math.max(0, Number(summary.totalCount) || 0)}`
     : "Únicos y secretos";
 
   return `
@@ -8333,7 +8514,7 @@ function renderSpecialAchievementsAccess() {
 
 function renderTitulosHub() {
   if (!statsApiTotal) requestStatsPanelRefresh("total");
-  if (canViewPrivateAchievements() && !achievementsApiSnapshot && !achievementsApiFailed) requestAchievementsRefresh();
+  if (canViewSpecialAchievements() && !achievementsApiSnapshot && !achievementsApiFailed) requestAchievementsRefresh();
   const main = document.querySelector("#screen-titulos .home-content");
   if (!main) return;
   const existing = main.querySelector(".titulos-king-section");
@@ -9402,7 +9583,7 @@ function navigate(route) {
     renderKingProfileScreen();
     showScreen("titulos-rey");
   } else if (route === "titulos-especiales") {
-    if (!canViewPrivateAchievements()) {
+    if (!canViewSpecialAchievements()) {
       location.hash = "#/titulos";
       renderTitulosHub();
       showScreen("titulos");
@@ -9432,6 +9613,8 @@ function navigate(route) {
     showScreen("usage");
   } else if (route === "ajustes") {
     location.hash = "#/ajustes";
+    renderAdminTripConfigPanel();
+    loadTripConfig({ force: true });
     renderPushSettingsPanel();
     refreshPushSettings();
     showScreen("ajustes");
@@ -9598,6 +9781,7 @@ document.getElementById("btn-admin-cancel-create-player").addEventListener("clic
 document.getElementById("btn-admin-reset-data").addEventListener("click", handleAdminResetDataClick);
 
 document.getElementById("btn-admin-generate-demo-data").addEventListener("click", handleAdminGenerateDemoDataClick);
+document.getElementById("btn-admin-save-club-times").addEventListener("click", handleAdminSaveClubTimesClick);
 
 document.getElementById("card-admin-achievements").addEventListener("click", () => {
   navigateBetweenScreensWithTransition("ajustes", "admin-achievements");
@@ -9961,9 +10145,7 @@ function generateTestDailyEntry(otherIds) {
   if (Math.random() < 0.6) {
     const entryOptions = bolicheEntryOptionsForSleep(entry.sleep);
     entry.boliche.entryTime = entryOptions.length ? tdPick(entryOptions) : null;
-    const entryMinutes = entry.boliche.entryTime ? timeToMinutes(entry.boliche.entryTime) : null;
-    const latestExit = bolicheLatestExitForSleep(entry.sleep);
-    const canClose = entryMinutes !== null && latestExit !== null && BOLICHE_CLOSED_CLUB_MINUTES > entryMinutes && BOLICHE_CLOSED_CLUB_MINUTES <= latestExit;
+    const canClose = canCloseClubWithState(entry);
     const closeClub = canClose && Math.random() < 0.18;
     entry.boliche.closedClub = closeClub;
     if (!entry.boliche.entryTime) {

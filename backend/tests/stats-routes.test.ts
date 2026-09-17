@@ -70,7 +70,12 @@ function authAs(user: AuthUser): RequestHandler {
 
 function makeApp(user: AuthUser, repository: StatsRepository) {
   const app = express();
-  app.use("/stats", createStatsRouter(repository, authAs(user), () => new Date("2026-08-29T15:00:00.000Z")));
+  app.use(
+    "/stats",
+    createStatsRouter(repository, authAs(user), () => new Date("2026-08-29T15:00:00.000Z"), {
+      getConfig: async () => ({ openTime: "01:00", closeTime: "06:45" }),
+    })
+  );
   return app;
 }
 

@@ -5,14 +5,14 @@ import { evaluateAchievementsThroughDate } from "../achievements/evaluation";
 import { requireAuth, requireRole } from "../auth/middleware";
 import { pool } from "../db/pool";
 import { todayInArgentina } from "../dates/trip-date";
+import { defaultTripConfig, getTripConfig, type TripConfig } from "../trip-config/repository";
+import { minutesToTime, nightRange, timeToMinutes } from "../time/night-club";
 import type { DevResetSummary } from "./dev-reset";
 
 const EXPENSE_CATEGORIES = ["Chocolates", "Alcohol", "Boliche", "Comida", "Bebida", "Actividades", "Otros"] as const;
 const DEMO_SURVEY_KEYS = ["destroyed_vote", "most_flirty", "best_outfit"] as const;
 const PRESERVED_TABLES = ["users", "roles", "permissions", "user_permissions", "survey_questions", "initial_balances", "push_subscriptions"];
 const FULL_TRIP_NIGHTS = 8;
-const BOLICHE_CLOSED_CLUB_TIME = "06:45";
-const LATEST_REGULAR_BOLICHE_EXIT_MINUTES = timeToMinutes(BOLICHE_CLOSED_CLUB_TIME) - 1;
 
 export type DemoUser = {
   id: string;
@@ -128,7 +128,8 @@ export function createPostgresDemoDataRepository(
       try {
         await client.query("begin");
         const users = await loadActiveUsers(client);
-        const dataset = buildDemoDataset(users, mode, todayProvider());
+        const tripConfig = await getTripConfig(client);
+        const dataset = buildDemoDataset(users, mode, todayProvider(), Math.random, tripConfig);
         await assertNoRealDataConflicts(client, dataset.days);
         const deleted = await deleteDemoDataWithClient(client, mode, dataset.days);
         await insertDemoDataset(client, dataset);
@@ -190,7 +191,13 @@ export class DemoDataConfigurationError extends Error {
   }
 }
 
-export function buildDemoDataset(users: DemoUser[], mode: DemoSimulationMode, todayKey: string, rng: Rng = Math.random): GeneratedDemoDataset {
+export function buildDemoDataset(
+  users: DemoUser[],
+  mode: DemoSimulationMode,
+  todayKey: string,
+  rng: Rng = Math.random,
+  tripConfig: TripConfig = defaultTripConfig
+): GeneratedDemoDataset {
   const nights = nightsForMode(mode);
   if (users.length < 2) throw new DemoDataValidationError("not_enough_active_users");
 
@@ -218,7 +225,7 @@ export function buildDemoDataset(users: DemoUser[], mode: DemoSimulationMode, to
 
   days.forEach((dateKey, dayIndex) => {
     users.forEach((user, userIndex) => {
-      dailyEntries.push(generateDailyEntry(user, dateKey, dayIndex, userIndex, { zombieUser, clubCloserUser, clubCloserDuplicateUser, extraSleepUser, fifthMealPerfectUser, fifthMealAlmostUser }, rng));
+      dailyEntries.push(generateDailyEntry(user, dateKey, dayIndex, userIndex, { zombieUser, clubCloserUser, clubCloserDuplicateUser, extraSleepUser, fifthMealPerfectUser, fifthMealAlmostUser }, rng, tripConfig));
       DEMO_SURVEY_KEYS.forEach((surveyKey) => {
         const favoriteUser = surveyKey === "best_outfit" && dayIndex === 0 ? surveyFavorites.most_flirty : surveyFavorites[surveyKey];
         surveyVotes.push(generateSurveyVote(surveyKey, user, users, dateKey, dayIndex, favoriteUser, rng));
@@ -438,7 +445,8 @@ function generateDailyEntry(
   dayIndex: number,
   userIndex: number,
   specialUsers: { zombieUser: DemoUser; clubCloserUser: DemoUser; clubCloserDuplicateUser: DemoUser; extraSleepUser: DemoUser; fifthMealPerfectUser: DemoUser; fifthMealAlmostUser: DemoUser },
-  rng: Rng
+  rng: Rng,
+  tripConfig: TripConfig
 ): DemoDailyEntry {
   const { zombieUser, clubCloserUser, clubCloserDuplicateUser, extraSleepUser, fifthMealPerfectUser, fifthMealAlmostUser } = specialUsers;
   const isZombieRun = user.id === zombieUser.id && dayIndex < 4;
@@ -466,15 +474,20 @@ function generateDailyEntry(
     napEnd = minutesToTime(Math.max(endMinutes, startMinutes + 10));
   }
 
-  const bolicheClosingCapacity = sleepDidNotSleep ? timeToMinutes(BOLICHE_CLOSED_CLUB_TIME) : sleepBedtime ? timeToMinutes(sleepBedtime) - 10 : 0;
-  const bolicheLatest = sleepDidNotSleep
-    ? LATEST_REGULAR_BOLICHE_EXIT_MINUTES
-    : sleepBedtime
-      ? Math.min(LATEST_REGULAR_BOLICHE_EXIT_MINUTES, timeToMinutes(sleepBedtime) - 10)
+  const clubRange = nightRange(tripConfig);
+  const sleepBedtimeTimeline = sleepBedtime ? normalizeDemoTimeAfterOpen(sleepBedtime, clubRange.open) : null;
+  const latestRegularExit = clubRange.close - 10;
+  const sleepLimitedExit = sleepDidNotSleep
+    ? latestRegularExit
+    : sleepBedtimeTimeline
+      ? Math.min(latestRegularExit, sleepBedtimeTimeline - 10)
       : 0;
-  const closedClub = isClubClosingRun && bolicheClosingCapacity >= timeToMinutes(BOLICHE_CLOSED_CLUB_TIME);
-  const wentToBoliche = closedClub || (bolicheLatest >= 80 && (isCompetitionSeed || rng() < (isZombieRun ? 0.82 : 0.62)));
-  const bolicheEntryTime = wentToBoliche ? minutesToTime(closedClub ? randStep(rng, 70, 180) : randStep(rng, 70, Math.min(220, bolicheLatest - 20))) : null;
+  const closedClub = isClubClosingRun && (sleepDidNotSleep || (sleepBedtimeTimeline !== null && clubRange.close <= sleepBedtimeTimeline - 10));
+  const wentToBoliche = closedClub || (sleepLimitedExit >= clubRange.open + 20 && (isCompetitionSeed || rng() < (isZombieRun ? 0.82 : 0.62)));
+  const latestEntry = closedClub
+    ? Math.min(clubRange.open + 180, clubRange.close - 10)
+    : Math.min(clubRange.open + 220, sleepLimitedExit - 10);
+  const bolicheEntryTime = wentToBoliche ? minutesToTime(randStep(rng, clubRange.open, latestEntry)) : null;
   const fifthMeal = user.id === fifthMealPerfectUser.id
     ? "yes"
     : user.id === fifthMealAlmostUser.id
@@ -493,7 +506,9 @@ function generateDailyEntry(
     bathroomCount: isCompetitionSeed ? 4 : (randInt(rng, 0, 4) + userIndex + dayIndex) % 5,
     bolicheDidNotGo: !wentToBoliche,
     bolicheEntryTime,
-    bolicheExitTime: wentToBoliche && !closedClub && bolicheEntryTime ? minutesToTime(isCompetitionSeed ? bolicheLatest : randStep(rng, timeToMinutes(bolicheEntryTime) + 10, bolicheLatest)) : null,
+    bolicheExitTime: wentToBoliche && !closedClub && bolicheEntryTime
+      ? minutesToTime(isCompetitionSeed ? sleepLimitedExit : randStep(rng, normalizeDemoTimeAfterOpen(bolicheEntryTime, clubRange.open) + 10, sleepLimitedExit))
+      : null,
     bolicheClosedClub: closedClub,
   };
 }
@@ -644,13 +659,9 @@ function addDays(dateKey: string, offset: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-function timeToMinutes(value: string): number {
-  const [hours, minutes] = value.split(":").map(Number);
-  return hours * 60 + minutes;
-}
-
-function minutesToTime(minutes: number): string {
-  return `${String(Math.floor(minutes / 60) % 24).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+function normalizeDemoTimeAfterOpen(value: string, openMinutes: number): number {
+  const minutes = timeToMinutes(value);
+  return minutes < openMinutes ? minutes + 24 * 60 : minutes;
 }
 
 function randInt(rng: Rng, min: number, max: number): number {

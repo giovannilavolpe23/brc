@@ -435,6 +435,22 @@
       </div>
 
       <div class="section-label">Datos</div>
+      <div class="daily-section" id="admin-trip-config-panel">
+        <h3 class="daily-section-title">Horarios del boliche</h3>
+        <p class="export-hint">Se aplica a todas las noches del viaje.</p>
+        <div class="field">
+          <label class="field-label" for="admin-club-open-time">Entrada más temprana</label>
+          <select id="admin-club-open-time" class="field-input"></select>
+        </div>
+        <div class="field">
+          <label class="field-label" for="admin-club-close-time">Hora de cierre</label>
+          <select id="admin-club-close-time" class="field-input"></select>
+        </div>
+        <button type="button" id="btn-admin-save-club-times" class="sheet-submit">Guardar horarios</button>
+        <p class="daily-save-msg" id="admin-trip-config-msg"></p>
+        <p class="sheet-error" id="admin-trip-config-error"></p>
+      </div>
+
       <div class="daily-section">
         <h3 class="daily-section-title">Generar datos de prueba</h3>
         <p class="export-hint">Completa el viaje con datos aleatorios para probar estadísticas y logros.</p>

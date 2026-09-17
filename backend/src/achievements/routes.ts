@@ -1,7 +1,6 @@
 import { Router, type RequestHandler } from "express";
 import { requireAuth, requireRole } from "../auth/middleware";
 import { postgresAchievementsRepository, type AchievementsRepository } from "./repository";
-import { canViewPrivateAchievements } from "./visibility";
 
 export function createAchievementsRouter(
   repository: AchievementsRepository = postgresAchievementsRepository,
@@ -13,12 +12,7 @@ export function createAchievementsRouter(
 
   router.get("/", async (req, res, next) => {
     try {
-      const canViewPrivate = canViewPrivateAchievements(req.user);
-      const achievements = await repository.listVisible(req.user.id, canViewPrivate);
-      if (!canViewPrivate) {
-        res.json({ achievements });
-        return;
-      }
+      const achievements = await repository.listVisible(req.user.id, true);
       const secretSummary = await repository.getSecretSummary();
       res.json({ achievements, secretSummary });
     } catch (error) {
@@ -28,7 +22,7 @@ export function createAchievementsRouter(
 
   router.get("/secret-reveals", async (req, res, next) => {
     try {
-      res.json({ achievements: await repository.listPendingSecretReveals(req.user.id, canViewPrivateAchievements(req.user)) });
+      res.json({ achievements: await repository.listPendingSecretReveals(req.user.id, true) });
     } catch (error) {
       next(error);
     }
@@ -36,10 +30,6 @@ export function createAchievementsRouter(
 
   router.post("/:key/revealed", async (req, res, next) => {
     try {
-      if (!canViewPrivateAchievements(req.user)) {
-        res.status(404).json({ error: "achievement_not_found" });
-        return;
-      }
       const updated = await repository.markSecretRevealed(req.user.id, req.params.key);
       if (!updated) {
         res.status(404).json({ error: "achievement_not_found" });

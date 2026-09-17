@@ -17,6 +17,7 @@ import { previasRouter } from "./previas/routes";
 import { pushRouter } from "./push/routes";
 import { statsRouter } from "./stats/routes";
 import { surveysRouter } from "./surveys/routes";
+import { tripConfigRouter } from "./trip-config/routes";
 import { usersRouter } from "./users/routes";
 
 export const app = express();
@@ -41,6 +42,7 @@ app.use("/daily-entries", dailyEntriesRouter);
 app.use("/push", pushRouter);
 app.use("/surveys", surveysRouter);
 app.use("/stats", statsRouter);
+app.use("/trip-config", tripConfigRouter);
 app.use("/users", usersRouter);
 
 app.get("/health", (_req, res) => {

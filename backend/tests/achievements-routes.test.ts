@@ -73,7 +73,7 @@ function secretSummary() {
 }
 
 describe("achievement routes", () => {
-  it("returns unique and secret achievements only for Gio", async () => {
+  it("returns unlocked unique and secret achievements with the secret summary for Gio", async () => {
     const repository: AchievementsRepository = {
       async listVisible(userId, canViewPrivate) {
         assert.equal(userId, gio.id);
@@ -107,12 +107,16 @@ describe("achievement routes", () => {
     assert.deepEqual(response.body.secretSummary, secretSummary());
   });
 
-  it("does not expose unique or secret achievements to regular users", async () => {
+  it("returns only unlocked special achievements and the secret summary to regular users", async () => {
     let summaryCalled = false;
     const repository: AchievementsRepository = {
-      async listVisible(_userId, canViewPrivate) {
-        assert.equal(canViewPrivate, false);
-        return [];
+      async listVisible(userId, canViewPrivate) {
+        assert.equal(userId, jere.id);
+        assert.equal(canViewPrivate, true);
+        return [
+          unlock({ key: "first_bottom", type: "unique", name: "Primero en tocar fondo" }),
+          unlock({ key: "secret_no_sleep_required", type: "secret" }),
+        ];
       },
       async getSecretSummary() {
         summaryCalled = true;
@@ -132,13 +136,14 @@ describe("achievement routes", () => {
     const response = await request(makeApp(jere, repository)).get("/achievements");
 
     assert.equal(response.status, 200);
-    assert.deepEqual(response.body.achievements, []);
-    assert.equal("secretSummary" in response.body, false);
-    assert.equal(JSON.stringify(response.body).includes("¿Dormir era obligatorio?"), false);
-    assert.equal(summaryCalled, false);
+    assert.equal(response.body.achievements.length, 2);
+    assert.deepEqual(response.body.secretSummary, secretSummary());
+    assert.equal(JSON.stringify(response.body).includes("blocked"), false);
+    assert.equal(JSON.stringify(response.body).includes("condition_not_public"), false);
+    assert.equal(summaryCalled, true);
   });
 
-  it("marks a secret reveal as viewed only for Gio", async () => {
+  it("marks a secret reveal as viewed for the authenticated user", async () => {
     let marked = false;
     const repository: AchievementsRepository = {
       async listVisible() {
@@ -148,12 +153,12 @@ describe("achievement routes", () => {
         return secretSummary();
       },
       async listPendingSecretReveals(userId, canViewPrivate) {
-        assert.equal(userId, gio.id);
+        assert.equal(userId, jere.id);
         assert.equal(canViewPrivate, true);
         return [unlock()];
       },
       async markSecretRevealed(userId, key) {
-        assert.equal(userId, gio.id);
+        assert.equal(userId, jere.id);
         assert.equal(key, "secret_no_sleep_required");
         marked = true;
         return true;
@@ -163,8 +168,8 @@ describe("achievement routes", () => {
       },
     };
 
-    const pending = await request(makeApp(gio, repository)).get("/achievements/secret-reveals");
-    const response = await request(makeApp(gio, repository)).post("/achievements/secret_no_sleep_required/revealed");
+    const pending = await request(makeApp(jere, repository)).get("/achievements/secret-reveals");
+    const response = await request(makeApp(jere, repository)).post("/achievements/secret_no_sleep_required/revealed");
 
     assert.equal(pending.status, 200);
     assert.equal(pending.body.achievements.length, 1);
@@ -172,8 +177,8 @@ describe("achievement routes", () => {
     assert.equal(marked, true);
   });
 
-  it("does not reveal pending secrets for regular users or mark them viewed", async () => {
-    let marked = false;
+  it("returns 404 when the authenticated user has no matching secret reveal", async () => {
+    let markAttempted = false;
     const repository: AchievementsRepository = {
       async listVisible() {
         return [];
@@ -181,13 +186,16 @@ describe("achievement routes", () => {
       async getSecretSummary() {
         return secretSummary();
       },
-      async listPendingSecretReveals(_userId, canViewPrivate) {
-        assert.equal(canViewPrivate, false);
+      async listPendingSecretReveals(userId, canViewPrivate) {
+        assert.equal(userId, jere.id);
+        assert.equal(canViewPrivate, true);
         return [];
       },
-      async markSecretRevealed() {
-        marked = true;
-        return true;
+      async markSecretRevealed(userId, key) {
+        assert.equal(userId, jere.id);
+        assert.equal(key, "secret_no_sleep_required");
+        markAttempted = true;
+        return false;
       },
       async listAdmin() {
         return [];
@@ -200,7 +208,7 @@ describe("achievement routes", () => {
     assert.equal(pending.status, 200);
     assert.deepEqual(pending.body.achievements, []);
     assert.equal(revealed.status, 404);
-    assert.equal(marked, false);
+    assert.equal(markAttempted, true);
   });
 
   it("lets admins inspect blocked secret achievements", async () => {

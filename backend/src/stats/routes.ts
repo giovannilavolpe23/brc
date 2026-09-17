@@ -3,11 +3,13 @@ import { requireAuth } from "../auth/middleware";
 import { DateKeyError, todayInArgentina, validatePastDateKey } from "../dates/trip-date";
 import { calculateStats } from "./calculations";
 import { postgresStatsRepository, type StatsRepository } from "./repository";
+import { postgresTripConfigRepository, type TripConfigRepository } from "../trip-config/repository";
 
 export function createStatsRouter(
   repository: StatsRepository = postgresStatsRepository,
   authMiddleware: RequestHandler = requireAuth,
-  now: () => Date = () => new Date()
+  now: () => Date = () => new Date(),
+  tripConfigRepository: Pick<TripConfigRepository, "getConfig"> = postgresTripConfigRepository
 ): Router {
   const router = Router();
 
@@ -16,8 +18,8 @@ export function createStatsRouter(
   router.get("/total", async (_req, res, next) => {
     try {
       const todayKey = todayInArgentina(now());
-      const data = await repository.loadStatsData(todayKey);
-      res.json(calculateStats("total", data));
+      const [data, clubConfig] = await Promise.all([repository.loadStatsData(todayKey), tripConfigRepository.getConfig()]);
+      res.json(calculateStats("total", data, undefined, clubConfig));
     } catch (error) {
       next(error);
     }
@@ -27,8 +29,8 @@ export function createStatsRouter(
     try {
       const currentNow = now();
       const dateKey = validatePastDateKey(req.params.date, currentNow);
-      const data = await repository.loadStatsData(todayInArgentina(currentNow));
-      res.json(calculateStats("day", data, dateKey));
+      const [data, clubConfig] = await Promise.all([repository.loadStatsData(todayInArgentina(currentNow)), tripConfigRepository.getConfig()]);
+      res.json(calculateStats("day", data, dateKey, clubConfig));
     } catch (error) {
       handleStatsError(error, res, next);
     }

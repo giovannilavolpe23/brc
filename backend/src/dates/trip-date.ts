@@ -5,6 +5,17 @@ const argentinaFormatter = new Intl.DateTimeFormat("en-CA", {
   day: "2-digit",
 });
 
+const argentinaTimeFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "America/Argentina/Buenos_Aires",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+
+const DAILY_REMINDER_FALLBACK_START_HOUR = 7;
+const DAILY_REMINDER_FALLBACK_END_HOUR = 19;
+
 export class DateKeyError extends Error {
   constructor(message: string) {
     super(message);
@@ -29,6 +40,16 @@ export function dateKeyDaysBeforeArgentina(days: number, now = new Date()): stri
   const [year, month, day] = today.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day - days));
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+}
+
+export function isDailyReminderFallbackWindowArgentina(now = new Date()): boolean {
+  const parts = argentinaTimeFormatter.formatToParts(now);
+  const hour = Number(parts.find((part) => part.type === "hour")?.value);
+  if (!Number.isInteger(hour)) {
+    throw new DateKeyError("invalid_argentina_time");
+  }
+
+  return hour >= DAILY_REMINDER_FALLBACK_START_HOUR && hour < DAILY_REMINDER_FALLBACK_END_HOUR;
 }
 
 export function validatePastDateKey(dateKey: string, now = new Date()): string {

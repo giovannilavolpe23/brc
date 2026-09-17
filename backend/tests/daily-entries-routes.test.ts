@@ -6,6 +6,7 @@ import { createDailyEntriesRouter, runDailyEntryFollowUps } from "../src/daily-e
 import type { DailyEntriesRepository } from "../src/daily-entries/repository";
 import type { DailyEntry, DailyEntryInput } from "../src/daily-entries/types";
 import type { AuthUser } from "../src/auth/types";
+import type { TripConfig } from "../src/trip-config/repository";
 
 const now = () => new Date("2026-08-29T15:00:00.000Z");
 
@@ -76,10 +77,15 @@ function makeRepository(seed: DailyEntry[] = []): DailyEntriesRepository & { cal
   };
 }
 
-function makeApp(user: AuthUser, repository: DailyEntriesRepository, afterUpsert: (dateKey: string) => Promise<unknown> = async () => null) {
+function makeApp(
+  user: AuthUser,
+  repository: DailyEntriesRepository,
+  afterUpsert: (dateKey: string) => Promise<unknown> = async () => null,
+  tripConfig: TripConfig = { openTime: "01:00", closeTime: "06:45" }
+) {
   const app = express();
   app.use(express.json());
-  app.use("/daily-entries", createDailyEntriesRouter(repository, authAs(user), now, afterUpsert));
+  app.use("/daily-entries", createDailyEntriesRouter(repository, authAs(user), now, afterUpsert, { getConfig: async () => tripConfig }));
   return app;
 }
 
@@ -157,6 +163,57 @@ describe("daily entries routes", () => {
     });
 
     assert.deepEqual(calls, ["fallback:daily-fallback:2026-08-28", "stats:2026-08-28", "achievements:2026-08-28"]);
+  });
+
+  it("runs daily reminder fallback for yesterday only inside the Argentina daytime window", async () => {
+    const cases = [
+      { label: "06:59", now: "2026-08-29T09:59:00.000Z", fallback: false },
+      { label: "07:00", now: "2026-08-29T10:00:00.000Z", fallback: true },
+      { label: "12:00", now: "2026-08-29T15:00:00.000Z", fallback: true },
+      { label: "18:59", now: "2026-08-29T21:59:59.000Z", fallback: true },
+      { label: "19:00", now: "2026-08-29T22:00:00.000Z", fallback: false },
+      { label: "22:00", now: "2026-08-30T01:00:00.000Z", fallback: false },
+      { label: "23:30", now: "2026-08-30T02:30:00.000Z", fallback: false },
+      { label: "00:30", now: "2026-08-29T03:30:00.000Z", fallback: false },
+    ];
+
+    for (const testCase of cases) {
+      const calls: string[] = [];
+      await runDailyEntryFollowUps("2026-08-28", {
+        now: () => new Date(testCase.now),
+        push: {
+          async sendDailyRemindersForDate(dateKey, source) {
+            calls.push(`fallback:${testCase.label}:${source}:${dateKey}`);
+            return {
+              dateKey,
+              source: source || "cron",
+              usersChecked: 13,
+              activeUsers: 13,
+              missingUsers: 12,
+              subscribedUsers: 12,
+              sent: 12,
+              failed: 0,
+            };
+          },
+          async notifyStatsReadyIfComplete(dateKey) {
+            calls.push(`stats:${testCase.label}:${dateKey}`);
+            return { sent: true, deliveries: 13 };
+          },
+        },
+        async evaluateAchievements(dateKey) {
+          calls.push(`achievements:${testCase.label}:${dateKey}`);
+        },
+      });
+
+      const expected = testCase.fallback
+        ? [
+            `fallback:${testCase.label}:daily-fallback:2026-08-28`,
+            `stats:${testCase.label}:2026-08-28`,
+            `achievements:${testCase.label}:2026-08-28`,
+          ]
+        : [`stats:${testCase.label}:2026-08-28`, `achievements:${testCase.label}:2026-08-28`];
+      assert.deepEqual(calls, expected);
+    }
   });
 
   it("does not run daily reminder fallback for historical daily entries", async () => {
@@ -468,6 +525,83 @@ describe("daily entries routes", () => {
     assert.equal(response.status, 400);
     assert.equal(response.body.error, "invalid_boliche_time_range");
     assert.deepEqual(repo.calls, []);
+  });
+
+  it("validates boliche entry and exit against configurable club times", async () => {
+    const repo = makeRepository();
+    const app = makeApp(jere, repo, async () => null, { openTime: "00:30", closeTime: "05:00" });
+
+    const beforeOpen = await request(app)
+      .put("/daily-entries/2026-08-28")
+      .send({ ...validInput, sleep: { didNotSleep: true, bedtime: null, wake: null }, boliche: { didNotGo: false, entryTime: "00:20", time: "01:10", closedClub: false } });
+    const valid = await request(app)
+      .put("/daily-entries/2026-08-28")
+      .send({ ...validInput, sleep: { didNotSleep: true, bedtime: null, wake: null }, boliche: { didNotGo: false, entryTime: "00:30", time: "04:50", closedClub: false } });
+    const atClose = await request(app)
+      .put("/daily-entries/2026-08-28")
+      .send({ ...validInput, sleep: { didNotSleep: true, bedtime: null, wake: null }, boliche: { didNotGo: false, entryTime: "01:00", time: "05:00", closedClub: false } });
+
+    assert.equal(beforeOpen.status, 400);
+    assert.equal(beforeOpen.body.error, "invalid_boliche_time_range");
+    assert.equal(valid.status, 200);
+    assert.equal(valid.body.entry.boliche.entryTime, "00:30");
+    assert.equal(valid.body.entry.boliche.time, "04:50");
+    assert.equal(atClose.status, 400);
+  });
+
+  it("validates closed club and sleep against configured closing time", async () => {
+    const repo = makeRepository();
+    const app = makeApp(jere, repo, async () => null, { openTime: "00:30", closeTime: "05:00" });
+
+    const tooEarlySleep = await request(app)
+      .put("/daily-entries/2026-08-28")
+      .send({
+        ...validInput,
+        sleep: { didNotSleep: false, bedtime: "04:50", wake: "09:00" },
+        boliche: { didNotGo: false, entryTime: "01:00", time: null, closedClub: true },
+      });
+    const valid = await request(app)
+      .put("/daily-entries/2026-08-28")
+      .send({
+        ...validInput,
+        sleep: { didNotSleep: false, bedtime: "05:10", wake: "09:00" },
+        boliche: { didNotGo: false, entryTime: "01:00", time: null, closedClub: true },
+      });
+    const didNotSleep = await request(app)
+      .put("/daily-entries/2026-08-28")
+      .send({
+        ...validInput,
+        sleep: { didNotSleep: true, bedtime: null, wake: null },
+        boliche: { didNotGo: false, entryTime: "01:00", time: null, closedClub: true },
+      });
+
+    assert.equal(tooEarlySleep.status, 400);
+    assert.equal(tooEarlySleep.body.error, "invalid_boliche_time_range");
+    assert.equal(valid.status, 200);
+    assert.equal(didNotSleep.status, 200);
+  });
+
+  it("supports configurable club ranges crossing midnight", async () => {
+    const repo = makeRepository();
+    const app = makeApp(jere, repo, async () => null, { openTime: "23:30", closeTime: "05:15" });
+
+    const valid = await request(app)
+      .put("/daily-entries/2026-08-28")
+      .send({
+        ...validInput,
+        sleep: { didNotSleep: false, bedtime: "05:30", wake: "11:00" },
+        boliche: { didNotGo: false, entryTime: "00:30", time: "04:00", closedClub: false },
+      });
+    const closed = await request(app)
+      .put("/daily-entries/2026-08-28")
+      .send({
+        ...validInput,
+        sleep: { didNotSleep: false, bedtime: "05:30", wake: "11:00" },
+        boliche: { didNotGo: false, entryTime: "00:30", time: null, closedClub: true },
+      });
+
+    assert.equal(valid.status, 200);
+    assert.equal(closed.status, 200);
   });
 
   it("cannot read or modify another user's entries, even as admin", async () => {

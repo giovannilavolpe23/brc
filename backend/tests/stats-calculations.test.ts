@@ -261,7 +261,7 @@ describe("stats calculations", () => {
     assert.deepEqual(stats.streaks.alcohol, [{ userId: jereId, value: 1 }]);
   });
 
-  it("uses closed club as 06:45 for boliche duration and counts total closures", () => {
+  it("uses the default closed club time for boliche duration and counts total closures", () => {
     const stats = calculateStats("total", {
       users: baseData().users,
       expenses: [],
@@ -280,6 +280,45 @@ describe("stats calculations", () => {
     ]);
     assert.deepEqual(stats.dailyEntries.closedClubs, [{ userId: gioId, value: 2 }]);
     assert.deepEqual(stats.streaks.closedClub, [{ userId: gioId, value: 2 }]);
+  });
+
+  it("uses configurable closing time for boliche duration without changing closure counts", () => {
+    const data: StatsData = {
+      users: baseData().users,
+      expenses: [],
+      dailyEntries: [
+        entry(gioId, "2026-08-28", { bolicheDidNotGo: false, bolicheEntryTime: "01:00", bolicheExitTime: null, bolicheClosedClub: true }),
+        entry(jereId, "2026-08-28", { bolicheDidNotGo: false, bolicheEntryTime: "00:30", bolicheExitTime: "04:45", bolicheClosedClub: false }),
+      ],
+      surveyVotes: [],
+      previaParticipants: [],
+    };
+
+    const stats = calculateStats("total", data, undefined, { openTime: "00:30", closeTime: "05:00" });
+
+    assert.deepEqual(stats.dailyEntries.bolicheMinutes, [
+      { userId: jereId, value: 255 },
+      { userId: gioId, value: 240 },
+    ]);
+    assert.deepEqual(stats.dailyEntries.closedClubs, [{ userId: gioId, value: 1 }]);
+  });
+
+  it("calculates boliche durations across midnight", () => {
+    const stats = calculateStats("day", {
+      users: baseData().users,
+      expenses: [],
+      dailyEntries: [
+        entry(gioId, "2026-08-28", { bolicheDidNotGo: false, bolicheEntryTime: "00:30", bolicheExitTime: null, bolicheClosedClub: true }),
+        entry(jereId, "2026-08-28", { bolicheDidNotGo: false, bolicheEntryTime: "00:30", bolicheExitTime: "04:00", bolicheClosedClub: false }),
+      ],
+      surveyVotes: [],
+      previaParticipants: [],
+    }, "2026-08-28", { openTime: "23:30", closeTime: "05:15" });
+
+    assert.deepEqual(stats.dailyEntries.bolicheMinutes, [
+      { userId: gioId, value: 285 },
+      { userId: jereId, value: 210 },
+    ]);
   });
 
   it("keeps the best historical closed club streak and shares tied maxima", () => {

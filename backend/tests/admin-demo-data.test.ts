@@ -81,6 +81,36 @@ function timeToMinutes(value: string): number {
   return hours * 60 + minutes;
 }
 
+function normalizeAfterOpen(value: string, openTime: string): number {
+  const openBase = timeToMinutes(openTime);
+  const open = openBase < 12 * 60 ? openBase + 24 * 60 : openBase;
+  const minutes = timeToMinutes(value);
+  return minutes < open ? minutes + 24 * 60 : minutes;
+}
+
+function assertDemoBolicheTimesMatchConfig(dataset: GeneratedDemoDataset, config: { openTime: string; closeTime: string }): void {
+  const openBase = timeToMinutes(config.openTime);
+  const open = openBase < 12 * 60 ? openBase + 24 * 60 : openBase;
+  const close = normalizeAfterOpen(config.closeTime, config.openTime);
+  dataset.dailyEntries.forEach((entry) => {
+    if (entry.bolicheDidNotGo) return;
+    assert.ok(entry.bolicheEntryTime);
+    const entryMinutes = normalizeAfterOpen(entry.bolicheEntryTime, config.openTime);
+    assert.equal(entryMinutes >= open, true);
+    assert.equal(entryMinutes < close, true);
+    if (entry.bolicheClosedClub) {
+      assert.equal(entry.bolicheExitTime, null);
+      if (!entry.sleepDidNotSleep) assert.equal(close <= normalizeAfterOpen(entry.sleepBedtime as string, config.openTime) - 10, true);
+      return;
+    }
+    assert.ok(entry.bolicheExitTime);
+    const exitMinutes = normalizeAfterOpen(entry.bolicheExitTime, config.openTime);
+    assert.equal(exitMinutes > entryMinutes, true);
+    assert.equal(exitMinutes < close, true);
+    if (!entry.sleepDidNotSleep) assert.equal(exitMinutes <= normalizeAfterOpen(entry.sleepBedtime as string, config.openTime) - 10, true);
+  });
+}
+
 function toStatsData(dataset: GeneratedDemoDataset): StatsData {
   return {
     users: dataset.users.map((user) => ({ id: user.id, legacyId: user.legacyId, displayName: user.displayName })),
@@ -306,6 +336,18 @@ describe("admin demo data generation", () => {
       assert.equal(previa.totalAmount, previa.products.reduce((sum, product) => sum + product.unitPrice * product.quantity, 0));
       assert.equal(previa.amountPerParticipant, Math.round(previa.totalAmount / previa.participantIds.length));
     });
+  });
+
+  it("generates valid boliche data for configurable club times", () => {
+    const shortConfig = { openTime: "00:30", closeTime: "05:00" };
+    const crossingConfig = { openTime: "23:30", closeTime: "05:15" };
+
+    const shortDataset = buildDemoDataset(demoUsers, "full_trip", "2026-09-02", sequenceRng([0.04, 0.18, 0.37, 0.62, 0.81, 0.95]), shortConfig);
+    const crossingDataset = buildDemoDataset(demoUsers, "full_trip", "2026-09-02", sequenceRng([0.04, 0.18, 0.37, 0.62, 0.81, 0.95]), crossingConfig);
+
+    assertDemoBolicheTimesMatchConfig(shortDataset, shortConfig);
+    assertDemoBolicheTimesMatchConfig(crossingDataset, crossingConfig);
+    assert.equal(crossingDataset.dailyEntries.some((entry) => entry.bolicheEntryTime && timeToMinutes(entry.bolicheEntryTime) < 6 * 60), true);
   });
 
   it("feeds stats and achievements with enough shared data", () => {

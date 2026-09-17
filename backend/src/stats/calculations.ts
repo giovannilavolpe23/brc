@@ -7,10 +7,9 @@ import type {
   StatsResponse,
   SurveyVoteStatsRow,
 } from "./types";
+import { DEFAULT_CLUB_TIME_CONFIG, clubDurationMinutes as configuredClubDurationMinutes, type ClubTimeConfig } from "../time/night-club";
 
-const BOLICHE_CLOSED_CLUB_TIME = "06:45";
-
-export function calculateStats(scope: "day" | "total", data: StatsData, dateKey?: string): StatsResponse {
+export function calculateStats(scope: "day" | "total", data: StatsData, dateKey?: string, clubConfig: ClubTimeConfig = DEFAULT_CLUB_TIME_CONFIG): StatsResponse {
   const activeUserIds = new Set(data.users.map((user) => user.id));
   const activeData: StatsData = {
     users: data.users,
@@ -32,14 +31,14 @@ export function calculateStats(scope: "day" | "total", data: StatsData, dateKey?
     closedDays,
     users: activeData.users,
     money: moneyStats(expenses),
-    dailyEntries: dailyEntryStats(entries),
+    dailyEntries: dailyEntryStats(entries, clubConfig),
     surveys: {
       destroyed_vote: rankingFromCounts(countBy(votes.filter((vote) => vote.surveyKey === "destroyed_vote"), "votedUserId")),
       most_flirty: rankingFromCounts(countBy(votes.filter((vote) => vote.surveyKey === "most_flirty"), "votedUserId")),
       best_outfit: rankingFromCounts(countBy(votes.filter((vote) => vote.surveyKey === "best_outfit"), "votedUserId")),
     },
     previas: previaStats(previaParticipants),
-    streaks: scope === "total" ? streakStats(closedDays, activeData) : emptyStreakStats(),
+    streaks: scope === "total" ? streakStats(closedDays, activeData, clubConfig) : emptyStreakStats(),
   };
 }
 
@@ -72,14 +71,14 @@ function moneyStats(expenses: ExpenseRow[]): StatsResponse["money"] {
   };
 }
 
-function dailyEntryStats(entries: DailyEntryStatsRow[]): StatsResponse["dailyEntries"] {
+function dailyEntryStats(entries: DailyEntryStatsRow[], clubConfig: ClubTimeConfig): StatsResponse["dailyEntries"] {
   return {
     sleepMinutes: sortRankingRows(sumDefined(entries, sleepDurationMinutes)),
     leastSleepMinutes: sortRankingRowsAsc(sumDefined(entries, totalSleepDurationMinutes)),
     siestas: sortRankingRows(sumDefined(entries, (entry) => (entry.napStart && entry.napEnd ? 1 : 0))),
     fifthMeals: sortRankingRows(sumDefined(entries, (entry) => (entry.fifthMeal === null ? null : entry.fifthMeal === "yes" ? 1 : 0))),
     bathroom: sortRankingRows(sumDefined(entries, (entry) => entry.bathroom)),
-    bolicheMinutes: sortRankingRows(sumDefined(entries, bolicheDurationMinutes)),
+    bolicheMinutes: sortRankingRows(sumDefined(entries, (entry) => bolicheDurationMinutes(entry, clubConfig))),
     closedClubs: sortRankingRows(sumDefined(entries, closedClubCount).filter((row) => row.value > 0)),
   };
 }
@@ -91,7 +90,7 @@ function previaStats(previaParticipants: PreviaParticipantStatsRow[]): StatsResp
   };
 }
 
-function streakStats(days: string[], data: StatsData): StatsResponse["streaks"] {
+function streakStats(days: string[], data: StatsData, clubConfig: ClubTimeConfig): StatsResponse["streaks"] {
   const userIds = new Set<string>();
   data.dailyEntries.forEach((entry) => userIds.add(entry.userId));
   data.expenses.forEach((expense) => userIds.add(expense.userId));
@@ -116,7 +115,7 @@ function streakStats(days: string[], data: StatsData): StatsResponse["streaks"] 
     );
 
   return {
-    boliche: rowsFor((userId, day) => bolicheDurationMinutes(entriesByUserAndDay.get(`${userId}:${day}`)) !== null),
+    boliche: rowsFor((userId, day) => bolicheDurationMinutes(entriesByUserAndDay.get(`${userId}:${day}`), clubConfig) !== null),
     closedClub: rowsFor((userId, day) => entriesByUserAndDay.get(`${userId}:${day}`)?.bolicheClosedClub === true),
     fifthMeal: rowsFor((userId, day) => entriesByUserAndDay.get(`${userId}:${day}`)?.fifthMeal === "yes"),
     bathroom: rowsFor((userId, day) => {
@@ -240,13 +239,12 @@ function napDurationMinutes(entry: DailyEntryStatsRow | undefined): number | nul
   return Math.max(0, timeToMinutes(entry.napEnd) - timeToMinutes(entry.napStart));
 }
 
-function bolicheDurationMinutes(entry: DailyEntryStatsRow | undefined): number | null {
+function bolicheDurationMinutes(entry: DailyEntryStatsRow | undefined, clubConfig: ClubTimeConfig): number | null {
   if (!entry || entry.bolicheDidNotGo) return null;
   if (!entry.bolicheEntryTime) return null;
-  const exitTime = entry.bolicheClosedClub ? BOLICHE_CLOSED_CLUB_TIME : entry.bolicheExitTime;
+  const exitTime = entry.bolicheClosedClub ? clubConfig.closeTime : entry.bolicheExitTime;
   if (!exitTime) return null;
-  const duration = timeToMinutes(exitTime) - timeToMinutes(entry.bolicheEntryTime);
-  return duration > 0 ? duration : null;
+  return configuredClubDurationMinutes(entry.bolicheEntryTime, exitTime, clubConfig);
 }
 
 function closedClubCount(entry: DailyEntryStatsRow | undefined): number | null {

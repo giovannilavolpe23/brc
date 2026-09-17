@@ -1,8 +1,9 @@
 import { Router, type NextFunction, type RequestHandler, type Response } from "express";
 import { requireAuth } from "../auth/middleware";
 import { evaluateAchievementsThroughDate } from "../achievements/evaluation";
-import { DateKeyError, dateKeyDaysBeforeArgentina, validatePastDateKey } from "../dates/trip-date";
+import { DateKeyError, dateKeyDaysBeforeArgentina, isDailyReminderFallbackWindowArgentina, validatePastDateKey } from "../dates/trip-date";
 import { pushService, type PushService } from "../push/service";
+import { defaultTripConfig, postgresTripConfigRepository, type TripConfigRepository } from "../trip-config/repository";
 import { postgresDailyEntriesRepository, type DailyEntriesRepository } from "./repository";
 import { parseDailyEntryInput, DailyEntryValidationError } from "./validation";
 
@@ -23,7 +24,8 @@ export async function runDailyEntryFollowUps(
     evaluateAchievements = evaluateAchievementsThroughDate,
   }: DailyEntryFollowUpOptions = {}
 ): Promise<void> {
-  if (dateKey === dateKeyDaysBeforeArgentina(1, now())) {
+  const currentNow = now();
+  if (dateKey === dateKeyDaysBeforeArgentina(1, currentNow) && isDailyReminderFallbackWindowArgentina(currentNow)) {
     try {
       await push.sendDailyRemindersForDate(dateKey, "daily-fallback");
     } catch (error) {
@@ -44,7 +46,8 @@ export function createDailyEntriesRouter(
   repository: DailyEntriesRepository = postgresDailyEntriesRepository,
   authMiddleware: RequestHandler = requireAuth,
   now: () => Date = () => new Date(),
-  afterUpsert: AfterDailyEntryUpsert = async (dateKey) => runDailyEntryFollowUps(dateKey, { now })
+  afterUpsert: AfterDailyEntryUpsert = async (dateKey) => runDailyEntryFollowUps(dateKey, { now }),
+  tripConfigRepository: Pick<TripConfigRepository, "getConfig"> = { getConfig: async () => defaultTripConfig }
 ): Router {
   const router = Router();
 
@@ -76,7 +79,7 @@ export function createDailyEntriesRouter(
   router.put("/:date", async (req, res, next) => {
     try {
       const dateKey = validatePastDateKey(req.params.date, now());
-      const input = parseDailyEntryInput(req.body);
+      const input = parseDailyEntryInput(req.body, await tripConfigRepository.getConfig());
       const entry = await repository.upsertEntry(req.user.id, dateKey, input);
       afterUpsert(dateKey).catch((error) => {
         console.warn("Daily entry saved but follow-up processing failed.", error);
@@ -100,7 +103,13 @@ function safeFollowUpError(error: unknown): Record<string, unknown> {
   };
 }
 
-export const dailyEntriesRouter = createDailyEntriesRouter();
+export const dailyEntriesRouter = createDailyEntriesRouter(
+  postgresDailyEntriesRepository,
+  requireAuth,
+  () => new Date(),
+  async (dateKey) => runDailyEntryFollowUps(dateKey),
+  postgresTripConfigRepository
+);
 
 function handleDailyEntriesError(error: unknown, res: Response, next: NextFunction): void {
   if (error instanceof DateKeyError || error instanceof DailyEntryValidationError) {

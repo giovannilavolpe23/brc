@@ -18,6 +18,7 @@ const gioPremiumAppearanceMigration = fs.readFileSync(path.resolve(__dirname, ".
 const gioMotionAppearanceMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/014_gio_motion_appearance.sql"), "utf8");
 const closedClubMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/015_daily_entry_closed_club.sql"), "utf8");
 const bolicheEntryMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/016_daily_entry_boliche_entry_time.sql"), "utf8");
+const tripConfigMigration = fs.readFileSync(path.resolve(__dirname, "../migrations/018_trip_config_club_times.sql"), "utf8");
 const seed = fs.readFileSync(path.resolve(__dirname, "../src/db/seed.ts"), "utf8");
 
 describe("identity schema", () => {
@@ -136,6 +137,14 @@ describe("daily entries and surveys schema", () => {
     assert.match(bolicheEntryMigration, /\) not valid;/);
     assert.match(bolicheEntryMigration, /first_three_closed_clubs/);
     assert.match(bolicheEntryMigration, /first_four_closed_clubs/);
+  });
+
+  it("adds trip config for global club times and relaxes hardcoded daily constraints", () => {
+    assert.match(tripConfigMigration, /create table if not exists trip_config/);
+    assert.match(tripConfigMigration, /club_open_time time not null default time '01:00'/);
+    assert.match(tripConfigMigration, /club_close_time time not null default time '06:45'/);
+    assert.match(tripConfigMigration, /drop constraint if exists daily_entries_boliche_times_consistent/);
+    assert.doesNotMatch(tripConfigMigration, /boliche_entry_time < time '06:45'/);
   });
 
   it("creates survey questions and historical votes", () => {

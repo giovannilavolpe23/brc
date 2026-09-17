@@ -1,6 +1,12 @@
 import type { DailyEntryInput } from "./types";
-
-const BOLICHE_CLOSED_CLUB_TIME = "06:45";
+import {
+  DEFAULT_CLUB_TIME_CONFIG,
+  isClubEntryTime,
+  isRegularClubExitTime,
+  nightRange,
+  normalizeClubTime,
+  type ClubTimeConfig,
+} from "../time/night-club";
 
 export class DailyEntryValidationError extends Error {
   constructor(message: string) {
@@ -9,7 +15,7 @@ export class DailyEntryValidationError extends Error {
   }
 }
 
-export function parseDailyEntryInput(body: unknown): DailyEntryInput {
+export function parseDailyEntryInput(body: unknown, clubConfig: ClubTimeConfig = DEFAULT_CLUB_TIME_CONFIG): DailyEntryInput {
   const record = getRecord(body);
   if ("computed" in record) {
     throw new DailyEntryValidationError("computed_fields_are_not_accepted");
@@ -20,7 +26,7 @@ export function parseDailyEntryInput(body: unknown): DailyEntryInput {
   const fifthMeal = parseFifthMeal(record.fifthMeal);
   const bathroom = parseBathroom(record.bathroom);
   const boliche = parseBoliche(record.boliche);
-  validateLogicalTimes(sleep, nap, boliche);
+  validateLogicalTimes(sleep, nap, boliche, clubConfig);
 
   return { sleep, nap, fifthMeal, bathroom, boliche };
 }
@@ -115,7 +121,8 @@ function parseRequiredTime(value: unknown, error: string): string {
 function validateLogicalTimes(
   sleep: DailyEntryInput["sleep"],
   nap: DailyEntryInput["nap"],
-  boliche: DailyEntryInput["boliche"]
+  boliche: DailyEntryInput["boliche"],
+  clubConfig: ClubTimeConfig
 ): void {
   if (!sleep.didNotSleep && sleep.bedtime && sleep.wake && wakeAbsoluteMinutes(sleep.wake) <= bedtimeAbsoluteMinutes(sleep.bedtime)) {
     throw new DailyEntryValidationError("invalid_sleep_range");
@@ -125,7 +132,7 @@ function validateLogicalTimes(
     throw new DailyEntryValidationError("invalid_nap_start_before_wake");
   }
 
-  const bolicheExitTime = boliche.closedClub ? BOLICHE_CLOSED_CLUB_TIME : boliche.time;
+  const bolicheExitTime = boliche.closedClub ? clubConfig.closeTime : boliche.time;
   if (!boliche.didNotGo && bolicheExitTime) {
     if (!sleep.didNotSleep && !sleep.bedtime) {
       throw new DailyEntryValidationError("invalid_boliche_sleep_required");
@@ -134,20 +141,17 @@ function validateLogicalTimes(
     if (!boliche.entryTime) {
       throw new DailyEntryValidationError("invalid_boliche_entry_time");
     }
-    const entry = timeToMinutes(boliche.entryTime);
-    const exit = timeToMinutes(bolicheExitTime);
-    if (exit <= entry) {
+    if (!isClubEntryTime(boliche.entryTime, clubConfig)) {
       throw new DailyEntryValidationError("invalid_boliche_time_range");
     }
-    const exitAbsolute = exit + 24 * 60;
-    const entryAbsolute = entry + 24 * 60;
-    const openAbsolute = 25 * 60;
-    const closeAbsolute = 24 * 60 + timeToMinutes(BOLICHE_CLOSED_CLUB_TIME);
-    const latestExit = sleep.didNotSleep ? closeAbsolute : bedtimeAbsoluteMinutes(sleep.bedtime as string) - 10;
-    if (entryAbsolute < openAbsolute || entryAbsolute >= closeAbsolute || exitAbsolute < openAbsolute || exitAbsolute > latestExit) {
+
+    const range = nightRange(clubConfig);
+    const exitAbsolute = boliche.closedClub ? range.close : normalizeClubTime(bolicheExitTime, clubConfig);
+    const latestExit = sleep.didNotSleep ? range.close : bedtimeAbsoluteMinutes(sleep.bedtime as string) - 10;
+    if (exitAbsolute > latestExit) {
       throw new DailyEntryValidationError("invalid_boliche_time_range");
     }
-    if (!boliche.closedClub && exitAbsolute >= closeAbsolute) {
+    if (!boliche.closedClub && !isRegularClubExitTime(boliche.entryTime, bolicheExitTime, clubConfig)) {
       throw new DailyEntryValidationError("invalid_boliche_time_range");
     }
   }
